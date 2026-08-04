@@ -1,0 +1,56 @@
+<document>
+<style>
+block {
+	background-color: black;
+	color: white;
+}
+#title-bar .selected {
+	background-color: white;
+	color: black;
+	bold: true;
+}
+#content block {
+	display: false;
+}
+#content block.selected {
+	display: true;
+}
+</style>
+<block padding="10">
+	<stack id="title-bar">
+		<inline id="time-bar">
+			<text bold>TRIMUI</text>
+			<spacer></spacer>
+			<text id="battery">100%</text>
+			<spacer width="10"></spacer>
+			<text id="time"></text>
+		</inline>
+		<inline id="cat-bar">
+			<spacer></spacer>
+			<text class="selected" name="games">游戏</text>
+			<spacer width="30"></spacer>
+			<text name="ports">独立</text>
+			<spacer width="30"></spacer>
+			<text name="apps">应用</text>
+			<spacer width="30"></spacer>
+			<text name="system">系统</text>
+			<spacer></spacer>
+		</inline>
+	</stack>
+	<spacer height="10"></spacer>
+	<stack id="content" spacer>
+		<block id="games" class="selected" background-color="red">
+			<spacer></spacer>
+		</block>
+		<block id="ports" background-color="green">
+			<spacer></spacer>
+		</block>
+		<block id="apps" background-color="blue">
+			<spacer></spacer>
+		</block>
+		<block id="system" background-color="yellow">
+			<spacer></spacer>
+		</block>
+	</stack>
+</block>
+</document>
