@@ -75,9 +75,7 @@ type MainWindow struct {
 	app *fbiw.App
 	doc *fbiw.Document
 
-	// 当前选中的分类
-	catIndex             int
-	navigatingCategories bool
+	navigators []Navigator
 }
 
 func (w *MainWindow) initSystemTime() {
@@ -137,41 +135,133 @@ func (w *MainWindow) initSystemPower() {
 	}()
 }
 
+func (w *MainWindow) asyncInitApps() {
+	apps := LoadEmus()
+	w.app.Async(func() {
+		container := w.doc.GetElementByID(`apps`).(*fbiw.Scroll)
+		container.SetItems(len(apps),
+			func() fbiw.Box {
+				block := fbiw.NewInline(w.doc)
+				block.Set(`align`, `middle`)
+				spacer1 := fbiw.NewSpacer(w.doc)
+				spacer1.Set(`width`, `20`)
+				block.AppendChild(spacer1)
+				image := fbiw.NewImage(w.doc)
+				block.AppendChild(image)
+				spacer2 := fbiw.NewSpacer(w.doc)
+				spacer2.Set(`width`, `20`)
+				block.AppendChild(spacer2)
+				text := fbiw.NewText(w.doc)
+				block.AppendChild(text)
+				return block
+			},
+			func(box fbiw.Box, index int) {
+				app := apps[index]
+				image := box.Base().Children[1].(*fbiw.Image)
+				text := box.Base().Children[3].(*fbiw.Text)
+				image.SetPath(filepath.Join(app.Dir, app.Config.IconTop))
+				text.SetText(fbiw.Iif(app.Config.LabelChinese != ``, app.Config.LabelChinese, app.Config.Label))
+			},
+		)
+	})
+}
+
 func (w *MainWindow) HandleKeyboardEvent(name fbiw.KeyName, pressed bool) {
-	if w.navigatingCategories && pressed {
-		w.handleNavigating(name)
+	if len(w.navigators) <= 0 || !pressed {
 		return
+	}
+	last := w.navigators[len(w.navigators)-1]
+
+	next := last.Navigate(name)
+	if next == nil {
+		return
+	} else if next == false {
+		w.navigators = w.navigators[:len(w.navigators)-1]
+		w.HandleKeyboardEvent(name, pressed)
+	} else if nav, ok := next.(Navigator); ok {
+		w.navigators = append(w.navigators, nav)
+		w.HandleKeyboardEvent(name, pressed)
+	} else {
+		log.Panicf(`navigator 返回了无效值：%v`, next)
 	}
 }
 
-func (w *MainWindow) handleNavigating(name fbiw.KeyName) {
-	if w.catIndex == 0 && name == fbiw.Left {
-		return
+type Navigator interface {
+	// 返回值分几种情况：
+	//  - 如果是nil，继续由自己导航。
+	//  - 如果是Navigator，压栈此新的Navigator，并由它接管新的导航。
+	//  - 如果是false，结束导航，回到前一个导航。
+	Navigate(name fbiw.KeyName) any
+}
+
+type _TitleNavigator struct {
+	w        *MainWindow
+	catIndex int
+}
+
+func (n *_TitleNavigator) Navigate(name fbiw.KeyName) any {
+	if n.catIndex == 0 && name == fbiw.Left {
+		return nil
 	}
-	items := w.doc.QuerySelectorAll(`#cat-bar text`)
-	contentBlocks := w.doc.QuerySelectorAll(`#content block`)
-	if w.catIndex == len(items)-1 && name == fbiw.Right {
-		return
+	items := n.w.doc.QuerySelectorAll(`#cat-bar text`)
+	contentBlocks := n.w.doc.GetElementByID(`content`).Base().Children
+	if n.catIndex == len(items)-1 && name == fbiw.Right {
+		return nil
 	}
 	if name == fbiw.Left || name == fbiw.Right {
 		// 原来的去掉选中
-		if w.catIndex >= 0 && w.catIndex < len(items) {
-			t := items[w.catIndex].(*fbiw.Text)
+		if n.catIndex >= 0 && n.catIndex < len(items) {
+			t := items[n.catIndex].(*fbiw.Text)
 			t.Class.Remove(`selected`)
-			b := contentBlocks[w.catIndex].(*fbiw.Block)
-			b.Class.Remove(`selected`)
+			b := contentBlocks[n.catIndex]
+			b.Base().Class.Remove(`selected`)
 		}
 		switch name {
 		case fbiw.Left:
-			w.catIndex--
+			n.catIndex--
 		case fbiw.Right:
-			w.catIndex++
+			n.catIndex++
 		}
-		t := items[w.catIndex].(*fbiw.Text)
+		t := items[n.catIndex].(*fbiw.Text)
 		t.Class.Add(`selected`)
-		b := contentBlocks[w.catIndex].(*fbiw.Block)
-		b.Class.Add(`selected`)
+		b := contentBlocks[n.catIndex]
+		b.Base().Class.Add(`selected`)
+		return nil
 	}
+	if name == fbiw.Down {
+		t := items[n.catIndex].(*fbiw.Text)
+		if t.Name == `apps` {
+			return &_AppsNavigator{
+				w:      n.w,
+				scroll: n.w.doc.QuerySelector(`#apps`).(*fbiw.Scroll),
+			}
+		}
+	}
+	return nil
+}
+
+type _AppsNavigator struct {
+	w      *MainWindow
+	scroll *fbiw.Scroll
+}
+
+func (n *_AppsNavigator) Navigate(name fbiw.KeyName) any {
+	if name == fbiw.B {
+		return false
+	}
+
+	if index := n.scroll.Index(); index == 0 && name == fbiw.Up {
+		n.scroll.Deselect()
+		return false
+	}
+
+	if name == fbiw.Left || name == fbiw.Right {
+		return false
+	}
+
+	n.scroll.Navigate(name)
+
+	return nil
 }
 
 func NewMainWindow(app *fbiw.App) *MainWindow {
@@ -180,15 +270,18 @@ func NewMainWindow(app *fbiw.App) *MainWindow {
 	win := &MainWindow{
 		app: app,
 		doc: doc,
-
-		catIndex:             0,
-		navigatingCategories: true,
 	}
 
 	doc.SetDelegator(win)
 
 	win.initSystemTime()
 	win.initSystemPower()
+	go win.asyncInitApps()
+
+	win.navigators = append(win.navigators, &_TitleNavigator{
+		w:        win,
+		catIndex: 0,
+	})
 
 	return win
 }

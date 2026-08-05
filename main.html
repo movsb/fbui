@@ -1,19 +1,25 @@
 <document>
 <style>
 block {
-	background-color: black;
 	color: white;
+}
+#title-bar {
+	color: white;
+	background-color: black;
 }
 #title-bar .selected {
 	background-color: white;
 	color: black;
 	bold: true;
 }
-#content block {
+#content .content-item {
 	display: false;
 }
-#content block.selected {
+#content .content-item.selected {
 	display: true;
+}
+#apps .selected {
+	background-color: yellow;
 }
 </style>
 <block padding="10">
@@ -39,17 +45,13 @@ block {
 	</stack>
 	<spacer height="10"></spacer>
 	<stack id="content" spacer>
-		<block id="games" class="selected" background-color="red">
-			<spacer></spacer>
+		<block class="content-item selected" id="games" background-color="red">
 		</block>
-		<block id="ports" background-color="green">
-			<spacer></spacer>
+		<block class="content-item" id="ports" background-color="green">
 		</block>
-		<block id="apps" background-color="blue">
-			<spacer></spacer>
-		</block>
-		<block id="system" background-color="yellow">
-			<spacer></spacer>
+		<scroll class="content-item" id="apps" background-color="blue" rows="5" gap="5">
+		</scroll>
+		<block class="content-item" id="system" background-color="yellow">
 		</block>
 	</stack>
 </block>

@@ -2,9 +2,11 @@ module trimui
 
 go 1.26.5
 
+require github.com/movsb/fbiw v0.0.0-20260804022842-29a22e8119b7
+
 require (
+	github.com/anthonynsimon/bild v0.17.0 // indirect
 	github.com/goccy/go-yaml v1.19.2 // indirect
-	github.com/movsb/fbiw v0.0.0-20260804022842-29a22e8119b7 // indirect
 	github.com/phuslu/lru v1.0.21 // indirect
 	github.com/veandco/go-sdl2 v0.4.40 // indirect
 	golang.org/x/image v0.44.0 // indirect
@@ -14,4 +16,3 @@ require (
 )
 
 replace github.com/movsb/fbiw => /Users/tao/code/fbiw
-
