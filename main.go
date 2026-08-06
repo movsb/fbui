@@ -136,31 +136,30 @@ func (w *MainWindow) initSystemPower() {
 }
 
 func (w *MainWindow) asyncInitApps() {
+	type _AppItem struct {
+		Root  fbiw.Box
+		Image *fbiw.Image `css:"img"`
+		Text  *fbiw.Text  `css:"text"`
+	}
+
 	apps := LoadEmus()
 	w.app.Async(func() {
-		container := w.doc.GetElementByID(`apps`).(*fbiw.Scroll)
+		container := w.doc.GetBoxByID(`apps`).(*fbiw.Scroll)
 		container.SetItems(len(apps),
-			func() fbiw.Box {
-				block := fbiw.NewInline(w.doc)
-				block.Set(`align`, `middle`)
-				spacer1 := fbiw.NewSpacer(w.doc)
-				spacer1.Set(`width`, `20`)
-				block.AppendChild(spacer1)
-				image := fbiw.NewImage(w.doc)
-				block.AppendChild(image)
-				spacer2 := fbiw.NewSpacer(w.doc)
-				spacer2.Set(`width`, `20`)
-				block.AppendChild(spacer2)
-				text := fbiw.NewText(w.doc)
-				block.AppendChild(text)
-				return block
+			func() (fbiw.Box, any) {
+				item := fbiw.Unmarshal[_AppItem](w.doc, `
+<block align=center padding=30>
+	<img spacer>
+	<text></text>
+</block>
+`)
+				return item.Root, item
 			},
-			func(box fbiw.Box, index int) {
+			func(item any, index int) {
 				app := apps[index]
-				image := box.Base().Children[1].(*fbiw.Image)
-				text := box.Base().Children[3].(*fbiw.Text)
-				image.SetPath(filepath.Join(app.Dir, app.Config.IconTop))
-				text.SetText(fbiw.Iif(app.Config.LabelChinese != ``, app.Config.LabelChinese, app.Config.Label))
+				appItem := item.(*_AppItem)
+				appItem.Image.SetPath(filepath.Join(app.Dir, app.Config.IconTop))
+				appItem.Text.SetText(fbiw.Iif(app.Config.LabelChinese != ``, app.Config.LabelChinese, app.Config.Label))
 			},
 		)
 	})
@@ -204,7 +203,7 @@ func (n *_TitleNavigator) Navigate(name fbiw.KeyName) any {
 		return nil
 	}
 	items := n.w.doc.QuerySelectorAll(`#cat-bar text`)
-	contentBlocks := n.w.doc.GetElementByID(`content`).Base().Children
+	contentBlocks := n.w.doc.GetBoxByID(`content`).Base().Children
 	if n.catIndex == len(items)-1 && name == fbiw.Right {
 		return nil
 	}
@@ -252,10 +251,6 @@ func (n *_AppsNavigator) Navigate(name fbiw.KeyName) any {
 
 	if index := n.scroll.Index(); index == 0 && name == fbiw.Up {
 		n.scroll.Deselect()
-		return false
-	}
-
-	if name == fbiw.Left || name == fbiw.Right {
 		return false
 	}
 
