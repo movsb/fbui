@@ -18,6 +18,7 @@ type Config struct {
 	Icon         string `json:"icon"`
 	Background   string `json:"background"`
 	Launch       string `json:"launch"`
+	RomPath      string `json:"rompath"`
 }
 
 func parseConfig(path string) (*Config, error) {
