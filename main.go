@@ -4,13 +4,10 @@ import (
 	"context"
 	"embed"
 	_ "embed"
-	"fmt"
 	"log"
 	"net/http"
 	_ "net/http/pprof"
-	"os/exec"
 	"path/filepath"
-	"time"
 
 	"github.com/movsb/fbiw"
 )
@@ -79,63 +76,6 @@ type MainWindow struct {
 	navigators []Navigator
 }
 
-func (w *MainWindow) initSystemTime() {
-	txtTime := w.doc.QuerySelector(`#time`).(*fbiw.Text)
-	txtTime.SetText(time.Now().Format(`15:04`))
-	go func() {
-		last := ``
-		for range time.Tick(time.Minute) {
-			select {
-			case <-w.app.Context().Done():
-				return
-			default:
-				w.app.Async(func() {
-					now := time.Now().Format(`15:04`)
-					if now == last {
-						return
-					}
-					last = now
-					txtTime.SetText(now)
-				})
-			}
-		}
-	}()
-}
-
-func (w *MainWindow) initSystemPower() {
-	txtPower := w.doc.QuerySelector(`#battery`).(*fbiw.Text)
-
-	last := uint8(0)
-
-	update := func() {
-		info, err := ReadPowerStatus()
-		if err != nil {
-			log.Println(err)
-			return
-		}
-		if info.Capacity == last {
-			return
-		}
-		w.app.Async(func() {
-			txtPower.SetText(fmt.Sprintf(`%d%%`, info.Capacity))
-			last = info.Capacity
-		})
-	}
-
-	update()
-
-	go func() {
-		for range time.Tick(time.Second * 10) {
-			select {
-			case <-w.app.Context().Done():
-				return
-			default:
-				update()
-			}
-		}
-	}()
-}
-
 func (w *MainWindow) HandleKeyboardEvent(name fbiw.KeyName, pressed bool) {
 	if len(w.navigators) <= 0 || !pressed {
 		return
@@ -164,95 +104,6 @@ type Navigator interface {
 	Navigate(name fbiw.KeyName) any
 }
 
-type _TitleNavigator struct {
-	w        *MainWindow
-	catIndex int
-}
-
-func (n *_TitleNavigator) Navigate(name fbiw.KeyName) any {
-	if n.catIndex == 0 && name == fbiw.Left {
-		return nil
-	}
-	items := n.w.doc.QuerySelectorAll(`#cat-bar text`)
-	contentBlocks := n.w.doc.GetBoxByID(`content`).Base().Children
-	if n.catIndex == len(items)-1 && name == fbiw.Right {
-		return nil
-	}
-	if name == fbiw.Left || name == fbiw.Right {
-		// 原来的去掉选中
-		if n.catIndex >= 0 && n.catIndex < len(items) {
-			t := items[n.catIndex].(*fbiw.Text)
-			t.Class.Remove(`selected`)
-			b := contentBlocks[n.catIndex]
-			b.Base().Class.Remove(`selected`)
-		}
-		switch name {
-		case fbiw.Left:
-			n.catIndex--
-		case fbiw.Right:
-			n.catIndex++
-		}
-		t := items[n.catIndex].(*fbiw.Text)
-		t.Class.Add(`selected`)
-		b := contentBlocks[n.catIndex]
-		b.Base().Class.Add(`selected`)
-		return nil
-	}
-	if name == fbiw.Down {
-		t := items[n.catIndex].(*fbiw.Text)
-		switch t.Name {
-		case `apps`:
-			return &_AppsNavigator{
-				w:      n.w,
-				scroll: n.w.doc.QuerySelector(`#apps`).(*fbiw.Scroll),
-			}
-		case `games`:
-			return &EmusNavigator{
-				window: n.w,
-				scroll: n.w.doc.QuerySelector(`#games`).(*fbiw.Scroll),
-			}
-		}
-	}
-	return nil
-}
-
-type _AppsNavigator struct {
-	w      *MainWindow
-	scroll *fbiw.Scroll
-}
-
-func (n *_AppsNavigator) Navigate(name fbiw.KeyName) any {
-	if name == fbiw.B {
-		log.Printf(`收到B按键`)
-		n.scroll.Deselect()
-		return false
-	}
-
-	if name == fbiw.A && n.scroll.DataIndex() != -1 {
-		apps := n.scroll.GetData(`apps`).([]*LaunchConfig)
-		app := apps[n.scroll.DataIndex()]
-		n.w.app.Detach()
-		go func() {
-			defer n.w.app.Async(func() {
-				n.w.app.Attach()
-			})
-			cmd := exec.Command(filepath.Join(app.Dir, app.Config.Launch))
-			log.Println(`启动进程：`, cmd.String())
-			cmd.Run()
-		}()
-		return nil
-	}
-
-	if n.scroll.DataRowIndex() <= 0 && name == fbiw.Up {
-		n.scroll.Deselect()
-		return false
-	}
-
-	n.scroll.Navigate(name)
-
-	return nil
-}
-
 func NewMainWindow(app *fbiw.App) *MainWindow {
 	doc := app.New(`main.html`, `skin`)
 
@@ -265,8 +116,10 @@ func NewMainWindow(app *fbiw.App) *MainWindow {
 
 	win.initSystemTime()
 	win.initSystemPower()
+
 	go win.asyncInitApps()
 	go win.asyncInitEmus()
+	go win.asyncInitPorts()
 
 	win.navigators = append(win.navigators, &_TitleNavigator{
 		w:        win,

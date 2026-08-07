@@ -22,6 +22,10 @@ block {
 	background-color: yellow;
 	bold: true;
 }
+#ports .selected {
+	background-color: yellow;
+	bold: true;
+}
 #apps .selected {
 	background-color: yellow;
 }
@@ -51,8 +55,8 @@ block {
 	<stack id="content" spacer fill>
 		<scroll class="content-item selected" id="games" background-color="red" rows="2" cols="3" gap="30" padding="20">
 		</scroll>
-		<block class="content-item" id="ports" background-color="green">
-		</block>
+		<scroll class="content-item" id="ports" background-color="green" rows="2" cols="3" gap="30" padding="20">
+		</scroll>
 		<scroll class="content-item" id="apps" background-color="blue" rows="2" cols="3" gap="30" padding="20">
 		</scroll>
 		<block class="content-item" id="system" background-color="yellow">

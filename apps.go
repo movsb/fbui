@@ -1,6 +1,8 @@
 package main
 
 import (
+	"log"
+	"os/exec"
 	"path/filepath"
 
 	"github.com/movsb/fbiw"
@@ -46,4 +48,42 @@ func (w *MainWindow) asyncInitApps() {
 			},
 		)
 	})
+}
+
+type _AppsNavigator struct {
+	w        *MainWindow
+	scroll   *fbiw.Scroll
+	dataName string
+}
+
+func (n *_AppsNavigator) Navigate(name fbiw.KeyName) any {
+	if name == fbiw.B {
+		log.Printf(`收到B按键`)
+		n.scroll.Deselect()
+		return false
+	}
+
+	if name == fbiw.A && n.scroll.DataIndex() != -1 {
+		apps := n.scroll.GetData(n.dataName).([]*LaunchConfig)
+		app := apps[n.scroll.DataIndex()]
+		n.w.app.Detach()
+		go func() {
+			defer n.w.app.Async(func() {
+				n.w.app.Attach()
+			})
+			cmd := exec.Command(app.LauncherScriptPath())
+			log.Println(`启动进程：`, cmd.String())
+			cmd.Run()
+		}()
+		return nil
+	}
+
+	if n.scroll.DataRowIndex() <= 0 && name == fbiw.Up {
+		n.scroll.Deselect()
+		return false
+	}
+
+	n.scroll.Navigate(name)
+
+	return nil
 }
