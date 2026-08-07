@@ -81,16 +81,16 @@ type MainWindow struct {
 
 func (w *MainWindow) initSystemTime() {
 	txtTime := w.doc.QuerySelector(`#time`).(*fbiw.Text)
-	txtTime.SetText(time.Now().Format(`15:04:05`))
+	txtTime.SetText(time.Now().Format(`15:04`))
 	go func() {
 		last := ``
-		for range time.Tick(time.Second * 1) {
+		for range time.Tick(time.Minute) {
 			select {
 			case <-w.app.Context().Done():
 				return
 			default:
 				w.app.Async(func() {
-					now := time.Now().Format(`15:04:05`)
+					now := time.Now().Format(`15:04`)
 					if now == last {
 						return
 					}
@@ -167,35 +167,6 @@ func (w *MainWindow) asyncInitApps() {
 	})
 }
 
-func (w *MainWindow) asyncInitRoms() {
-	type _RomItem struct {
-		Root fbiw.Box
-		Text *fbiw.Text `css:"text"`
-	}
-
-	emus := LoadEmus()
-
-	w.app.Async(func() {
-		container := w.doc.GetBoxByID(`games`).(*fbiw.Scroll)
-		container.SetItems(len(emus),
-			func() (fbiw.Box, any) {
-				item := fbiw.Unmarshal[_RomItem](w.doc, `
-<block align=center padding=30>
-	<img spacer>
-	<text></text>
-</block>
-`)
-				return item.Root, item
-			},
-			func(item any, index int) {
-				app := emus[index]
-				appItem := item.(*_RomItem)
-				// appItem.Image.SetPath(filepath.Join(app.Dir, app.Config.IconTop))
-				appItem.Text.SetText(fbiw.Iif(app.Config.LabelChinese != ``, app.Config.LabelChinese, app.Config.Label))
-			},
-		)
-	})
-}
 func (w *MainWindow) HandleKeyboardEvent(name fbiw.KeyName, pressed bool) {
 	if len(w.navigators) <= 0 || !pressed {
 		return
@@ -260,10 +231,16 @@ func (n *_TitleNavigator) Navigate(name fbiw.KeyName) any {
 	}
 	if name == fbiw.Down {
 		t := items[n.catIndex].(*fbiw.Text)
-		if t.Name == `apps` {
+		switch t.Name {
+		case `apps`:
 			return &_AppsNavigator{
 				w:      n.w,
 				scroll: n.w.doc.QuerySelector(`#apps`).(*fbiw.Scroll),
+			}
+		case `games`:
+			return &_RomsNavigator{
+				w:      n.w,
+				scroll: n.w.doc.QuerySelector(`#games`).(*fbiw.Scroll),
 			}
 		}
 	}
@@ -278,6 +255,7 @@ type _AppsNavigator struct {
 func (n *_AppsNavigator) Navigate(name fbiw.KeyName) any {
 	if name == fbiw.B {
 		log.Printf(`收到B按键`)
+		n.scroll.Deselect()
 		return false
 	}
 
@@ -289,7 +267,9 @@ func (n *_AppsNavigator) Navigate(name fbiw.KeyName) any {
 			defer n.w.app.Async(func() {
 				n.w.app.Attach()
 			})
-			exec.Command(filepath.Join(app.Dir, app.Config.Launch)).Run()
+			cmd := exec.Command(filepath.Join(app.Dir, app.Config.Launch))
+			log.Println(`启动进程：`, cmd.String())
+			cmd.Run()
 		}()
 		return nil
 	}
@@ -317,7 +297,7 @@ func NewMainWindow(app *fbiw.App) *MainWindow {
 	win.initSystemTime()
 	win.initSystemPower()
 	go win.asyncInitApps()
-	// go win.asyncInitRoms()
+	go win.asyncInitRoms()
 
 	win.navigators = append(win.navigators, &_TitleNavigator{
 		w:        win,
