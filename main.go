@@ -136,37 +136,6 @@ func (w *MainWindow) initSystemPower() {
 	}()
 }
 
-func (w *MainWindow) asyncInitApps() {
-	type _AppItem struct {
-		Root  fbiw.Box
-		Image *fbiw.Image `css:"img"`
-		Text  *fbiw.Text  `css:"text"`
-	}
-
-	apps := LoadApps()
-	w.app.Async(func() {
-		container := w.doc.GetBoxByID(`apps`).(*fbiw.Scroll)
-		container.SetData(`apps`, apps)
-		container.SetItems(len(apps),
-			func() (fbiw.Box, any) {
-				item := fbiw.Unmarshal[_AppItem](w.doc, `
-<block align=center padding=30>
-	<img spacer>
-	<text></text>
-</block>
-`)
-				return item.Root, item
-			},
-			func(item any, index int) {
-				app := apps[index]
-				appItem := item.(*_AppItem)
-				appItem.Image.SetPath(filepath.Join(app.Dir, app.Config.IconTop))
-				appItem.Text.SetText(fbiw.Iif(app.Config.LabelChinese != ``, app.Config.LabelChinese, app.Config.Label))
-			},
-		)
-	})
-}
-
 func (w *MainWindow) HandleKeyboardEvent(name fbiw.KeyName, pressed bool) {
 	if len(w.navigators) <= 0 || !pressed {
 		return
@@ -238,8 +207,8 @@ func (n *_TitleNavigator) Navigate(name fbiw.KeyName) any {
 				scroll: n.w.doc.QuerySelector(`#apps`).(*fbiw.Scroll),
 			}
 		case `games`:
-			return &_RomsNavigator{
-				w:      n.w,
+			return &EmusNavigator{
+				window: n.w,
 				scroll: n.w.doc.QuerySelector(`#games`).(*fbiw.Scroll),
 			}
 		}
@@ -297,7 +266,7 @@ func NewMainWindow(app *fbiw.App) *MainWindow {
 	win.initSystemTime()
 	win.initSystemPower()
 	go win.asyncInitApps()
-	go win.asyncInitRoms()
+	go win.asyncInitEmus()
 
 	win.navigators = append(win.navigators, &_TitleNavigator{
 		w:        win,
