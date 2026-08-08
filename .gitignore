@@ -2,4 +2,7 @@
 /sdcard
 /trimui
 /.vscode/launch.json
+*.sw?
+
+
 

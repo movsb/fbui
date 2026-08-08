@@ -20,12 +20,11 @@ func init() {
 }
 
 func initFonts(app *fbiw.App) {
-	if err := app.AddFont(
-		`system`, false, false,
-		`./fonts/MapleMonoNormalNL-NF-CN-Regular.ttf`,
-	); err != nil {
-		if err := app.AddFont(`system`, false, false, `/usr/trimui/res/full.ttf`); err != nil {
-			log.Panic(`加载默认字体失败：`, err)
+	if err := app.AddFont(`system`, false, false, `./fonts/MapleMonoNormalNL-NF-CN-Regular.ttf`); err != nil {
+		if err := app.AddFont(`system`, false, false, `/root/fonts/MapleMonoNormalNL-NF-CN-Regular.ttf`); err != nil {
+			if err := app.AddFont(`system`, false, false, `/usr/trimui/res/full.ttf`); err != nil {
+				log.Panic(`加载默认字体失败：`, err)
+			}
 		}
 	}
 	for dir, faces := range map[string][]struct {

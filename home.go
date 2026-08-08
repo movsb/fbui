@@ -83,9 +83,9 @@ func (n *_TitleNavigator) Navigate(name fbiw.KeyName) any {
 		// 原来的去掉选中
 		if n.catIndex >= 0 && n.catIndex < len(items) {
 			t := items[n.catIndex].(*fbiw.Text)
-			t.Class.Remove(`selected`)
+			t.ClassRemove(`selected`)
 			b := contentBlocks[n.catIndex]
-			b.Base().Class.Remove(`selected`)
+			b.Base().ClassRemove(`selected`)
 		}
 		switch name {
 		case fbiw.Left:
@@ -94,9 +94,9 @@ func (n *_TitleNavigator) Navigate(name fbiw.KeyName) any {
 			n.catIndex++
 		}
 		t := items[n.catIndex].(*fbiw.Text)
-		t.Class.Add(`selected`)
+		t.ClassAdd(`selected`)
 		b := contentBlocks[n.catIndex]
-		b.Base().Class.Add(`selected`)
+		b.Base().ClassAdd(`selected`)
 		return nil
 	}
 	if name == fbiw.Down {
