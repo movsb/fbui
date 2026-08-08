@@ -18,6 +18,9 @@ import (
 type Terminal struct {
 	fbiw.BaseBox
 
+	// 默认文字颜色。
+	defaultColor fbiw.Color
+
 	// 当前使用的窗口大小。
 	old fbiw.Rect
 
@@ -40,11 +43,30 @@ type Terminal struct {
 }
 
 func NewTerminal(doc *fbiw.Document) *Terminal {
-	return &Terminal{BaseBox: fbiw.NewBaseBox(doc, `terminal`)}
+	return &Terminal{
+		BaseBox: fbiw.NewBaseBox(doc, `terminal`),
+		// 不使用黑、白的原因是防止可能默认的黑、白背景相同，然后啥也看不见。
+		defaultColor: fbiw.ColorFromRGBA(0xFF, 0, 0, 0xFF),
+	}
 }
 
 func init() {
 	fbiw.Define(`terminal`, true, NewTerminal)
+}
+
+func (b *Terminal) SetProp(key, val string) error {
+	switch key {
+	case `default-color`:
+		val, err := fbiw.ParseColor(val)
+		if err != nil {
+			return err
+		}
+		b.defaultColor = val.Color
+		// NOTE 暂未支持动态修改
+		return nil
+	default:
+		return b.Base().SetProp(key, val)
+	}
 }
 
 func (b *Terminal) Calc(availWidth, availHeight int, constraints fbiw.Constraints) {
@@ -75,13 +97,25 @@ func (b *Terminal) Draw(canvas *fbiw.Canvas) {
 
 	for r := range b.screen.Lines {
 		for c := range b.screen.Columns {
-			cell := b.screen.Buffer[r][c]
 			canvas := canvas.Offset(offsetX, offsetY)
+			cell := b.screen.Buffer[r][c]
+
+			fgColor := b.defaultColor
+			// TODO 处理颜色查表。
+
+			// 非默认色暂时简单描个反色。
+			if cell.Attr.Bg.Mode != te.ColorDefault {
+				bgColor := b.defaultColor
+				canvas.FillRect(0, 0, b.cellWidth, b.cellHeight, bgColor)
+				fgColor = fbiw.ColorNone
+			}
+
 			canvas.DrawString(
 				cell.Data, face,
-				fbiw.ColorFromRGBA(0xFF, 0, 0, 0xFF),
+				fgColor,
 				b.cellWidth, b.cellHeight,
 			)
+
 			offsetX += b.cellWidth + b.spacingHorizontal
 		}
 		offsetY += b.cellHeight + b.spacingVertical
@@ -165,8 +199,7 @@ func (b *Terminal) start() {
 		home = `/root`
 	}
 
-	// cmd := exec.Command(sh, `-l`)
-	cmd := exec.Command(`htop`)
+	cmd := exec.Command(sh, `-l`)
 	cmd.Env = append(os.Environ(),
 		fmt.Sprintf(`HOME=%s`, home),
 		"TERM=xterm-256color",
