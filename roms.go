@@ -251,6 +251,8 @@ func (n *GamesNavigator) romFinalPath(launcher *LaunchConfig, rom RomInfo) strin
 // 在当前目录枚举游戏列表（含子目录名）。
 //   - 不会递归进子目录
 //   - 目前放前面
+//   - 不包含以“.”开头的文件
+//   - 如果目录是空目录，则也不会包含
 func (n *GamesNavigator) listRomsInDir(dir string) []RomInfo {
 	roms := []RomInfo{}
 
@@ -261,6 +263,9 @@ func (n *GamesNavigator) listRomsInDir(dir string) []RomInfo {
 	}
 
 	for _, entry := range entries {
+		if strings.HasPrefix(entry.Name(), `.`) {
+			continue
+		}
 		roms = append(roms, RomInfo{
 			isDir:       entry.IsDir(),
 			name:        entry.Name(),
