@@ -50,13 +50,13 @@ func (w *MainWindow) asyncInitApps() {
 	})
 }
 
-type _AppsNavigator struct {
-	w        *MainWindow
+type AppsNavigator struct {
+	window   *MainWindow
 	scroll   *fbiw.Scroll
 	dataName string
 }
 
-func (n *_AppsNavigator) Navigate(name fbiw.KeyName) any {
+func (n *AppsNavigator) Navigate(name fbiw.KeyName) any {
 	if name == fbiw.B {
 		log.Printf(`收到B按键`)
 		n.scroll.Deselect()
@@ -66,10 +66,10 @@ func (n *_AppsNavigator) Navigate(name fbiw.KeyName) any {
 	if name == fbiw.A && n.scroll.DataIndex() != -1 {
 		apps := n.scroll.GetData(n.dataName).([]*LaunchConfig)
 		app := apps[n.scroll.DataIndex()]
-		n.w.app.Detach()
+		n.window.app.Detach()
 		go func() {
-			defer n.w.app.Async(func() {
-				n.w.app.Attach()
+			defer n.window.app.Async(func() {
+				n.window.app.Attach()
 			})
 			cmd := exec.Command(app.LauncherScriptPath())
 			log.Println(`启动进程：`, cmd.String())

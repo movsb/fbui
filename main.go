@@ -65,7 +65,7 @@ func initFonts(app *fbiw.App) {
 	}
 }
 
-//go:embed *.html
+//go:embed *.html skin
 var embedded embed.FS
 
 type MainWindow struct {
@@ -73,6 +73,10 @@ type MainWindow struct {
 	doc *fbiw.Document
 
 	navigators []Navigator
+
+	appNav   *AppsNavigator
+	portsNav *AppsNavigator
+	gamesNav *GamesNavigator
 }
 
 func (w *MainWindow) HandleKeyboardEvent(name fbiw.KeyName, pressed bool) {
@@ -109,6 +113,22 @@ func NewMainWindow(app *fbiw.App) *MainWindow {
 	win := &MainWindow{
 		app: app,
 		doc: doc,
+	}
+
+	win.appNav = &AppsNavigator{
+		window:   win,
+		scroll:   doc.QuerySelector(`#apps`).(*fbiw.Scroll),
+		dataName: `apps`,
+	}
+	win.portsNav = &AppsNavigator{
+		window:   win,
+		scroll:   doc.QuerySelector(`#ports`).(*fbiw.Scroll),
+		dataName: `ports`,
+	}
+	win.gamesNav = &GamesNavigator{
+		window: win,
+		emus:   doc.QuerySelector(`#emus`).(*fbiw.Scroll),
+		roms:   doc.QuerySelector(`#roms`).(*fbiw.Scroll),
 	}
 
 	doc.SetDelegator(win)

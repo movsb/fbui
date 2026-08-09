@@ -103,23 +103,11 @@ func (n *_TitleNavigator) Navigate(name fbiw.KeyName) any {
 		t := items[n.catIndex].(*fbiw.Text)
 		switch t.Name {
 		case `apps`:
-			return &_AppsNavigator{
-				w:        n.w,
-				scroll:   n.w.doc.QuerySelector(`#apps`).(*fbiw.Scroll),
-				dataName: `apps`,
-			}
+			return n.w.appNav
 		case `ports`:
-			return &_AppsNavigator{
-				w:        n.w,
-				scroll:   n.w.doc.QuerySelector(`#ports`).(*fbiw.Scroll),
-				dataName: `ports`,
-			}
+			return n.w.portsNav
 		case `games`:
-			return &GamesNavigator{
-				window: n.w,
-				emus:   n.w.doc.QuerySelector(`#emus`).(*fbiw.Scroll),
-				roms:   n.w.doc.QuerySelector(`#roms`).(*fbiw.Scroll),
-			}
+			return n.w.gamesNav
 		}
 	}
 	return nil

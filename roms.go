@@ -48,24 +48,27 @@ type GamesNavigator struct {
 	emus       *fbiw.Scroll
 	roms       *fbiw.Scroll
 	currentEmu *LaunchConfig
-	stack      _RomStack
+
+	// 当前的目录浏览栈。
+	stack _RomStack
 }
 
 type _RomStack struct {
 	stack []_RomDirInfo
 }
 
-func (s *_RomStack) Push(dirName string, roms []RomInfo) {
+func (s *_RomStack) Push(dirName string, roms []RomInfo, state any) {
 	s.stack = append(s.stack, _RomDirInfo{
-		name: dirName,
-		roms: roms,
+		name:  dirName,
+		roms:  roms,
+		state: state,
 	})
 }
-func (s *_RomStack) At(index int) _RomDirInfo {
+func (s *_RomStack) At(index int) *_RomDirInfo {
 	if index < 0 || index > s.Size()-1 {
 		panic(`错误的栈索引`)
 	}
-	return s.stack[index]
+	return &s.stack[index]
 }
 func (s *_RomStack) Pop() {
 	if len(s.stack) <= 0 {
@@ -76,11 +79,11 @@ func (s *_RomStack) Pop() {
 func (s *_RomStack) Size() int {
 	return len(s.stack)
 }
-func (s *_RomStack) Top() _RomDirInfo {
+func (s *_RomStack) Top() *_RomDirInfo {
 	if s.Size() < 1 {
 		panic(`没有栈数据`)
 	}
-	return s.stack[s.Size()-1]
+	return &s.stack[s.Size()-1]
 }
 
 type _RomDirInfo struct {
@@ -88,6 +91,9 @@ type _RomDirInfo struct {
 	name string
 	// 游戏列表
 	roms []RomInfo
+
+	// 滚动条状态
+	state any
 }
 
 func (n *GamesNavigator) Navigate(name fbiw.KeyName) any {
@@ -126,8 +132,8 @@ func (n *GamesNavigator) navigateEmus(name fbiw.KeyName) any {
 		n.roms.SetProp(`display`, `true`)
 
 		list := n.listRomsInDir(emu.RomDir())
-		n.stack.Push(`.`, list)
-		n.setRomsList(list)
+		n.stack.Push(`.`, list, nil)
+		n.setRomsList(list, nil)
 
 		return nil
 	}
@@ -149,7 +155,8 @@ func (n *GamesNavigator) navigateRoms(name fbiw.KeyName) any {
 
 		// 还有更多游戏上级列表。
 		n.stack.Pop()
-		n.setRomsList(n.stack.Top().roms)
+		top := n.stack.Top()
+		n.setRomsList(top.roms, top.state)
 		return nil
 	}
 	// 启动游戏或者进入新的目录。
@@ -165,8 +172,9 @@ func (n *GamesNavigator) navigateRoms(name fbiw.KeyName) any {
 		// 选中了目录？
 		if info.isDir {
 			list := n.listRomsInDir(n.romFinalPath(n.currentEmu, info))
-			n.stack.Push(info.name, list)
-			n.setRomsList(list)
+			n.stack.Top().state = n.roms.GetState()
+			n.stack.Push(info.name, list, nil)
+			n.setRomsList(list, nil)
 			return nil
 		}
 
@@ -187,7 +195,7 @@ func (n *GamesNavigator) navigateRoms(name fbiw.KeyName) any {
 	return nil
 }
 
-func (n *GamesNavigator) setRomsList(roms []RomInfo) {
+func (n *GamesNavigator) setRomsList(roms []RomInfo, state any) {
 	type _RomBox struct {
 		Root fbiw.Box
 		Text *fbiw.Text `css:"text"`
@@ -210,6 +218,10 @@ func (n *GamesNavigator) setRomsList(roms []RomInfo) {
 			box.Text.SetText(rom.displayName)
 		},
 	)
+
+	if state != nil {
+		n.roms.SetState(state)
+	}
 }
 
 type RomInfo struct {

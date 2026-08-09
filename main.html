@@ -1,16 +1,10 @@
 <document>
 <style>
-block {
+document {
 	color: white;
-}
-#title-bar {
-	color: white;
-	background-color: black;
 }
 #title-bar .selected {
-	background-color: white;
-	color: black;
-	bold: true;
+	background-color: black;
 }
 #content .content-item {
 	display: false;
@@ -19,18 +13,18 @@ block {
 	display: true;
 }
 #games .selected {
-	background-color: yellow;
+	background-image: 'nav-item-bg-f.png';
 	bold: true;
 }
 #ports .selected {
-	background-color: yellow;
+	background-image: 'nav-item-bg-f.png';
 	bold: true;
 }
 #apps .selected {
-	background-color: yellow;
+	background-image: 'nav-item-bg-f.png';
 }
 </style>
-<block padding="10">
+<block padding="10" background-image="bg.png">
 	<stack id="title-bar">
 		<inline id="time-bar">
 			<text bold>TRIMUI</text>
@@ -54,14 +48,14 @@ block {
 	<spacer height="10"></spacer>
 	<stack id="content" spacer fill>
 		<stack class="content-item selected" id="games" fill>
-			<scroll id="emus" background-color="red" rows="2" cols="3" gap="30" padding="20">
+			<scroll id="emus" rows="2" cols="3" gap="30" padding="20">
 			</scroll>
-			<scroll id="roms" background-color="hotpink" rows="5" cols="1" gap="30" display="false">
+			<scroll id="roms" rows="5" cols="1" gap="30" display="false">
 			</scroll>
 		</stack>
-		<scroll class="content-item" id="ports" background-color="green" rows="2" cols="3" gap="30" padding="20">
+		<scroll class="content-item" id="ports" rows="2" cols="3" gap="30" padding="20">
 		</scroll>
-		<scroll class="content-item" id="apps" background-color="blue" rows="2" cols="3" gap="30" padding="20">
+		<scroll class="content-item" id="apps" rows="2" cols="3" gap="30" padding="20">
 		</scroll>
 		<block class="content-item" id="system" background-color="yellow">
 			<terminal spacer font-size="18"></terminal>
