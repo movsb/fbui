@@ -5,7 +5,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"time"
+	"slices"
+	"strings"
 
 	"github.com/movsb/fbiw"
 )
@@ -20,7 +21,7 @@ func (w *MainWindow) asyncInitEmus() {
 	emus := loadDir(filepath.Join(_SDCARDRoot, `Emus`))
 
 	w.app.Async(func() {
-		scroll := w.doc.GetBoxByID(`games`).(*fbiw.Scroll)
+		scroll := w.doc.GetBoxByID(`emus`).(*fbiw.Scroll)
 		scroll.SetData(`emus`, emus)
 		scroll.SetItems(len(emus),
 			func() (fbiw.Box, any) {
@@ -42,161 +43,223 @@ func (w *MainWindow) asyncInitEmus() {
 	})
 }
 
-type EmusNavigator struct {
-	window *MainWindow
-	scroll *fbiw.Scroll
+type GamesNavigator struct {
+	window     *MainWindow
+	emus       *fbiw.Scroll
+	roms       *fbiw.Scroll
+	currentEmu *LaunchConfig
+	stack      _RomStack
 }
 
-func (n *EmusNavigator) Navigate(name fbiw.KeyName) any {
+type _RomStack struct {
+	stack []_RomDirInfo
+}
+
+func (s *_RomStack) Push(dirName string, roms []RomInfo) {
+	s.stack = append(s.stack, _RomDirInfo{
+		name: dirName,
+		roms: roms,
+	})
+}
+func (s *_RomStack) At(index int) _RomDirInfo {
+	if index < 0 || index > s.Size()-1 {
+		panic(`错误的栈索引`)
+	}
+	return s.stack[index]
+}
+func (s *_RomStack) Pop() {
+	if len(s.stack) <= 0 {
+		panic(`没有栈数据`)
+	}
+	s.stack = s.stack[:len(s.stack)-1]
+}
+func (s *_RomStack) Size() int {
+	return len(s.stack)
+}
+func (s *_RomStack) Top() _RomDirInfo {
+	if s.Size() < 1 {
+		panic(`没有栈数据`)
+	}
+	return s.stack[s.Size()-1]
+}
+
+type _RomDirInfo struct {
+	// 当前目录名
+	name string
+	// 游戏列表
+	roms []RomInfo
+}
+
+func (n *GamesNavigator) Navigate(name fbiw.KeyName) any {
+	if n.stack.Size() == 0 {
+		return n.navigateEmus(name)
+	} else {
+		return n.navigateRoms(name)
+	}
+}
+
+func (n *GamesNavigator) navigateEmus(name fbiw.KeyName) any {
+	// 模拟器界面，按B退出
 	if name == fbiw.B {
-		n.scroll.Deselect()
+		return false
+	}
+	// 按上回到标题
+	if name == fbiw.Up && n.emus.DataRowIndex() == 0 {
+		n.emus.Deselect()
 		return false
 	}
 
-	if name == fbiw.A && n.scroll.DataIndex() != -1 {
-		emus := n.scroll.GetData(`emus`).([]*LaunchConfig)
-		emu := emus[n.scroll.DataIndex()]
-		n.window.app.Detach()
-		go func() {
-			defer n.window.app.Async(func() {
-				n.window.app.Attach()
-			})
-			command := emu.LauncherScriptPath()
-			_ = command
-		}()
+	// 按A进入游戏列表
+	if name == fbiw.A {
+		emuList := n.emus.GetData(`emus`).([]*LaunchConfig)
+		emuIndex := n.emus.DataIndex()
+
+		if emuIndex < 0 || emuIndex > len(emuList)-1 {
+			return nil
+		}
+
+		emu := emuList[emuIndex]
+		n.currentEmu = emu
+
+		// 隐藏模拟器，显示游戏列表
+		n.emus.SetProp(`display`, `false`)
+		n.roms.SetProp(`display`, `true`)
+
+		list := n.listRomsInDir(emu.RomDir())
+		n.stack.Push(`.`, list)
+		n.setRomsList(list)
+
 		return nil
 	}
 
-	if n.scroll.DataRowIndex() <= 0 && name == fbiw.Up {
-		n.scroll.Deselect()
-		return false
-	}
-
-	n.scroll.Navigate(name)
-
+	n.emus.Navigate(name)
 	return nil
 }
 
-type RomInfo struct {
-	// 所属的模拟器：决定由谁打开它。
-	launcher *LaunchConfig
+func (n *GamesNavigator) navigateRoms(name fbiw.KeyName) any {
+	// 返回上一层。
+	if name == fbiw.B {
+		// 游戏列表的最上层了，返回模拟器列表。
+		if n.stack.Size() <= 1 {
+			n.roms.SetProp(`display`, `false`)
+			n.emus.SetProp(`display`, `true`)
+			n.stack.Pop()
+			return nil
+		}
 
-	// 相对于Roms目录的路径。
-	// 如果 config.json 的 RomPath 写的是：../../Roms/FC，
-	// 那么 path 可以是 xxx/重装机兵.zip。
-	// 最终文件路径则是： launcher.Dir + config.json中RomPath + path。
-	// 得到：/mnt/SDCARD/Emus/FC + ../../Roms/FC + xxx/重装机兵.zip。
-	path        string
-	displayName string
+		// 还有更多游戏上级列表。
+		n.stack.Pop()
+		n.setRomsList(n.stack.Top().roms)
+		return nil
+	}
+	// 启动游戏或者进入新的目录。
+	if name == fbiw.A {
+		// 没有选中？
+		index := n.roms.DataIndex()
+		if index < 0 || index > n.roms.DataCount()-1 {
+			return nil
+		}
+
+		info := n.stack.Top().roms[index]
+
+		// 选中了目录？
+		if info.isDir {
+			list := n.listRomsInDir(n.romFinalPath(n.currentEmu, info))
+			n.stack.Push(info.name, list)
+			n.setRomsList(list)
+			return nil
+		}
+
+		// 选中了游戏？
+		launcher := n.currentEmu.LauncherScriptPath()
+		romPath := n.romFinalPath(n.currentEmu, info)
+		n.window.app.Detach()
+		go func() {
+			defer n.window.app.AttachAsync()
+			cmd := exec.Command(launcher, romPath)
+			if err := cmd.Run(); err != nil {
+				log.Printf(`运行失败：%s: %s: %s`, launcher, romPath, err.Error())
+			}
+		}()
+		return nil
+	}
+	n.roms.Navigate(name)
+	return nil
 }
 
-func (r *RomInfo) FinalPath() string {
-	if filepath.IsAbs(r.launcher.Config.RomPath) {
-		return filepath.Join(r.launcher.Config.RomPath, r.path)
-	}
-	return filepath.Join(r.launcher.Dir, r.launcher.Config.RomPath, r.path)
-}
-
-func (w *MainWindow) asyncInitRoms() {
-	now := time.Now()
-
-	// 先找模拟器，再根据其支持的Roms路径找游戏。
-	emus := loadDir(filepath.Join(_SDCARDRoot, `Emus`))
-
-	roms := []RomInfo{}
-
-	for _, emu := range emus {
-		romDir := emu.Config.RomPath
-		if romDir == `` {
-			continue
-		}
-
-		// 基本写的是相对路径，则相对于 config.json 所在目录。
-		if !filepath.IsAbs(romDir) {
-			romDir = filepath.Join(emu.Dir, romDir)
-		}
-
-		entries, err := os.ReadDir(romDir)
-		if err != nil {
-			log.Println(err)
-			continue
-		}
-
-		for _, entry := range entries {
-			roms = append(roms, RomInfo{
-				launcher:    emu,
-				path:        filepath.Join(romDir, entry.Name()),
-				displayName: entry.Name(),
-			})
-		}
-	}
-
-	log.Printf(`ROM列表加载完成。总共：%d，耗时：%v`, len(roms), time.Since(now))
-
+func (n *GamesNavigator) setRomsList(roms []RomInfo) {
 	type _RomBox struct {
 		Root fbiw.Box
 		Text *fbiw.Text `css:"text"`
 	}
 
-	w.app.Async(func() {
-		container := w.doc.GetBoxByID(`games`).(*fbiw.Scroll)
-		container.SetData(`roms`, roms)
-		container.SetItems(len(roms),
-			func() (fbiw.Box, any) {
-				item := fbiw.Unmarshal[_RomBox](w.doc, `
+	n.roms.SetItems(len(roms),
+		func() (fbiw.Box, any) {
+			item := fbiw.Unmarshal[_RomBox](n.window.doc, `
 <block padding=30>
 	<inline spacer align=middle>
 		<text></text>
 	</inline>
 </block>
 `)
-				return item.Root, item
-			},
-			func(item any, index int) {
-				rom := roms[index]
-				box := item.(*_RomBox)
-				box.Text.SetText(rom.displayName)
-			},
-		)
-	})
+			return item.Root, item
+		},
+		func(item any, index int) {
+			rom := roms[index]
+			box := item.(*_RomBox)
+			box.Text.SetText(rom.displayName)
+		},
+	)
 }
 
-type _RomsNavigator struct {
-	w      *MainWindow
-	scroll *fbiw.Scroll
+type RomInfo struct {
+	isDir bool
+	// 原始文件系统文件名，不含路径。
+	name string
+	// 可能的友好显示名？
+	displayName string
 }
 
-func (n *_RomsNavigator) Navigate(name fbiw.KeyName) any {
-	if name == fbiw.B {
-		log.Printf(`收到B按键`)
-		n.scroll.Deselect()
-		return false
+// 基于此rom信息，往上回溯父目录，拼出完整路径。
+func (n *GamesNavigator) romFinalPath(launcher *LaunchConfig, rom RomInfo) string {
+	parts := []string{launcher.RomDir()}
+	for i := 0; i < n.stack.Size(); i++ {
+		parts = append(parts, n.stack.At(i).name)
 	}
+	parts = append(parts, rom.name)
+	return filepath.Join(parts...)
+}
 
-	if name == fbiw.A && n.scroll.DataIndex() != -1 {
-		roms := n.scroll.GetData(`roms`).([]RomInfo)
-		rom := roms[n.scroll.DataIndex()]
-		n.w.app.Detach()
-		go func() {
-			defer n.w.app.Async(func() {
-				n.w.app.Attach()
-			})
-			cmd := exec.Command(
-				filepath.Join(rom.launcher.Dir, rom.launcher.Config.Launch),
-				rom.path,
-			)
-			log.Println(`启动进程：`, cmd.String())
-			cmd.Run()
-		}()
+// 在当前目录枚举游戏列表（含子目录名）。
+//   - 不会递归进子目录
+//   - 目前放前面
+func (n *GamesNavigator) listRomsInDir(dir string) []RomInfo {
+	roms := []RomInfo{}
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		log.Println(err)
 		return nil
 	}
 
-	if n.scroll.DataRowIndex() <= 0 && name == fbiw.Up {
-		n.scroll.Deselect()
-		return false
+	for _, entry := range entries {
+		roms = append(roms, RomInfo{
+			isDir:       entry.IsDir(),
+			name:        entry.Name(),
+			displayName: entry.Name(),
+		})
 	}
 
-	n.scroll.Navigate(name)
+	// 目录放前面。
+	slices.SortFunc(roms, func(a, b RomInfo) int {
+		if a.isDir && !b.isDir {
+			return -1
+		}
+		if !a.isDir && b.isDir {
+			return +1
+		}
+		return strings.Compare(a.displayName, b.displayName)
+	})
 
-	return nil
+	return roms
 }

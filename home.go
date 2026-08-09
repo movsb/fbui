@@ -115,9 +115,10 @@ func (n *_TitleNavigator) Navigate(name fbiw.KeyName) any {
 				dataName: `ports`,
 			}
 		case `games`:
-			return &EmusNavigator{
+			return &GamesNavigator{
 				window: n.w,
-				scroll: n.w.doc.QuerySelector(`#games`).(*fbiw.Scroll),
+				emus:   n.w.doc.QuerySelector(`#emus`).(*fbiw.Scroll),
+				roms:   n.w.doc.QuerySelector(`#roms`).(*fbiw.Scroll),
 			}
 		}
 	}

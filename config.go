@@ -60,6 +60,13 @@ type LaunchConfig struct {
 	Config *Config
 }
 
+// Rom所在目录，可直接使用的最终目录。
+func (c *LaunchConfig) RomDir() string {
+	if filepath.IsAbs(c.Config.RomPath) {
+		return c.Config.RomPath
+	}
+	return filepath.Join(c.Dir, c.Config.RomPath)
+}
 func (c *LaunchConfig) LauncherScriptPath() string {
 	if filepath.IsAbs(c.Config.Launch) {
 		return c.Config.Launch
