@@ -126,9 +126,10 @@ func NewMainWindow(app *fbiw.App) *MainWindow {
 		dataName: `ports`,
 	}
 	win.gamesNav = &GamesNavigator{
-		window: win,
-		emus:   doc.QuerySelector(`#emus`).(*fbiw.Scroll),
-		roms:   doc.QuerySelector(`#roms`).(*fbiw.Scroll),
+		window:  win,
+		emus:    doc.QuerySelector(`#emus`).(*fbiw.Scroll),
+		roms:    doc.QuerySelector(`#roms`).(*fbiw.Scroll),
+		noGames: doc.QuerySelector(`#nogames`),
 	}
 
 	doc.SetDelegator(win)

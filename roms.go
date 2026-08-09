@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"os/exec"
@@ -26,7 +27,7 @@ func (w *MainWindow) asyncInitEmus() {
 		scroll.SetItems(len(emus),
 			func() (fbiw.Box, any) {
 				item := fbiw.Unmarshal[_EmuItem](w.doc, `
-<block align=center padding=30>
+<block align=center padding=20>
 	<img spacer>
 	<text></text>
 </block>
@@ -47,6 +48,7 @@ type GamesNavigator struct {
 	window     *MainWindow
 	emus       *fbiw.Scroll
 	roms       *fbiw.Scroll
+	noGames    fbiw.Box
 	currentEmu *LaunchConfig
 
 	// 当前的目录浏览栈。
@@ -107,6 +109,7 @@ func (n *GamesNavigator) Navigate(name fbiw.KeyName) any {
 func (n *GamesNavigator) navigateEmus(name fbiw.KeyName) any {
 	// 模拟器界面，按B退出
 	if name == fbiw.B {
+		n.emus.Deselect()
 		return false
 	}
 	// 按上回到标题
@@ -149,6 +152,7 @@ func (n *GamesNavigator) navigateRoms(name fbiw.KeyName) any {
 		if n.stack.Size() <= 1 {
 			n.roms.SetProp(`display`, `false`)
 			n.emus.SetProp(`display`, `true`)
+			n.noGames.Base().SetProp(`display`, `false`)
 			n.stack.Pop()
 			return nil
 		}
@@ -196,6 +200,8 @@ func (n *GamesNavigator) navigateRoms(name fbiw.KeyName) any {
 }
 
 func (n *GamesNavigator) setRomsList(roms []RomInfo, state any) {
+	n.noGames.Base().SetProp(`display`, fmt.Sprint(len(roms) == 0))
+
 	type _RomBox struct {
 		Root fbiw.Box
 		Text *fbiw.Text `css:"text"`
