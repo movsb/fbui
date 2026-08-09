@@ -3,6 +3,7 @@
 /sdcard
 /trimui
 /.vscode/launch.json
+*.ttf
 *.sw?
 
 

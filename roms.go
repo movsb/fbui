@@ -204,7 +204,8 @@ func (n *GamesNavigator) setRomsList(roms []RomInfo, state any) {
 
 	type _RomBox struct {
 		Root fbiw.Box
-		Text *fbiw.Text `css:"text"`
+		Icon *fbiw.Text `css:".icon"`
+		Name *fbiw.Text `css:".name"`
 	}
 
 	n.roms.SetItems(len(roms),
@@ -212,7 +213,9 @@ func (n *GamesNavigator) setRomsList(roms []RomInfo, state any) {
 			item := fbiw.Unmarshal[_RomBox](n.window.doc, `
 <block padding=30>
 	<inline spacer align=middle>
-		<text></text>
+		<text class="nerd icon"></text>
+		<spacer width=10></spacer>
+		<text class="name"></text>
 	</inline>
 </block>
 `)
@@ -221,7 +224,12 @@ func (n *GamesNavigator) setRomsList(roms []RomInfo, state any) {
 		func(item any, index int) {
 			rom := roms[index]
 			box := item.(*_RomBox)
-			box.Text.SetText(rom.displayName)
+			box.Name.SetText(rom.displayName)
+			if rom.isDir {
+				box.Icon.SetText("\uf07b")
+			} else {
+				box.Icon.SetText(``)
+			}
 		},
 	)
 
