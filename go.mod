@@ -1,9 +1,10 @@
-module trimui
+module github.com/movsb/fbui
 
 go 1.26.5
 
 require (
 	github.com/creack/pty v1.1.24
+	github.com/fswatcher/fswatcher v0.1.0
 	github.com/mdlayher/kobject v0.0.0-20200520190114-19ca17470d7d
 	github.com/movsb/fbiw v0.0.0-20260804022842-29a22e8119b7
 	github.com/rcarmo/go-te v0.1.0
@@ -13,7 +14,6 @@ require (
 	github.com/anthonynsimon/bild v0.17.0 // indirect
 	github.com/clipperhouse/uax29/v2 v2.2.0 // indirect
 	github.com/ebitengine/purego v0.10.0 // indirect
-	github.com/fswatcher/fswatcher v0.1.0 // indirect
 	github.com/goccy/go-yaml v1.19.2 // indirect
 	github.com/mattn/go-runewidth v0.0.19 // indirect
 	github.com/mdlayher/netlink v1.1.0 // indirect
