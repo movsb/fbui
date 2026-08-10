@@ -1,10 +1,12 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"time"
 
+	"github.com/mdlayher/kobject"
 	"github.com/movsb/fbiw"
 )
 
@@ -33,8 +35,10 @@ func (w *MainWindow) initSystemTime() {
 
 func (w *MainWindow) initSystemPower() {
 	txtPower := w.doc.QuerySelector(`#battery`).(*fbiw.Text)
+	boxCharging := w.doc.QuerySelector(`#battery-charging-box`)
 
 	last := uint8(0)
+	lastCharging := false
 
 	update := func() {
 		info, err := ReadPowerStatus()
@@ -42,24 +46,40 @@ func (w *MainWindow) initSystemPower() {
 			log.Println(err)
 			return
 		}
-		if info.Capacity == last {
+
+		charging := info.ChargingStatus == `Charging`
+
+		if info.Capacity == last && charging == lastCharging {
 			return
 		}
+
 		w.app.Async(func() {
 			txtPower.SetText(fmt.Sprintf(`%d%%`, info.Capacity))
+
+			// 只有充电的时候显示。放电或已满均不显示。
+			boxCharging.Base().SetProp(`display`, fmt.Sprint(charging))
+
 			last = info.Capacity
+			lastCharging = charging
 		})
 	}
 
 	update()
 
 	go func() {
-		for range time.Tick(time.Second * 10) {
-			select {
-			case <-w.app.Context().Done():
-				return
-			default:
+		// TODO event 里面其实已经有当前的数据了
+		if err := WatchKernelObjectEvents(context.Background(), func(event *kobject.Event) {
+			if event.Subsystem == `power_supply` {
 				update()
+			}
+		}); err != nil {
+			for range time.Tick(time.Second * 10) {
+				select {
+				case <-w.app.Context().Done():
+					return
+				default:
+					update()
+				}
 			}
 		}
 	}()

@@ -2,17 +2,21 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/mdlayher/kobject"
 )
 
 type BatterInfo struct {
-	Capacity       uint8  // 当前电量百分比
-	ChargingStatus string // 充电状态 Charging/Discharging/Full
-	Temperature    int8   // 当前温度
+	Capacity       uint8   // 当前电量百分比
+	ChargingStatus string  // 充电状态 Charging/Discharging/Full
+	Temperature    float32 // 当前温度
 }
 
 func ReadPowerStatus() (*BatterInfo, error) {
@@ -61,7 +65,7 @@ func ReadPowerStatus() (*BatterInfo, error) {
 			info.ChargingStatus = value
 		case `POWER_SUPPLY_TEMP`:
 			n, _ := strconv.Atoi(value)
-			info.Temperature = int8(n)
+			info.Temperature = float32(n) / 10
 		}
 	}
 	if scn.Err() != nil {
@@ -69,4 +73,33 @@ func ReadPowerStatus() (*BatterInfo, error) {
 	}
 
 	return &info, nil
+}
+
+// 监听netlink事件。回调发生在线程中。
+func WatchKernelObjectEvents(ctx context.Context, callback func(event *kobject.Event)) error {
+	client, err := kobject.New()
+	if err != nil {
+		log.Println(err)
+		return err
+	}
+
+	go func() {
+		defer client.Close()
+
+		for {
+			event, err := client.Receive()
+			if err != nil {
+				log.Println(err)
+				break
+			}
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				callback(event)
+			}
+		}
+	}()
+
+	return nil
 }
