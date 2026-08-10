@@ -68,9 +68,7 @@ func (n *AppsNavigator) Navigate(name fbiw.KeyName) any {
 		app := apps[n.scroll.DataIndex()]
 		n.window.app.Detach()
 		go func() {
-			defer n.window.app.Async(func() {
-				n.window.app.Attach()
-			})
+			defer n.window.app.AttachAsync()
 			cmd := exec.Command(app.LauncherScriptPath())
 			log.Println(`启动进程：`, cmd.String())
 			cmd.Run()

@@ -13,6 +13,7 @@ type MainWindow struct {
 	appNav   *AppsNavigator
 	portsNav *AppsNavigator
 	gamesNav *GamesNavigator
+	toolsNav *ToolsNavigator
 
 	txtTime              *fbiw.Text
 	txtBatteryPercentage *fbiw.Text
@@ -57,6 +58,8 @@ func NewMainWindow(app *fbiw.App) *MainWindow {
 		roms:    doc.QuerySelector(`#roms`).(*fbiw.Scroll),
 		noGames: doc.QuerySelector(`#nogames`),
 	}
+
+	win.initTools()
 
 	doc.SetDelegator(win)
 

@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"runtime"
 	"sync"
+	"time"
 
 	"github.com/creack/pty"
 	"github.com/movsb/fbiw"
@@ -237,6 +238,15 @@ func (b *Terminal) start() {
 
 			// 任何有数据流入都尝试更新？
 			b.Document.RequestPaintAsync()
+		}
+	}()
+
+	go func() {
+		for {
+			time.Sleep(time.Second)
+			b.master.WriteString("date;ifconfig\n")
+			time.Sleep(time.Second * 5)
+			b.master.Write([]byte("\x1b[2J\x1b[H"))
 		}
 	}()
 }

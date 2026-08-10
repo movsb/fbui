@@ -39,6 +39,12 @@ document {
 	background-color: #174417;
 	bold: true;
 }
+#tools .selected {
+	outline-width: 3;
+	outline-color: green;
+	background-color: #174417;
+	bold: true;
+}
 </style>
 <block padding="10">
 	<stack id="title-bar">
@@ -62,7 +68,9 @@ document {
 			<spacer width="20"></spacer>
 			<text name="apps">应用</text>
 			<spacer width="20"></spacer>
-			<text name="system">系统</text>
+			<text name="system">终端</text>
+			<spacer width="20"></spacer>
+			<text name="tools">工具</text>
 			<spacer></spacer>
 		</inline>
 	</stack>
@@ -84,6 +92,8 @@ document {
 		<block class="content-item" id="system" background-color="yellow">
 			<terminal spacer font-size="18" font-family="monospace"></terminal>
 		</block>
+		<scroll class="content-item" id="tools" rows="5" cols="1" gap="10" padding="20">
+		</scroll>
 	</stack>
 </block>
 </document>

@@ -8,6 +8,7 @@
 		"osdd",
 		"sdcard",
 		"TRIMUI",
-		"uevent"
+		"uevent",
+		"wlan"
 	]
 }

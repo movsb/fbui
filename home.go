@@ -250,6 +250,8 @@ func (n *_TitleNavigator) Navigate(name fbiw.KeyName) any {
 			return n.w.portsNav
 		case `games`:
 			return n.w.gamesNav
+		case `tools`:
+			return n.w.toolsNav
 		}
 	}
 	return nil
