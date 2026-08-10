@@ -1,7 +1,8 @@
 /fonts/
 /skin/
 /sdcard
-/trimui
+/fbui
+/fbui.zip
 /.vscode/launch.json
 *.ttf
 *.sw?
