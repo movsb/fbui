@@ -1,8 +1,6 @@
 package main
 
 import (
-	"log"
-
 	"github.com/movsb/fbiw"
 )
 
@@ -15,34 +13,15 @@ type MainWindow struct {
 	appNav   *AppsNavigator
 	portsNav *AppsNavigator
 	gamesNav *GamesNavigator
-}
 
-func (w *MainWindow) HandleKeyboardEvent(name fbiw.KeyName, pressed bool) {
-	if len(w.navigators) <= 0 || !pressed {
-		return
-	}
-	last := w.navigators[len(w.navigators)-1]
+	txtTime              *fbiw.Text
+	txtBatteryPercentage *fbiw.Text
+	boxBatteryCharging   fbiw.Box
 
-	next := last.Navigate(name)
-	if next == nil {
-		return
-	} else if next == false {
-		w.navigators = w.navigators[:len(w.navigators)-1]
-		w.HandleKeyboardEvent(name, pressed)
-	} else if nav, ok := next.(Navigator); ok {
-		w.navigators = append(w.navigators, nav)
-		w.HandleKeyboardEvent(name, pressed)
-	} else {
-		log.Panicf(`navigator 返回了无效值：%v`, next)
-	}
-}
-
-type Navigator interface {
-	// 返回值分几种情况：
-	//  - 如果是nil，继续由自己导航。
-	//  - 如果是Navigator，压栈此新的Navigator，并由它接管新的导航。
-	//  - 如果是false，结束导航，回到前一个导航。
-	Navigate(name fbiw.KeyName) any
+	txtVolumeOpen    *fbiw.Text
+	txtWifiOpen      *fbiw.Text
+	txtBluetoothOpen *fbiw.Text
+	txtCpuStatus     *fbiw.Text
 }
 
 func NewMainWindow(app *fbiw.App) *MainWindow {
@@ -51,6 +30,15 @@ func NewMainWindow(app *fbiw.App) *MainWindow {
 	win := &MainWindow{
 		app: app,
 		doc: doc,
+
+		txtTime:              doc.QuerySelector(`#time`).(*fbiw.Text),
+		txtBatteryPercentage: doc.QuerySelector(`#battery`).(*fbiw.Text),
+		boxBatteryCharging:   doc.QuerySelector(`#battery-charging-box`),
+
+		txtVolumeOpen:    doc.QuerySelector(`#speaker`).(*fbiw.Text),
+		txtWifiOpen:      doc.QuerySelector(`#wifi`).(*fbiw.Text),
+		txtBluetoothOpen: doc.QuerySelector(`#bluetooth`).(*fbiw.Text),
+		txtCpuStatus:     doc.QuerySelector(`#cpu`).(*fbiw.Text),
 	}
 
 	win.appNav = &AppsNavigator{
@@ -74,6 +62,9 @@ func NewMainWindow(app *fbiw.App) *MainWindow {
 
 	win.initSystemTime()
 	win.initSystemPower()
+
+	go win.watchOsdEvents()
+	go win.watchCPU()
 
 	go win.asyncInitApps()
 	go win.asyncInitEmus()

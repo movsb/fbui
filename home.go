@@ -1,18 +1,24 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"log"
+	"os"
+	"path/filepath"
+	"runtime"
+	"strconv"
+	"strings"
 	"time"
 
+	"github.com/fswatcher/fswatcher"
 	"github.com/mdlayher/kobject"
 	"github.com/movsb/fbiw"
 )
 
 func (w *MainWindow) initSystemTime() {
-	txtTime := w.doc.QuerySelector(`#time`).(*fbiw.Text)
-	txtTime.SetText(time.Now().Format(`15:04`))
+	w.txtTime.SetText(time.Now().Format(`15:04`))
 	go func() {
 		last := ``
 		for range time.Tick(time.Minute) {
@@ -26,17 +32,105 @@ func (w *MainWindow) initSystemTime() {
 						return
 					}
 					last = now
-					txtTime.SetText(now)
+					w.txtTime.SetText(now)
 				})
 			}
 		}
 	}()
 }
 
-func (w *MainWindow) initSystemPower() {
-	txtPower := w.doc.QuerySelector(`#battery`).(*fbiw.Text)
-	boxCharging := w.doc.QuerySelector(`#battery-charging-box`)
+type BatterInfo struct {
+	Capacity       uint8   // 当前电量百分比
+	ChargingStatus string  // 充电状态 Charging/Discharging/Full
+	Temperature    float32 // 当前温度
+}
 
+func ReadPowerStatus() (*BatterInfo, error) {
+	paths, err := filepath.Glob(`/sys/class/power_supply/*/type`)
+	if err != nil {
+		return nil, err
+	}
+	var batteryPath string
+	for _, path := range paths {
+		ty, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		ts := strings.ToLower(strings.TrimSpace(string(ty)))
+		if ts == `battery` {
+			batteryPath = path
+			break
+		}
+	}
+	if batteryPath == `` {
+		return nil, fmt.Errorf(`没找到电池目录`)
+	}
+
+	dir, _ := filepath.Split(batteryPath)
+	uevent := filepath.Join(dir, `uevent`)
+
+	fp, err := os.Open(uevent)
+	if err != nil {
+		return nil, err
+	}
+	defer fp.Close()
+
+	info := BatterInfo{}
+
+	scn := bufio.NewScanner(fp)
+	for scn.Scan() {
+		key, value, ok := strings.Cut(scn.Text(), `=`)
+		if !ok {
+			continue
+		}
+		switch key {
+		case `POWER_SUPPLY_CAPACITY`:
+			n, _ := strconv.Atoi(value)
+			info.Capacity = uint8(n)
+		case `POWER_SUPPLY_STATUS`:
+			info.ChargingStatus = value
+		case `POWER_SUPPLY_TEMP`:
+			n, _ := strconv.Atoi(value)
+			info.Temperature = float32(n) / 10
+		}
+	}
+	if scn.Err() != nil {
+		return nil, scn.Err()
+	}
+
+	return &info, nil
+}
+
+// 监听netlink事件。回调发生在线程中。
+func WatchKernelObjectEvents(ctx context.Context, callback func(event *kobject.Event)) error {
+	client, err := kobject.New()
+	if err != nil {
+		log.Println(err)
+		return err
+	}
+
+	go func() {
+		defer client.Close()
+
+		for {
+			event, err := client.Receive()
+			if err != nil {
+				log.Println(err)
+				break
+			}
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				callback(event)
+			}
+		}
+	}()
+
+	return nil
+}
+
+func (w *MainWindow) initSystemPower() {
 	last := uint8(0)
 	lastCharging := false
 
@@ -54,10 +148,10 @@ func (w *MainWindow) initSystemPower() {
 		}
 
 		w.app.Async(func() {
-			txtPower.SetText(fmt.Sprintf(`%d%%`, info.Capacity))
+			w.txtBatteryPercentage.SetText(fmt.Sprintf(`%d%%`, info.Capacity))
 
 			// 只有充电的时候显示。放电或已满均不显示。
-			boxCharging.Base().SetProp(`display`, fmt.Sprint(charging))
+			w.boxBatteryCharging.Base().SetProp(`display`, fmt.Sprint(charging))
 
 			last = info.Capacity
 			lastCharging = charging
@@ -83,6 +177,34 @@ func (w *MainWindow) initSystemPower() {
 			}
 		}
 	}()
+}
+
+func (w *MainWindow) HandleKeyboardEvent(name fbiw.KeyName, pressed bool) {
+	if len(w.navigators) <= 0 || !pressed {
+		return
+	}
+	last := w.navigators[len(w.navigators)-1]
+
+	next := last.Navigate(name)
+	if next == nil {
+		return
+	} else if next == false {
+		w.navigators = w.navigators[:len(w.navigators)-1]
+		w.HandleKeyboardEvent(name, pressed)
+	} else if nav, ok := next.(Navigator); ok {
+		w.navigators = append(w.navigators, nav)
+		w.HandleKeyboardEvent(name, pressed)
+	} else {
+		log.Panicf(`navigator 返回了无效值：%v`, next)
+	}
+}
+
+type Navigator interface {
+	// 返回值分几种情况：
+	//  - 如果是nil，继续由自己导航。
+	//  - 如果是Navigator，压栈此新的Navigator，并由它接管新的导航。
+	//  - 如果是false，结束导航，回到前一个导航。
+	Navigate(name fbiw.KeyName) any
 }
 
 type _TitleNavigator struct {
@@ -131,4 +253,198 @@ func (n *_TitleNavigator) Navigate(name fbiw.KeyName) any {
 		}
 	}
 	return nil
+}
+
+func (win *MainWindow) watchOsdEvents() {
+	watcher, err := fswatcher.NewWatcher()
+	if err != nil {
+		log.Println(`创建观察器失败:`, err)
+		return
+	}
+	defer watcher.Close()
+
+	if err := watcher.AddRecursive(`/tmp/trimui_osd`, fswatcher.All); err != nil {
+		log.Println(`观察OSD目录失败:`, err)
+		return
+	}
+
+	ctx := context.Background()
+
+	var (
+		statusVolumeOpen    = false
+		statusBluetoothOpen = false
+		statusWifiOpen      = false
+	)
+
+	handleOsdEvent := func(path string, force bool) {
+		suffix, found := strings.CutPrefix(path, `/tmp/trimui_osd/`)
+		if !found {
+			return
+		}
+		switch suffix {
+		case `slider_volume/status`:
+			data, _ := os.ReadFile(path)
+			open := !strings.HasPrefix(strings.TrimSpace(string(data)), `0/`)
+			if open != statusVolumeOpen || force {
+				win.app.Async(func() {
+					log.Println(`音量状态:`, open)
+					win.txtVolumeOpen.SetText(fbiw.Iif(open, string(0xefcf), ``))
+				})
+				statusVolumeOpen = open
+			}
+		case `toggle_bt/status`:
+			data, _ := os.ReadFile(path)
+			open := strings.TrimSpace(string(data)) != `0`
+			if open != statusBluetoothOpen || force {
+				win.app.Async(func() {
+					log.Println(`蓝牙状态:`, open)
+					win.txtBluetoothOpen.SetText(fbiw.Iif(open, string(0xf00af), ``))
+				})
+				statusBluetoothOpen = open
+			}
+		case `toggle_wifi/status`:
+			// TODO wifi打开不等于已经分配到ip，这里需要区别状态
+			data, _ := os.ReadFile(path)
+			open := strings.TrimSpace(string(data)) != `0`
+			if open != statusWifiOpen || force {
+				win.app.Async(func() {
+					log.Println(`网络状态:`, open)
+					win.txtWifiOpen.SetText(fbiw.Iif(open, string(0xf1eb), ``))
+				})
+				statusWifiOpen = open
+			}
+		}
+	}
+
+	handleOsdShow := func(show bool) {
+		if show {
+			win.app.DetachAsync()
+		} else {
+			win.app.AttachAsync()
+		}
+	}
+
+	handleOsdEvent(`/tmp/trimui_osd/slider_volume/status`, true)
+	handleOsdEvent(`/tmp/trimui_osd/toggle_bt/status`, true)
+	handleOsdEvent(`/tmp/trimui_osd/toggle_wifi/status`, true)
+
+	for {
+		defer watcher.Close()
+		select {
+		case <-ctx.Done():
+			return
+		case err := <-watcher.Errors:
+			log.Println(`非致命错误:`, err)
+		case event := <-watcher.Events:
+			// log.Println(`收到事件:`, event)
+			if strings.Contains(event.Name, `osdd_show_up`) {
+				handleOsdShow(event.Op.Has(fswatcher.Create))
+				break
+			}
+			if event.Op.Has(fswatcher.Write) {
+				handleOsdEvent(event.Name, false)
+			}
+		}
+	}
+}
+
+type CPUStat struct {
+	User      uint64
+	Nice      uint64
+	System    uint64
+	Idle      uint64
+	IOWait    uint64
+	IRQ       uint64
+	SoftIRQ   uint64
+	Steal     uint64
+	Guest     uint64
+	GuestNice uint64
+}
+
+func readCPUStat() (CPUStat, error) {
+	data, err := os.ReadFile("/proc/stat")
+	if err != nil {
+		return CPUStat{}, err
+	}
+
+	var stat CPUStat
+
+	_, err = fmt.Sscanf(
+		string(data),
+		"cpu %d %d %d %d %d %d %d %d %d %d",
+		&stat.User,
+		&stat.Nice,
+		&stat.System,
+		&stat.Idle,
+		&stat.IOWait,
+		&stat.IRQ,
+		&stat.SoftIRQ,
+		&stat.Steal,
+		&stat.Guest,
+		&stat.GuestNice,
+	)
+
+	return stat, err
+}
+
+func cpuUsage(prev, curr CPUStat) float64 {
+	prevIdle := prev.Idle + prev.IOWait
+	currIdle := curr.Idle + curr.IOWait
+
+	prevTotal :=
+		prev.User +
+			prev.Nice +
+			prev.System +
+			prev.Idle +
+			prev.IOWait +
+			prev.IRQ +
+			prev.SoftIRQ +
+			prev.Steal
+
+	currTotal :=
+		curr.User +
+			curr.Nice +
+			curr.System +
+			curr.Idle +
+			curr.IOWait +
+			curr.IRQ +
+			curr.SoftIRQ +
+			curr.Steal
+
+	totalDelta := currTotal - prevTotal
+	idleDelta := currIdle - prevIdle
+
+	if totalDelta == 0 {
+		return 0
+	}
+
+	return float64(totalDelta-idleDelta) / float64(totalDelta)
+}
+
+func (win *MainWindow) watchCPU() {
+	ctx := context.Background()
+	prev, err := readCPUStat()
+	if err != nil {
+		log.Println(`读CPU状态失败:`, err)
+		return
+	}
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(time.Second * 2):
+			curr, err := readCPUStat()
+			if err != nil {
+				log.Println(`读CPU状态失败:`, err)
+				break
+			}
+			usage := cpuUsage(prev, curr)
+			win.app.Async(func() {
+				win.txtCpuStatus.SetText(fmt.Sprintf(`[%d/%d%%]`,
+					int(usage*float64(runtime.NumCPU())*100), runtime.NumCPU()*100,
+				))
+			})
+			prev = curr
+		}
+	}
 }
