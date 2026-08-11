@@ -14,9 +14,9 @@ import (
 
 func (w *MainWindow) asyncInitEmus() {
 	type _EmuItem struct {
-		Root  fbiw.Box
-		Image *fbiw.Image `css:"img"`
-		Text  *fbiw.Text  `css:"text"`
+		root  fbiw.Box
+		image *fbiw.Image `css:"img"`
+		text  *fbiw.Text  `css:"text"`
 	}
 
 	emus := loadDir(filepath.Join(_SDCARDRoot, `Emus`))
@@ -32,13 +32,13 @@ func (w *MainWindow) asyncInitEmus() {
 	<text></text>
 </block>
 `)
-				return item.Root, item
+				return item.root, item
 			},
 			func(item any, index int) {
 				emu := emus[index]
 				emuItem := item.(*_EmuItem)
-				emuItem.Image.SetPath(emu.IconPath())
-				emuItem.Text.SetText(emu.Name())
+				emuItem.image.SetPath(emu.IconPath())
+				emuItem.text.SetText(emu.Name())
 			},
 		)
 	})
@@ -203,9 +203,9 @@ func (n *GamesNavigator) setRomsList(roms []RomInfo, state any) {
 	n.noGames.Base().SetProp(`display`, fmt.Sprint(len(roms) == 0))
 
 	type _RomBox struct {
-		Root fbiw.Box
-		Icon *fbiw.Text `css:".icon"`
-		Name *fbiw.Text `css:".name"`
+		root fbiw.Box
+		icon *fbiw.Text `css:".icon"`
+		name *fbiw.Text `css:".name"`
 	}
 
 	n.roms.SetItems(len(roms),
@@ -219,16 +219,16 @@ func (n *GamesNavigator) setRomsList(roms []RomInfo, state any) {
 	</inline>
 </block>
 `)
-			return item.Root, item
+			return item.root, item
 		},
 		func(item any, index int) {
 			rom := roms[index]
 			box := item.(*_RomBox)
-			box.Name.SetText(rom.displayName)
+			box.name.SetText(rom.displayName)
 			if rom.isDir {
-				box.Icon.SetText("\uf07b")
+				box.icon.SetText("\uf07b")
 			} else {
-				box.Icon.SetText(``)
+				box.icon.SetText(``)
 			}
 		},
 	)

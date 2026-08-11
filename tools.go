@@ -101,8 +101,8 @@ func (t *WebDAVToolItem) Navigate(name fbiw.KeyName) any {
 }
 
 type _ToolItem struct {
-	Root fbiw.Box
-	Name *fbiw.Text `css:"text"`
+	root fbiw.Box
+	name *fbiw.Text `css:"text"`
 }
 
 func (win *MainWindow) initTools() {
@@ -122,11 +122,11 @@ func (win *MainWindow) initTools() {
 		<text></text>
 	</inline>
 </block>`)
-			return box.Root, box
+			return box.root, box
 		},
 		func(user any, index int) {
 			item := user.(*_ToolItem)
-			item.Name.SetText(win.toolsNav.tools[index].Name())
+			item.name.SetText(win.toolsNav.tools[index].Name())
 		},
 	)
 }

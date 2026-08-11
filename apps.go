@@ -21,9 +21,9 @@ func loadApps() []*LaunchConfig {
 
 func (w *MainWindow) asyncInitApps() {
 	type _AppItem struct {
-		Root  fbiw.Box
-		Image *fbiw.Image `css:"img"`
-		Text  *fbiw.Text  `css:"text"`
+		root  fbiw.Box
+		image *fbiw.Image `css:"img"`
+		text  *fbiw.Text  `css:"text"`
 	}
 
 	apps := loadApps()
@@ -38,13 +38,13 @@ func (w *MainWindow) asyncInitApps() {
 	<text></text>
 </block>
 `)
-				return item.Root, item
+				return item.root, item
 			},
 			func(item any, index int) {
 				app := apps[index]
 				appItem := item.(*_AppItem)
-				appItem.Image.SetPath(filepath.Join(app.Dir, app.Config.IconTop))
-				appItem.Text.SetText(fbiw.Iif(app.Config.LabelChinese != ``, app.Config.LabelChinese, app.Config.Label))
+				appItem.image.SetPath(filepath.Join(app.Dir, app.Config.IconTop))
+				appItem.text.SetText(fbiw.Iif(app.Config.LabelChinese != ``, app.Config.LabelChinese, app.Config.Label))
 			},
 		)
 	})
@@ -88,9 +88,9 @@ func (n *AppsNavigator) Navigate(name fbiw.KeyName) any {
 
 func (w *MainWindow) asyncInitPorts() {
 	type _AppItem struct {
-		Root  fbiw.Box
-		Image *fbiw.Image `css:"img"`
-		Text  *fbiw.Text  `css:"text"`
+		root  fbiw.Box
+		image *fbiw.Image `css:"img"`
+		text  *fbiw.Text  `css:"text"`
 	}
 
 	apps := loadDir(filepath.Join(_SDCARDRoot, `Ports`))
@@ -106,13 +106,13 @@ func (w *MainWindow) asyncInitPorts() {
 	<text></text>
 </block>
 `)
-				return item.Root, item
+				return item.root, item
 			},
 			func(item any, index int) {
 				app := apps[index]
 				appItem := item.(*_AppItem)
-				appItem.Image.SetPath(app.IconPath())
-				appItem.Text.SetText(app.Name())
+				appItem.image.SetPath(app.IconPath())
+				appItem.text.SetText(app.Name())
 			},
 		)
 	})
