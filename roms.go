@@ -135,7 +135,7 @@ func (n *GamesNavigator) navigateEmus(name fbiw.KeyName) any {
 		n.emus.SetProp(`display`, `false`)
 		n.roms.SetProp(`display`, `true`)
 
-		list := n.listRomsInDir(emu.RomDir())
+		list := n.listRomsInDir(emu, emu.RomDir())
 		n.stack.Push(`.`, list, nil)
 		n.setRomsList(list, nil)
 
@@ -176,7 +176,7 @@ func (n *GamesNavigator) navigateRoms(name fbiw.KeyName) any {
 
 		// 选中了目录？
 		if info.isDir {
-			list := n.listRomsInDir(n.romFinalPath(n.currentEmu, info))
+			list := n.listRomsInDir(n.currentEmu, n.romFinalPath(n.currentEmu, info))
 			n.stack.Top().state = n.roms.GetState()
 			n.stack.Push(info.name, list, nil)
 			n.setRomsList(list, nil)
@@ -263,7 +263,7 @@ func (n *GamesNavigator) romFinalPath(launcher *LaunchConfig, rom RomInfo) strin
 //   - 目前放前面
 //   - 不包含以“.”开头的文件
 //   - 如果目录是空目录，则也不会包含
-func (n *GamesNavigator) listRomsInDir(dir string) []RomInfo {
+func (n *GamesNavigator) listRomsInDir(emu *LaunchConfig, dir string) []RomInfo {
 	roms := []RomInfo{}
 
 	entries, err := os.ReadDir(dir)
@@ -276,12 +276,18 @@ func (n *GamesNavigator) listRomsInDir(dir string) []RomInfo {
 		if strings.HasPrefix(entry.Name(), `.`) {
 			continue
 		}
-		archiveName := entry.Name()
-		translated := game_names.Translate(archiveName)
-		displayName := fbiw.Iif(translated != ``, translated, archiveName)
+
+		fileName := entry.Name()
+
+		if !emu.IncludesName(fileName) {
+			continue
+		}
+
+		translated := game_names.Translate(fileName)
+		displayName := fbiw.Iif(translated != ``, translated, fileName)
 		roms = append(roms, RomInfo{
 			isDir:       entry.IsDir(),
-			name:        archiveName,
+			name:        fileName,
 			displayName: displayName,
 		})
 	}

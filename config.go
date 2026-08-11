@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
+	"strings"
 
 	"github.com/movsb/fbiw"
 )
@@ -33,6 +35,12 @@ type Config struct {
 	// 一般来说，是类似于 ../../Roms/FC 之类的写法。
 	// 所以是相对于此配置文件。
 	RomPath string `json:"rompath"`
+
+	// 支持的扩展名列表。
+	// 已标准化成 [.zip .nes] 这种。
+	ExtList string `json:"extlist"`
+	// 有点、已小写。
+	extensions []string
 }
 
 // 解析单个配置文件。
@@ -46,6 +54,18 @@ func parseConfig(path string) (*Config, error) {
 	var config Config
 	if err := json.NewDecoder(fp).Decode(&config); err != nil {
 		return nil, fmt.Errorf(`解析失败：%w`, err)
+	}
+
+	// 标准化。
+	if config.ExtList != `` {
+		exts := strings.SplitSeq(config.ExtList, `|`)
+		for ext := range exts {
+			ext = strings.ToLower(strings.TrimSpace(ext))
+			if ext == `` {
+				continue
+			}
+			config.extensions = append(config.extensions, `.`+ext)
+		}
 	}
 
 	return &config, nil
@@ -81,6 +101,16 @@ func (c *LaunchConfig) Name() string {
 		return name
 	}
 	return c.Config.Label
+}
+
+// 判断名字是否属于此模拟器支持的扩展名列表之一。
+func (c *LaunchConfig) IncludesName(name string) bool {
+	ext := filepath.Ext(name)
+	if ext == `` {
+		return false
+	}
+	ext = strings.ToLower(ext)
+	return slices.Contains(c.Config.extensions, ext)
 }
 
 // `sdcard` 是我开发机的软连接目录。
