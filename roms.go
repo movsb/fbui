@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/movsb/fbiw"
+	"github.com/movsb/fbui/assets/game_names"
 )
 
 func (w *MainWindow) asyncInitEmus() {
@@ -242,7 +243,8 @@ type RomInfo struct {
 	isDir bool
 	// 原始文件系统文件名，不含路径。
 	name string
-	// 可能的友好显示名？
+	// 可能的友好显示/翻译名？
+	// 总是有值。有当前语言版本，则为当前语言版本，否则同 name。
 	displayName string
 }
 
@@ -274,10 +276,13 @@ func (n *GamesNavigator) listRomsInDir(dir string) []RomInfo {
 		if strings.HasPrefix(entry.Name(), `.`) {
 			continue
 		}
+		archiveName := entry.Name()
+		translated := game_names.Translate(archiveName)
+		displayName := fbiw.Iif(translated != ``, translated, archiveName)
 		roms = append(roms, RomInfo{
 			isDir:       entry.IsDir(),
-			name:        entry.Name(),
-			displayName: entry.Name(),
+			name:        archiveName,
+			displayName: displayName,
 		})
 	}
 

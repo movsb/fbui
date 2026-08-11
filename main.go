@@ -23,9 +23,7 @@ func init() {
 var embedded embed.FS
 
 func main() {
-	app := fbiw.NewApp(
-		context.Background(), embedded,
-	)
+	app := fbiw.NewApp(context.Background(), embedded)
 	defer app.Close()
 
 	fontDir := os.DirFS(fbiw.Iif(runtime.GOOS == `linux`, `/usr/trimui/res`, `.`))
