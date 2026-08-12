@@ -105,6 +105,10 @@ func (c *LaunchConfig) Name() string {
 
 // 判断名字是否属于此模拟器支持的扩展名列表之一。
 func (c *LaunchConfig) IncludesName(name string) bool {
+	// 如果没有指定扩展名列表，则总是包含
+	if len(c.Config.extensions) == 0 {
+		return true
+	}
 	ext := filepath.Ext(name)
 	if ext == `` {
 		return false

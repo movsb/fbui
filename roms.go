@@ -108,18 +108,31 @@ func (n *GamesNavigator) Navigate(name fbiw.KeyName) any {
 }
 
 func (n *GamesNavigator) navigateEmus(name fbiw.KeyName) any {
-	// 模拟器界面，按B退出
+	// 模拟器界面，按“B”退出
 	if name == fbiw.B {
 		n.emus.Deselect()
 		return false
 	}
-	// 按上回到标题
+
+	// 按“选择”搜索
+	if name == fbiw.Select {
+		doc := n.window.app.New(`search.html`, ``)
+		win := SearchWindow{
+			app: n.window.app,
+			doc: doc,
+		}
+		doc.SetDelegator(&win)
+		n.window.app.Show(doc)
+		return nil
+	}
+
+	// 按“上”回到标题
 	if name == fbiw.Up && n.emus.DataRowIndex() == 0 {
 		n.emus.Deselect()
 		return false
 	}
 
-	// 按A进入游戏列表
+	// 按“A”进入游戏列表
 	if name == fbiw.A {
 		emuList := n.emus.GetData(`emus`).([]*LaunchConfig)
 		emuIndex := n.emus.DataIndex()
