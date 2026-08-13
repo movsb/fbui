@@ -7,9 +7,9 @@ type SearchWindow struct {
 	doc *fbiw.Document
 }
 
-func (win *SearchWindow) HandleKeyboardEvent(name fbiw.KeyName, pressed bool) {
-	if name == fbiw.B {
-		win.doc.Close()
-		return
+func NewSearchWindow(app *fbiw.App, doc *fbiw.Document) *SearchWindow {
+	return &SearchWindow{
+		app: app,
+		doc: doc,
 	}
 }

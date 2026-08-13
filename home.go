@@ -179,82 +179,89 @@ func (w *MainWindow) initSystemPower() {
 	}()
 }
 
-func (w *MainWindow) HandleKeyboardEvent(name fbiw.KeyName, pressed bool) {
-	if len(w.navigators) <= 0 || !pressed {
+type StatusBarNavigator struct {
+	window       *MainWindow
+	titleBar     *fbiw.Stack
+	catIndex     int
+	catBoxes     []fbiw.Box
+	contentBoxes []fbiw.Box
+}
+
+func NewStatusBarNavigator(win *MainWindow) *StatusBarNavigator {
+	n := StatusBarNavigator{
+		window:       win,
+		titleBar:     win.doc.QuerySelector(`#title-bar`).(*fbiw.Stack),
+		catIndex:     0,
+		catBoxes:     win.doc.QuerySelectorAll(`#cat-bar text`),
+		contentBoxes: win.doc.GetBoxByID(`content`).Base().Children,
+	}
+	n.titleBar.Listen(fbiw.KeyboardEvent, n.handleEvents, fbiw.EventOptions{})
+	return &n
+}
+
+func (n *StatusBarNavigator) activate() {
+	n.titleBar.Activate()
+}
+
+func (n *StatusBarNavigator) activateContent() {
+	if n.catIndex >= 0 && n.catIndex <= len(n.contentBoxes)-1 {
+		content := n.contentBoxes[n.catIndex]
+		switch content.Base().ID {
+		case `games`:
+			n.window.gamesNav.activate()
+		case `ports`:
+			n.window.portsNav.activate()
+		case `apps`:
+			n.window.appsNav.activate()
+		case `tools`:
+			n.window.toolsNav.activate()
+		}
+	}
+}
+
+func (n *StatusBarNavigator) handleEvents(event *fbiw.Event) {
+	if !event.Keyboard.KeyDown {
 		return
 	}
-	last := w.navigators[len(w.navigators)-1]
 
-	next := last.Navigate(name)
-	if next == nil {
+	keyName := event.Keyboard.Name
+
+	if n.catIndex <= 0 && keyName == fbiw.Left {
 		return
-	} else if next == false {
-		w.navigators = w.navigators[:len(w.navigators)-1]
-		w.HandleKeyboardEvent(name, pressed)
-	} else if nav, ok := next.(Navigator); ok {
-		w.navigators = append(w.navigators, nav)
-		w.HandleKeyboardEvent(name, pressed)
-	} else {
-		log.Panicf(`navigator 返回了无效值：%v`, next)
 	}
-}
-
-type Navigator interface {
-	// 返回值分几种情况：
-	//  - 如果是nil，继续由自己导航。
-	//  - 如果是Navigator，压栈此新的Navigator，并由它接管新的导航。
-	//  - 如果是false，结束导航，回到前一个导航。
-	Navigate(name fbiw.KeyName) any
-}
-
-type _TitleNavigator struct {
-	w        *MainWindow
-	catIndex int
-}
-
-func (n *_TitleNavigator) Navigate(name fbiw.KeyName) any {
-	if n.catIndex == 0 && name == fbiw.Left {
-		return nil
+	if n.catIndex >= len(n.catBoxes)-1 && keyName == fbiw.Right {
+		return
 	}
-	items := n.w.doc.QuerySelectorAll(`#cat-bar text`)
-	contentBlocks := n.w.doc.GetBoxByID(`content`).Base().Children
-	if n.catIndex == len(items)-1 && name == fbiw.Right {
-		return nil
-	}
-	if name == fbiw.Left || name == fbiw.Right {
+
+	if keyName == fbiw.Left || keyName == fbiw.Right {
 		// 原来的去掉选中
-		if n.catIndex >= 0 && n.catIndex < len(items) {
-			t := items[n.catIndex].(*fbiw.Text)
+		if n.catIndex >= 0 && n.catIndex < len(n.catBoxes) {
+			t := n.catBoxes[n.catIndex].(*fbiw.Text)
 			t.ClassRemove(`selected`)
-			b := contentBlocks[n.catIndex]
+			b := n.contentBoxes[n.catIndex]
 			b.Base().ClassRemove(`selected`)
 		}
-		switch name {
+
+		switch keyName {
 		case fbiw.Left:
 			n.catIndex--
 		case fbiw.Right:
 			n.catIndex++
 		}
-		t := items[n.catIndex].(*fbiw.Text)
+
+		t := n.catBoxes[n.catIndex].(*fbiw.Text)
 		t.ClassAdd(`selected`)
-		b := contentBlocks[n.catIndex]
+		b := n.contentBoxes[n.catIndex]
 		b.Base().ClassAdd(`selected`)
-		return nil
+
+		event.StopPropagation()
+		return
 	}
-	if name == fbiw.Down {
-		t := items[n.catIndex].(*fbiw.Text)
-		switch t.Name {
-		case `apps`:
-			return n.w.appNav
-		case `ports`:
-			return n.w.portsNav
-		case `games`:
-			return n.w.gamesNav
-		case `tools`:
-			return n.w.toolsNav
-		}
+
+	if keyName == fbiw.Down {
+		n.activateContent()
+		event.StopPropagation()
 	}
-	return nil
 }
 
 func (win *MainWindow) watchOsdEvents() {

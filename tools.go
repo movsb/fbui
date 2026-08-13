@@ -14,30 +14,36 @@ import (
 	"golang.org/x/net/webdav"
 )
 
-type ToolItem interface {
-	Name() string
-	Navigate(name fbiw.KeyName) any
-}
+type WebDavWindow struct {
+	app *fbiw.App
 
-type WebDAVToolItem struct {
-	app  *fbiw.App
-	doc  *fbiw.Document
-	open int // 0关闭，1打开中，2已打开
-
+	doc    *fbiw.Document
 	btn    *fbiw.Text
 	status *fbiw.Text
+
+	open   int // 0关闭，1打开中，2已打开
 	ctx    context.Context
 	cancel context.CancelFunc
 }
 
-func (t *WebDAVToolItem) Name() string {
-	return `文件服务器（WebDAV）`
+func NewWebDavWindow(app *fbiw.App, doc *fbiw.Document) *WebDavWindow {
+	win := WebDavWindow{
+		app:    app,
+		doc:    doc,
+		btn:    doc.QuerySelector(`.button`).(*fbiw.Text),
+		status: doc.QuerySelector(`.status-string`).(*fbiw.Text),
+	}
+	win.doc.Listen(fbiw.KeyboardEvent, win.handleEvents, fbiw.EventOptions{})
+	return &win
 }
 
-func (t *WebDAVToolItem) HandleKeyboardEvent(name fbiw.KeyName, pressed bool) {
-	if !pressed {
+func (t *WebDavWindow) handleEvents(event *fbiw.Event) {
+	if !(event.Type == fbiw.KeyboardEvent && event.Keyboard.KeyDown) {
 		return
 	}
+
+	name := event.Keyboard.Name
+
 	if name == fbiw.B {
 		if t.open != 0 {
 			t.cancel()
@@ -85,38 +91,35 @@ func (t *WebDAVToolItem) HandleKeyboardEvent(name fbiw.KeyName, pressed bool) {
 	}
 }
 
-func (t *WebDAVToolItem) Navigate(name fbiw.KeyName) any {
-	if name == fbiw.B && t.doc == nil {
-		return false
-	}
-	if name == fbiw.A && t.doc == nil {
-		t.doc = t.app.New(`webdav.html`, ``)
-		t.btn = t.doc.QuerySelector(`.button`).(*fbiw.Text)
-		t.status = t.doc.QuerySelector(`.status-string`).(*fbiw.Text)
-		t.doc.SetDelegator(t)
-		t.app.Show(t.doc)
-		return nil
-	}
-	return nil
+type _ToolItemData struct {
+	name  string
+	click func()
 }
 
-type _ToolItem struct {
+type _ToolItemView struct {
 	root fbiw.Box
 	name *fbiw.Text `css:"text"`
 }
 
-func (win *MainWindow) initTools() {
-	win.toolsNav = &ToolsNavigator{
+func NewToolsNavigator(win *MainWindow) *ToolsNavigator {
+	toolsNav := &ToolsNavigator{
 		window: win,
 		scroll: win.doc.QuerySelector(`#tools`).(*fbiw.Scroll),
+		tools: []_ToolItemData{
+			{
+				name: `文件服务器（WebDAV）`,
+				click: func() {
+					doc := win.app.New(`webdav.html`, ``)
+					NewWebDavWindow(win.app, doc)
+					win.app.Show(doc)
+				},
+			},
+		},
 	}
-	win.toolsNav.tools = append(win.toolsNav.tools, &WebDAVToolItem{
-		app: win.app,
-	})
-	win.toolsNav.scroll.SetItems(
-		len(win.toolsNav.tools),
+	toolsNav.scroll.SetItems(
+		len(toolsNav.tools),
 		func() (fbiw.Box, any) {
-			box := fbiw.Unmarshal[_ToolItem](win.doc, `
+			box := fbiw.Unmarshal[_ToolItemView](win.doc, `
 <block padding=30>
 	<inline spacer align=middle>
 		<text></text>
@@ -125,36 +128,42 @@ func (win *MainWindow) initTools() {
 			return box.root, box
 		},
 		func(user any, index int) {
-			item := user.(*_ToolItem)
-			item.name.SetText(win.toolsNav.tools[index].Name())
+			item := user.(*_ToolItemView)
+			item.name.SetText(win.toolsNav.tools[index].name)
 		},
 	)
+	toolsNav.scroll.Listen(fbiw.KeyboardEvent, toolsNav.handleEvents, fbiw.EventOptions{})
+	return toolsNav
 }
 
 type ToolsNavigator struct {
 	window *MainWindow
 	scroll *fbiw.Scroll
-	tools  []ToolItem
+	tools  []_ToolItemData
 }
 
-func (n *ToolsNavigator) Navigate(name fbiw.KeyName) any {
-	if name == fbiw.B {
-		log.Printf(`收到B按键`)
-		n.scroll.Deselect()
-		return false
+func (n *ToolsNavigator) activate() {
+	n.scroll.SetIndex(0, 0, 0)
+	n.scroll.Activate()
+}
+
+func (n *ToolsNavigator) handleEvents(event *fbiw.Event) {
+	if !(event.Type == fbiw.KeyboardEvent && event.Keyboard.KeyDown) {
+		return
 	}
-	if n.scroll.DataRowIndex() <= 0 && name == fbiw.Up {
+	name := event.Keyboard.Name
+	if name == fbiw.B || (name == fbiw.Up && n.scroll.DataRowIndex() <= 0) {
 		n.scroll.Deselect()
-		return false
+		n.window.statusBarNav.activate()
+		return
 	}
 
 	if name == fbiw.A && n.scroll.DataIndex() != -1 {
-		return n.tools[n.scroll.DataIndex()]
+		tool := n.tools[n.scroll.DataIndex()]
+		tool.click()
+		event.StopPropagation()
+		return
 	}
-
-	n.scroll.Navigate(name)
-
-	return nil
 }
 
 // callback会在服务器准备好后于线程中调用。

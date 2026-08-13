@@ -8,12 +8,11 @@ type MainWindow struct {
 	app *fbiw.App
 	doc *fbiw.Document
 
-	navigators []Navigator
-
-	appNav   *AppsNavigator
-	portsNav *AppsNavigator
-	gamesNav *GamesNavigator
-	toolsNav *ToolsNavigator
+	statusBarNav *StatusBarNavigator
+	gamesNav     *GamesNavigator
+	portsNav     *LauncherNavigator
+	appsNav      *LauncherNavigator
+	toolsNav     *ToolsNavigator
 
 	txtTime              *fbiw.Text
 	txtBatteryPercentage *fbiw.Text
@@ -42,26 +41,11 @@ func NewMainWindow(app *fbiw.App) *MainWindow {
 		txtCpuStatus:     doc.QuerySelector(`#cpu`).(*fbiw.Text),
 	}
 
-	win.appNav = &AppsNavigator{
-		window:   win,
-		scroll:   doc.QuerySelector(`#apps`).(*fbiw.Scroll),
-		dataName: `apps`,
-	}
-	win.portsNav = &AppsNavigator{
-		window:   win,
-		scroll:   doc.QuerySelector(`#ports`).(*fbiw.Scroll),
-		dataName: `ports`,
-	}
-	win.gamesNav = &GamesNavigator{
-		window:  win,
-		emus:    doc.QuerySelector(`#emus`).(*fbiw.Scroll),
-		roms:    doc.QuerySelector(`#roms`).(*fbiw.Scroll),
-		noGames: doc.QuerySelector(`#nogames`),
-	}
-
-	win.initTools()
-
-	doc.SetDelegator(win)
+	win.statusBarNav = NewStatusBarNavigator(win)
+	win.gamesNav = NewGamesNavigator(win)
+	win.portsNav = NewLauncherNavigator(win, `#ports`, `ports`)
+	win.appsNav = NewLauncherNavigator(win, `#apps`, `apps`)
+	win.toolsNav = NewToolsNavigator(win)
 
 	win.initSystemTime()
 	win.initSystemPower()
@@ -73,10 +57,7 @@ func NewMainWindow(app *fbiw.App) *MainWindow {
 	go win.asyncInitEmus()
 	go win.asyncInitPorts()
 
-	win.navigators = append(win.navigators, &_TitleNavigator{
-		w:        win,
-		catIndex: 0,
-	})
+	win.statusBarNav.activate()
 
 	return win
 }

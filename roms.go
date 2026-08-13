@@ -47,6 +47,7 @@ func (w *MainWindow) asyncInitEmus() {
 
 type GamesNavigator struct {
 	window     *MainWindow
+	container  *fbiw.Stack
 	emus       *fbiw.Scroll
 	roms       *fbiw.Scroll
 	noGames    fbiw.Box
@@ -54,6 +55,18 @@ type GamesNavigator struct {
 
 	// 当前的目录浏览栈。
 	stack _RomStack
+}
+
+func NewGamesNavigator(win *MainWindow) *GamesNavigator {
+	n := &GamesNavigator{
+		window:    win,
+		container: win.doc.QuerySelector(`#games`).(*fbiw.Stack),
+		emus:      win.doc.QuerySelector(`#emus`).(*fbiw.Scroll),
+		roms:      win.doc.QuerySelector(`#roms`).(*fbiw.Scroll),
+		noGames:   win.doc.QuerySelector(`#nogames`),
+	}
+	n.container.Listen(fbiw.KeyboardEvent, n.handleEvents, fbiw.EventOptions{})
+	return n
 }
 
 type _RomStack struct {
@@ -99,118 +112,136 @@ type _RomDirInfo struct {
 	state any
 }
 
-func (n *GamesNavigator) Navigate(name fbiw.KeyName) any {
+func (n *GamesNavigator) activate() {
+	n.emus.SetIndex(0, 0, 0)
+	n.emus.Activate()
+}
+
+func (n *GamesNavigator) handleEvents(event *fbiw.Event) {
+	if !(event.Type == fbiw.KeyboardEvent && event.Keyboard.KeyDown) {
+		return
+	}
+
+	name := event.Keyboard.Name
+
+	// 模拟器界面
 	if n.stack.Size() == 0 {
-		return n.navigateEmus(name)
+		// 冒泡到上一级回到标题
+		if name == fbiw.B || (name == fbiw.Up && n.emus.DataRowIndex() <= 0) {
+			n.emus.Deselect()
+			n.window.statusBarNav.activate()
+			return
+		}
+
+		// 按“Y”搜索
+		if name == fbiw.Y {
+			n.openSearch()
+			return
+		}
+
+		// 按“A”进入游戏列表
+		if name == fbiw.A {
+			n.switchToRoms()
+			return
+		}
 	} else {
-		return n.navigateRoms(name)
-	}
-}
-
-func (n *GamesNavigator) navigateEmus(name fbiw.KeyName) any {
-	// 模拟器界面，按“B”退出
-	if name == fbiw.B {
-		n.emus.Deselect()
-		return false
-	}
-
-	// 按“选择”搜索
-	if name == fbiw.Select {
-		doc := n.window.app.New(`search.html`, ``)
-		win := SearchWindow{
-			app: n.window.app,
-			doc: doc,
-		}
-		doc.SetDelegator(&win)
-		n.window.app.Show(doc)
-		return nil
-	}
-
-	// 按“上”回到标题
-	if name == fbiw.Up && n.emus.DataRowIndex() == 0 {
-		n.emus.Deselect()
-		return false
-	}
-
-	// 按“A”进入游戏列表
-	if name == fbiw.A {
-		emuList := n.emus.GetData(`emus`).([]*LaunchConfig)
-		emuIndex := n.emus.DataIndex()
-
-		if emuIndex < 0 || emuIndex > len(emuList)-1 {
-			return nil
-		}
-
-		emu := emuList[emuIndex]
-		n.currentEmu = emu
-
-		// 隐藏模拟器，显示游戏列表
-		n.emus.SetProp(`display`, `false`)
-		n.roms.SetProp(`display`, `true`)
-
-		list := n.listRomsInDir(emu, emu.RomDir())
-		n.stack.Push(`.`, list, nil)
-		n.setRomsList(list, nil)
-
-		return nil
-	}
-
-	n.emus.Navigate(name)
-	return nil
-}
-
-func (n *GamesNavigator) navigateRoms(name fbiw.KeyName) any {
-	// 返回上一层。
-	if name == fbiw.B {
-		// 游戏列表的最上层了，返回模拟器列表。
-		if n.stack.Size() <= 1 {
-			n.roms.SetProp(`display`, `false`)
-			n.emus.SetProp(`display`, `true`)
-			n.noGames.Base().SetProp(`display`, `false`)
-			n.stack.Pop()
-			return nil
-		}
-
-		// 还有更多游戏上级列表。
-		n.stack.Pop()
-		top := n.stack.Top()
-		n.setRomsList(top.roms, top.state)
-		return nil
-	}
-	// 启动游戏或者进入新的目录。
-	if name == fbiw.A {
-		// 没有选中？
-		index := n.roms.DataIndex()
-		if index < 0 || index > n.roms.DataCount()-1 {
-			return nil
-		}
-
-		info := n.stack.Top().roms[index]
-
-		// 选中了目录？
-		if info.isDir {
-			list := n.listRomsInDir(n.currentEmu, n.romFinalPath(n.currentEmu, info))
-			n.stack.Top().state = n.roms.GetState()
-			n.stack.Push(info.name, list, nil)
-			n.setRomsList(list, nil)
-			return nil
-		}
-
-		// 选中了游戏？
-		launcher := n.currentEmu.LauncherScriptPath()
-		romPath := n.romFinalPath(n.currentEmu, info)
-		n.window.app.Detach()
-		go func() {
-			defer n.window.app.AttachAsync()
-			cmd := exec.Command(launcher, romPath)
-			if err := cmd.Run(); err != nil {
-				log.Printf(`运行失败：%s: %s: %s`, launcher, romPath, err.Error())
+		// 返回上一层。
+		if name == fbiw.B {
+			// 游戏列表的最上层了，返回模拟器列表。
+			if n.stack.Size() <= 1 {
+				n.backToEmulators()
+			} else {
+				n.gotoUpperDirectory()
 			}
-		}()
-		return nil
+			event.StopPropagation()
+			return
+		}
+
+		// 启动游戏或者进入新的目录。
+		if name == fbiw.A {
+			index := n.roms.DataIndex()
+			// 没有选中？
+			if index < 0 {
+				return
+			}
+			info := n.stack.Top().roms[index]
+			if info.isDir {
+				// 选中了目录？
+				n.enterDirectory(info)
+			} else {
+				// 选中了游戏？
+				n.runGame(info)
+			}
+			event.StopPropagation()
+			return
+		}
 	}
-	n.roms.Navigate(name)
-	return nil
+}
+
+func (n *GamesNavigator) openSearch() {
+	doc := n.window.app.New(`search.html`, ``)
+	NewSearchWindow(n.window.app, doc)
+	n.window.app.Show(doc)
+}
+
+func (n *GamesNavigator) backToEmulators() {
+	n.roms.SetProp(`display`, `false`)
+	n.emus.SetProp(`display`, `true`)
+	n.noGames.Base().SetProp(`display`, `false`)
+	n.stack.Pop()
+	n.emus.Activate()
+}
+
+func (n *GamesNavigator) gotoUpperDirectory() {
+	// 还有更多游戏上级列表。
+	n.stack.Pop()
+	top := n.stack.Top()
+	n.setRomsList(top.roms, top.state)
+}
+
+func (n *GamesNavigator) switchToRoms() {
+	emuIndex := n.emus.DataIndex()
+	if emuIndex < 0 {
+		return
+	}
+
+	emuList := n.emus.GetData(`emus`).([]*LaunchConfig)
+	emu := emuList[n.emus.DataIndex()]
+	n.currentEmu = emu
+
+	// 隐藏模拟器，显示游戏列表
+	n.emus.SetProp(`display`, `false`)
+	n.roms.SetProp(`display`, `true`)
+
+	list := n.listRomsInDir(emu, emu.RomDir())
+	n.stack.Push(`.`, list, nil)
+	n.setRomsList(list, nil)
+	n.roms.Activate()
+}
+
+func (n *GamesNavigator) enterDirectory(info RomInfo) {
+	path := n.romFinalPath(n.currentEmu, info)
+	// TODO 这里是同步列举的，可能会卡界面
+	list := n.listRomsInDir(n.currentEmu, path)
+	n.stack.Top().state = n.roms.GetState()
+	n.stack.Push(info.name, list, nil)
+	n.setRomsList(list, nil)
+	// 其实只需要激活一次就行。
+	// 然后在退出最只有模拟器列表的时候切换激活。
+	n.roms.Activate()
+}
+
+func (n *GamesNavigator) runGame(info RomInfo) {
+	launcher := n.currentEmu.LauncherScriptPath()
+	romPath := n.romFinalPath(n.currentEmu, info)
+	n.window.app.Detach()
+	go func() {
+		defer n.window.app.AttachAsync()
+		cmd := exec.Command(launcher, romPath)
+		if err := cmd.Run(); err != nil {
+			log.Printf(`运行失败：%s: %s: %s`, launcher, romPath, err.Error())
+		}
+	}()
 }
 
 func (n *GamesNavigator) setRomsList(roms []RomInfo, state any) {
@@ -292,7 +323,7 @@ func (n *GamesNavigator) listRomsInDir(emu *LaunchConfig, dir string) []RomInfo 
 
 		fileName := entry.Name()
 
-		if !emu.IncludesName(fileName) {
+		if !entry.IsDir() && !emu.IncludesName(fileName) {
 			continue
 		}
 
