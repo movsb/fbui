@@ -33,16 +33,12 @@ func NewWebDavWindow(app *fbiw.App, doc *fbiw.Document) *WebDavWindow {
 		btn:    doc.QuerySelector(`.button`).(*fbiw.Text),
 		status: doc.QuerySelector(`.status-string`).(*fbiw.Text),
 	}
-	win.doc.Listen(fbiw.KeyboardEvent, win.handleEvents, fbiw.EventOptions{})
+	win.doc.Listen(fbiw.StickDownEvent, win.handleEvents, fbiw.EventOptions{})
 	return &win
 }
 
 func (t *WebDavWindow) handleEvents(event *fbiw.Event) {
-	if !(event.Type == fbiw.KeyboardEvent && event.Keyboard.KeyDown) {
-		return
-	}
-
-	name := event.Keyboard.Name
+	name := event.Stick.Name
 
 	if name == fbiw.B {
 		if t.open != 0 {
@@ -132,7 +128,7 @@ func NewToolsNavigator(win *MainWindow) *ToolsNavigator {
 			item.name.SetText(win.toolsNav.tools[index].name)
 		},
 	)
-	toolsNav.scroll.Listen(fbiw.KeyboardEvent, toolsNav.handleEvents, fbiw.EventOptions{})
+	toolsNav.scroll.Listen(fbiw.StickDownEvent, toolsNav.handleEvents, fbiw.EventOptions{})
 	return toolsNav
 }
 
@@ -148,10 +144,7 @@ func (n *ToolsNavigator) activate() {
 }
 
 func (n *ToolsNavigator) handleEvents(event *fbiw.Event) {
-	if !(event.Type == fbiw.KeyboardEvent && event.Keyboard.KeyDown) {
-		return
-	}
-	name := event.Keyboard.Name
+	name := event.Stick.Name
 	if name == fbiw.B || (name == fbiw.Up && n.scroll.DataRowIndex() <= 0) {
 		n.scroll.Deselect()
 		n.window.statusBarNav.activate()

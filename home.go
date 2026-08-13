@@ -195,7 +195,7 @@ func NewStatusBarNavigator(win *MainWindow) *StatusBarNavigator {
 		catBoxes:     win.doc.QuerySelectorAll(`#cat-bar text`),
 		contentBoxes: win.doc.GetBoxByID(`content`).Base().Children,
 	}
-	n.titleBar.Listen(fbiw.KeyboardEvent, n.handleEvents, fbiw.EventOptions{})
+	n.titleBar.Listen(fbiw.StickDownEvent, n.handleEvents, fbiw.EventOptions{})
 	return &n
 }
 
@@ -220,11 +220,7 @@ func (n *StatusBarNavigator) activateContent() {
 }
 
 func (n *StatusBarNavigator) handleEvents(event *fbiw.Event) {
-	if !event.Keyboard.KeyDown {
-		return
-	}
-
-	keyName := event.Keyboard.Name
+	keyName := event.Stick.Name
 
 	if n.catIndex <= 0 && keyName == fbiw.Left {
 		return

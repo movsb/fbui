@@ -65,7 +65,7 @@ func NewGamesNavigator(win *MainWindow) *GamesNavigator {
 		roms:      win.doc.QuerySelector(`#roms`).(*fbiw.Scroll),
 		noGames:   win.doc.QuerySelector(`#nogames`),
 	}
-	n.container.Listen(fbiw.KeyboardEvent, n.handleEvents, fbiw.EventOptions{})
+	n.container.Listen(fbiw.StickDownEvent, n.handleEvents, fbiw.EventOptions{})
 	return n
 }
 
@@ -118,11 +118,7 @@ func (n *GamesNavigator) activate() {
 }
 
 func (n *GamesNavigator) handleEvents(event *fbiw.Event) {
-	if !(event.Type == fbiw.KeyboardEvent && event.Keyboard.KeyDown) {
-		return
-	}
-
-	name := event.Keyboard.Name
+	name := event.Stick.Name
 
 	// 模拟器界面
 	if n.stack.Size() == 0 {

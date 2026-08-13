@@ -94,7 +94,7 @@ func NewLauncherNavigator(win *MainWindow, selector string, dataKey string) *Lau
 		dataKey: dataKey,
 		scroll:  win.doc.QuerySelector(selector).(*fbiw.Scroll),
 	}
-	n.scroll.Listen(fbiw.KeyboardEvent, n.handleKeyDown, fbiw.EventOptions{})
+	n.scroll.Listen(fbiw.StickDownEvent, n.handleKeyDown, fbiw.EventOptions{})
 	return &n
 }
 
@@ -104,12 +104,12 @@ func (n *LauncherNavigator) activate() {
 }
 
 func (n *LauncherNavigator) handleKeyDown(event *fbiw.Event) {
-	if event.KeyDown(fbiw.A) && n.scroll.DataIndex() != -1 {
+	if event.Stick.Name == fbiw.A && n.scroll.DataIndex() != -1 {
 		n.openApp()
 		event.StopPropagation()
 		return
 	}
-	if event.KeyDown(fbiw.B) || (event.KeyDown(fbiw.Up) && n.scroll.DataRowIndex() <= 0) {
+	if event.Stick.Name == fbiw.B || (event.Stick.Name == fbiw.Up && n.scroll.DataRowIndex() <= 0) {
 		n.scroll.Deselect()
 		n.window.statusBarNav.activate()
 		event.StopPropagation()
