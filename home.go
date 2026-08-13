@@ -193,7 +193,7 @@ func NewStatusBarNavigator(win *MainWindow) *StatusBarNavigator {
 		titleBar:     win.doc.QuerySelector(`#title-bar`).(*fbiw.Stack),
 		catIndex:     0,
 		catBoxes:     win.doc.QuerySelectorAll(`#cat-bar text`),
-		contentBoxes: win.doc.GetBoxByID(`content`).Base().Children,
+		contentBoxes: win.doc.GetBoxByID(`content`).Children(),
 	}
 	n.titleBar.Listen(fbiw.StickDownEvent, n.handleEvents, fbiw.EventOptions{})
 	return &n
