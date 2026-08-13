@@ -20,6 +20,11 @@ document {
 	outline-width: 1;
 	outline-color: white;
 }
+#result .selected {
+	outline-width: 3;
+	outline-color: green;
+	background-color: #174417;
+}
 </style>
 <block id=here background-color="#000000E8" width="640" height="480" border-width="3" border-color="green" padding="20">
 	<stack fill>
@@ -70,8 +75,13 @@ document {
 				<text>“A”输入，“B”删除，“X”搜索，“Y”关闭</text>
 			</inline>
 		</block>
-		<scroll id="result" display="false">
-		</scroll>
+		<stack id="result" fill>
+			<scroll id="result-list" display="false" rows="5" cols="1" display="false">
+			</scroll>
+			<block id="result-status-wrapper" align="both">
+				<text id="result-status" font-size="15"></text>
+			</block>
+		</stack>
 	</stack>
 </block>
 </document>
