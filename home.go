@@ -222,6 +222,13 @@ func (n *StatusBarNavigator) activateContent() {
 func (n *StatusBarNavigator) handleEvents(event *fbiw.Event) {
 	keyName := event.Stick.Name
 
+	if keyName == fbiw.B {
+		Alert(n.window.app, `确定要退出吗？`, func() {
+			n.window.app.Quit()
+		}, func() {})
+		return
+	}
+
 	if n.catIndex <= 0 && keyName == fbiw.Left {
 		return
 	}

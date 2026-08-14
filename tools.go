@@ -41,7 +41,14 @@ func (t *WebDavWindow) handleEvents(event *fbiw.Event) {
 	name := event.Stick.Name
 
 	if name == fbiw.B {
-		if t.open != 0 {
+		switch t.open {
+		case 0:
+			t.doc.Close()
+			t.doc = nil
+			return
+		case 1:
+			break
+		case 2:
 			t.cancel()
 			t.ctx = nil
 			t.cancel = nil
@@ -49,11 +56,8 @@ func (t *WebDavWindow) handleEvents(event *fbiw.Event) {
 			t.btn.SetText(string(rune(0xf204)))
 			t.status.SetText(`已关闭`)
 			return
-		} else {
-			t.doc.Close()
-			t.doc = nil
-			return
 		}
+		return
 	}
 
 	if name == fbiw.A {
