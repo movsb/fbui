@@ -6,8 +6,9 @@ require (
 	github.com/creack/pty v1.1.24
 	github.com/fswatcher/fswatcher v0.1.0
 	github.com/mdlayher/kobject v0.0.0-20200520190114-19ca17470d7d
-	github.com/movsb/fbiw v0.0.0-20260804022842-29a22e8119b7
+	github.com/movsb/fbiw v0.0.0-20260814134808-af53d87f1b3a
 	github.com/rcarmo/go-te v0.1.0
+	golang.org/x/net v0.57.0
 )
 
 require (
@@ -21,9 +22,8 @@ require (
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/veandco/go-sdl2 v0.4.40 // indirect
 	golang.org/x/image v0.44.0 // indirect
-	golang.org/x/net v0.57.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/text v0.40.0 // indirect
 )
 
-replace github.com/movsb/fbiw => /Users/tao/code/fbiw
+// replace github.com/movsb/fbiw => /Users/tao/code/fbiw
