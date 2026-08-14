@@ -5,8 +5,13 @@ import "github.com/movsb/fbiw"
 func Alert(app *fbiw.App, message string, confirm, cancel func()) {
 	doc := app.New(`alert.html`, `.`)
 
-	text := doc.QuerySelector(`text`).(*fbiw.Text)
-	text.SetText(message)
+	window := struct {
+		text *fbiw.Text `css:"text"`
+	}{}
+
+	doc.Bind(&window)
+
+	window.text.SetText(message)
 
 	app.Show(doc)
 

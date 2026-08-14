@@ -14,14 +14,14 @@ type MainWindow struct {
 	appsNav      *LauncherNavigator
 	toolsNav     *ToolsNavigator
 
-	txtTime              *fbiw.Text
-	txtBatteryPercentage *fbiw.Text
-	boxBatteryCharging   fbiw.Box
+	txtTime              *fbiw.Text `css:"#time"`
+	txtBatteryPercentage *fbiw.Text `css:"#battery"`
+	boxBatteryCharging   fbiw.Box   `css:"#battery-charging-box"`
 
-	txtVolumeOpen    *fbiw.Text
-	txtWifiOpen      *fbiw.Text
-	txtBluetoothOpen *fbiw.Text
-	txtCpuStatus     *fbiw.Text
+	txtVolumeOpen    *fbiw.Text `css:"#speaker"`
+	txtWifiOpen      *fbiw.Text `css:"#wifi"`
+	txtBluetoothOpen *fbiw.Text `css:"#bluetooth"`
+	txtCpuStatus     *fbiw.Text `css:"#cpu"`
 }
 
 func NewMainWindow(app *fbiw.App) *MainWindow {
@@ -30,16 +30,9 @@ func NewMainWindow(app *fbiw.App) *MainWindow {
 	win := &MainWindow{
 		app: app,
 		doc: doc,
-
-		txtTime:              doc.QuerySelector(`#time`).(*fbiw.Text),
-		txtBatteryPercentage: doc.QuerySelector(`#battery`).(*fbiw.Text),
-		boxBatteryCharging:   doc.QuerySelector(`#battery-charging-box`),
-
-		txtVolumeOpen:    doc.QuerySelector(`#speaker`).(*fbiw.Text),
-		txtWifiOpen:      doc.QuerySelector(`#wifi`).(*fbiw.Text),
-		txtBluetoothOpen: doc.QuerySelector(`#bluetooth`).(*fbiw.Text),
-		txtCpuStatus:     doc.QuerySelector(`#cpu`).(*fbiw.Text),
 	}
+
+	doc.Bind(win)
 
 	win.statusBarNav = NewStatusBarNavigator(win)
 	win.gamesNav = NewGamesNavigator(win)

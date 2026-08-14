@@ -18,8 +18,8 @@ type WebDavWindow struct {
 	app *fbiw.App
 
 	doc    *fbiw.Document
-	btn    *fbiw.Text
-	status *fbiw.Text
+	btn    *fbiw.Text `css:".button"`
+	status *fbiw.Text `css:".status-string"`
 
 	open   int // 0关闭，1打开中，2已打开
 	ctx    context.Context
@@ -28,11 +28,10 @@ type WebDavWindow struct {
 
 func NewWebDavWindow(app *fbiw.App, doc *fbiw.Document) *WebDavWindow {
 	win := WebDavWindow{
-		app:    app,
-		doc:    doc,
-		btn:    doc.QuerySelector(`.button`).(*fbiw.Text),
-		status: doc.QuerySelector(`.status-string`).(*fbiw.Text),
+		app: app,
+		doc: doc,
 	}
+	doc.Bind(&win)
 	win.doc.Listen(fbiw.StickDownEvent, win.handleEvents, fbiw.EventOptions{})
 	return &win
 }
@@ -104,7 +103,6 @@ type _ToolItemView struct {
 func NewToolsNavigator(win *MainWindow) *ToolsNavigator {
 	toolsNav := &ToolsNavigator{
 		window: win,
-		scroll: win.doc.QuerySelector(`#tools`).(*fbiw.Scroll),
 		tools: []_ToolItemData{
 			{
 				name: `文件服务器（WebDAV）`,
@@ -116,6 +114,7 @@ func NewToolsNavigator(win *MainWindow) *ToolsNavigator {
 			},
 		},
 	}
+	win.doc.Bind(toolsNav)
 	toolsNav.scroll.SetItems(
 		len(toolsNav.tools),
 		func() (fbiw.Box, any) {
@@ -138,7 +137,7 @@ func NewToolsNavigator(win *MainWindow) *ToolsNavigator {
 
 type ToolsNavigator struct {
 	window *MainWindow
-	scroll *fbiw.Scroll
+	scroll *fbiw.Scroll `css:"#tools"`
 	tools  []_ToolItemData
 }
 

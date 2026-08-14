@@ -93,7 +93,7 @@ func (b *Terminal) Draw(canvas *fbiw.Canvas) {
 	b.lock.Lock()
 	defer b.lock.Unlock()
 
-	face := b.Document.LoadFaceWithFallback(b)
+	face := b.Document().LoadFaceWithFallback(b)
 	offsetX, offsetY := b.NcWidth(), b.NcWidth()
 
 	for r := range b.screen.Lines {
@@ -133,7 +133,7 @@ func (b *Terminal) Draw(canvas *fbiw.Canvas) {
 
 func (b *Terminal) resize() {
 	// 粗略根据当前字体计算格子的大小。
-	face := b.Document.LoadFaceWithFallback(b)
+	face := b.Document().LoadFaceWithFallback(b)
 
 	// 高度应该是各字符统一的。
 	b.cellHeight = face.TextHeight()
@@ -237,7 +237,7 @@ func (b *Terminal) start() {
 			b.lock.Unlock()
 
 			// 任何有数据流入都尝试更新？
-			b.Document.RequestPaintAsync()
+			b.Document().RequestPaintAsync()
 		}
 	}()
 

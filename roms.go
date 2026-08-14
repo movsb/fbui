@@ -47,10 +47,10 @@ func (w *MainWindow) asyncInitEmus() {
 
 type GamesNavigator struct {
 	window     *MainWindow
-	container  *fbiw.Stack
-	emus       *fbiw.Scroll
-	roms       *fbiw.Scroll
-	noGames    fbiw.Box
+	container  *fbiw.Stack  `css:"#games"`
+	emus       *fbiw.Scroll `css:"#emus"`
+	roms       *fbiw.Scroll `css:"#roms"`
+	noGames    fbiw.Box     `css:"#nogames"`
 	currentEmu *LaunchConfig
 
 	// 当前的目录浏览栈。
@@ -59,12 +59,9 @@ type GamesNavigator struct {
 
 func NewGamesNavigator(win *MainWindow) *GamesNavigator {
 	n := &GamesNavigator{
-		window:    win,
-		container: win.doc.QuerySelector(`#games`).(*fbiw.Stack),
-		emus:      win.doc.QuerySelector(`#emus`).(*fbiw.Scroll),
-		roms:      win.doc.QuerySelector(`#roms`).(*fbiw.Scroll),
-		noGames:   win.doc.QuerySelector(`#nogames`),
+		window: win,
 	}
+	win.doc.Bind(n)
 	n.container.Listen(fbiw.StickDownEvent, n.handleEvents, fbiw.EventOptions{})
 	return n
 }

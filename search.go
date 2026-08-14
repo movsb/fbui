@@ -21,15 +21,15 @@ type SearchWindow struct {
 	app *fbiw.App
 	doc *fbiw.Document
 
-	searchBox  fbiw.Box
-	resultBox  fbiw.Box
-	resultList *fbiw.Scroll
+	searchBox  fbiw.Box     `css:"#search"`
+	resultBox  fbiw.Box     `css:"#result"`
+	resultList *fbiw.Scroll `css:"#result-list"`
 
-	resultStatus        *fbiw.Text
-	resultStatusWrapper fbiw.Box
+	resultStatus        *fbiw.Text `css:"#result-status"`
+	resultStatusWrapper fbiw.Box   `css:"#result-status-wrapper"`
 
-	txtQuery *fbiw.Text
-	keyboard fbiw.Box
+	txtQuery *fbiw.Text `css:"#query"`
+	keyboard fbiw.Box   `css:"#keyboard"`
 
 	prevKey        fbiw.Box
 	keyRow, keyCol int
@@ -47,13 +47,7 @@ func NewSearchWindow(app *fbiw.App, doc *fbiw.Document) *SearchWindow {
 		keyRow: -1,
 		keyCol: -1,
 	}
-	win.searchBox = doc.QuerySelector(`#search`)
-	win.resultBox = doc.QuerySelector(`#result`)
-	win.resultList = doc.QuerySelector(`#result-list`).(*fbiw.Scroll)
-	win.resultStatus = doc.QuerySelector(`#result-status`).(*fbiw.Text)
-	win.resultStatusWrapper = doc.QuerySelector(`#result-status-wrapper`)
-	win.txtQuery = doc.QuerySelector(`#query`).(*fbiw.Text)
-	win.keyboard = doc.QuerySelector(`#keyboard`)
+	doc.Bind(win)
 	win.searchBox.Listen(fbiw.StickDownEvent, win.handleSearchEvents, fbiw.EventOptions{})
 	win.resultBox.Listen(fbiw.StickDownEvent, win.handleResultEvents, fbiw.EventOptions{})
 	win.searchBox.Activate()
