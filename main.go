@@ -19,7 +19,7 @@ func init() {
 	go http.ListenAndServe(`0.0.0.0:8888`, nil)
 }
 
-//go:embed *.html skin nerd.ttf mono.ttf
+//go:embed *.html nerd.ttf mono.ttf
 var embedded embed.FS
 
 func main() {
