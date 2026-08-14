@@ -54,26 +54,20 @@ func NewSearchWindow(app *fbiw.App, doc *fbiw.Document) *SearchWindow {
 	win.resultStatusWrapper = doc.QuerySelector(`#result-status-wrapper`)
 	win.txtQuery = doc.QuerySelector(`#query`).(*fbiw.Text)
 	win.keyboard = doc.QuerySelector(`#keyboard`)
-	win.doc.Listen(fbiw.StickDownEvent, win.handleEvents, fbiw.EventOptions{})
+	win.searchBox.Listen(fbiw.StickDownEvent, win.handleSearchEvents, fbiw.EventOptions{})
+	win.resultBox.Listen(fbiw.StickDownEvent, win.handleResultEvents, fbiw.EventOptions{})
+	win.searchBox.Activate()
 	go win.asyncInitAllSearchableItems()
 	return win
 }
 
-func (w *SearchWindow) handleEvents(event *fbiw.Event) {
+func (w *SearchWindow) handleSearchEvents(event *fbiw.Event) {
 	// 按“Y”直接关闭窗口。
 	if event.Stick.Name == fbiw.Y {
 		w.doc.Close()
 		return
 	}
 
-	if display := w.searchBox.GetComputedStyles().Display; display.Empty() || display.Bool {
-		w.handleSearchEvents(event)
-	} else {
-		w.handleResultEvents(event)
-	}
-}
-
-func (w *SearchWindow) handleSearchEvents(event *fbiw.Event) {
 	if event.Stick.Name == fbiw.B {
 		t := w.txtQuery.GetText()
 		if t == `` {
@@ -104,6 +98,7 @@ func (w *SearchWindow) handleSearchEvents(event *fbiw.Event) {
 		w.resultBox.SetProp(`display`, `true`)
 		w.resultList.SetProp(`display`, `false`)
 		w.resultStatusWrapper.SetProp(`display`, `true`)
+		w.resultBox.Activate()
 		go w.asyncSearch(context.Background(), s)
 	}
 }
@@ -183,6 +178,7 @@ func (w *SearchWindow) handleResultEvents(event *fbiw.Event) {
 	if event.Stick.Name == fbiw.B {
 		w.resultBox.SetProp(`display`, `false`)
 		w.searchBox.SetProp(`display`, `true`)
+		w.searchBox.Activate()
 		return
 	}
 
@@ -221,14 +217,29 @@ func (w *SearchWindow) asyncSearch(ctx context.Context, search string) {
 		w.resultStatus.SetText(`搜索中...`)
 	})
 
-	time.Sleep(time.Millisecond * 500)
+	time.Sleep(time.Millisecond * 100)
 
 	items := w.allSearchableItems.Load().([]_SearchResultItem)
 
 	matched := []_SearchResultItem{}
 
+	// 这样把拆文件名再删除后缀要快。
+	// 几乎所有的文件名都成立。
+	// 应用名/移植名除外。
+	nameOnly := func(s string) string {
+		if slash := strings.LastIndexByte(s, '/'); slash > 0 {
+			s = s[slash+1:]
+		}
+		if dot := strings.LastIndexByte(s, '.'); dot > 0 {
+			s = s[:dot]
+		}
+		return s
+	}
+
 	for _, item := range items {
-		if searchable.Match(search, item.displayName, item.romPath) {
+		name := nameOnly(item.displayName)
+		path := nameOnly(item.romPath)
+		if searchable.Match(search, name, path) {
 			matched = append(matched, item)
 		}
 	}

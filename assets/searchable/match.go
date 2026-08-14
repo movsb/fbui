@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	_ "embed"
+	"slices"
 	"strings"
 	"sync"
 	"unicode/utf8"
@@ -35,13 +36,17 @@ func Match(search string, provides ...string) bool {
 		return true
 	}
 
+	provides = slices.Compact(provides)
+
 	underlying := [256]byte{}
 	buf := underlying[:]
 
 	match := false
 	for _, provide := range provides {
 		construct(buf, 0, []rune(provide), 0, func(s string) {
-			match = subSeq(search, s)
+			if !match {
+				match = subSeq(search, s)
+			}
 		})
 		if match {
 			return true
@@ -51,6 +56,7 @@ func Match(search string, provides ...string) bool {
 	return false
 }
 
+// TODO 支持中途停止
 func construct(buf []byte, i int, provide []rune, j int, yield func(string)) {
 	if j == len(provide) {
 		yield(string(buf[:i]))
@@ -90,15 +96,21 @@ func construct(buf []byte, i int, provide []rune, j int, yield func(string)) {
 	construct(buf, i, provide, j+1, yield)
 }
 
+// 判断子串。
 func subSeq(a, b string) bool {
-	i := 0
-	for j := range b {
-		if b[j] == a[i] {
-			i++
-			if i == len(a) {
-				return true
-			}
-		}
-	}
-	return false
+	return strings.Contains(b, a)
 }
+
+// 判断非连续子序列。
+// func subSeq(a, b string) bool {
+// 	i := 0
+// 	for j := range b {
+// 		if b[j] == a[i] {
+// 			i++
+// 			if i == len(a) {
+// 				return true
+// 			}
+// 		}
+// 	}
+// 	return false
+// }

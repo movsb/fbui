@@ -32,6 +32,10 @@ func chinese() map[rune]string {
 			log.Println(`错误的行:`, scn.Text())
 			continue
 		}
+		// 不常用汉字（读音）
+		if kind := p[5]; kind == `0` {
+			continue
+		}
 		char := []rune(p[0])[0]
 		pinyin := p[1]
 		initial := pinyin[:1]
