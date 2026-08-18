@@ -1,4 +1,4 @@
-package main
+package config
 
 import (
 	"encoding/json"
@@ -118,9 +118,9 @@ func (c *LaunchConfig) IncludesName(name string) bool {
 }
 
 // `sdcard` 是我开发机的软连接目录。
-var _SDCARDRoot = fbiw.Iif(runtime.GOOS == `linux`, `/mnt/SDCARD`, `sdcard`)
+var SDCARDRoot = fbiw.Iif(runtime.GOOS == `linux`, `/mnt/SDCARD`, `sdcard`)
 
-func loadDir(dir string) []*LaunchConfig {
+func LoadDir(dir string) []*LaunchConfig {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		log.Println(err)

@@ -1,7 +1,8 @@
-package main
+package search_window
 
 import (
 	"context"
+	"embed"
 	"io/fs"
 	"log"
 	"os/exec"
@@ -13,9 +14,13 @@ import (
 	"unicode/utf8"
 
 	"github.com/movsb/fbiw"
+	"github.com/movsb/fbui/pkg/config"
 	"github.com/movsb/fbui/pkg/game_names"
 	"github.com/movsb/fbui/pkg/searchable"
 )
+
+//go:embed *.html
+var _embed embed.FS
 
 type SearchWindow struct {
 	app *fbiw.App
@@ -39,11 +44,11 @@ type SearchWindow struct {
 	allSearchableItems atomic.Value
 }
 
-func NewSearchWindow(app *fbiw.App, doc *fbiw.Document) *SearchWindow {
+func New(app *fbiw.App) *SearchWindow {
+	doc := app.New(_embed, `search.html`)
 	win := &SearchWindow{
-		app: app,
-		doc: doc,
-
+		app:    app,
+		doc:    doc,
 		keyRow: -1,
 		keyCol: -1,
 	}
@@ -52,6 +57,7 @@ func NewSearchWindow(app *fbiw.App, doc *fbiw.Document) *SearchWindow {
 	win.resultBox.Listen(fbiw.StickDownEvent, win.handleResultEvents, fbiw.EventOptions{})
 	win.searchBox.Activate()
 	go win.asyncInitAllSearchableItems()
+	app.Show(doc)
 	return win
 }
 
@@ -163,7 +169,7 @@ func (w *SearchWindow) switchKey(event *fbiw.Event) {
 }
 
 type _SearchResultItem struct {
-	launcher    *LaunchConfig
+	launcher    *config.LaunchConfig
 	displayName string
 	romPath     string
 }
@@ -287,7 +293,7 @@ func (w *SearchWindow) asyncInitAllSearchableItems() {
 	log.Println(`异步加载所有游戏列表中...`)
 	defer log.Println(`异步加载所有游戏列表完成。`)
 	items := []_SearchResultItem{}
-	emus := loadDir(filepath.Join(_SDCARDRoot, `Emus`))
+	emus := config.LoadDir(filepath.Join(config.SDCARDRoot, `Emus`))
 	for _, emu := range emus {
 		romDir := emu.RomDir()
 		filepath.WalkDir(romDir, func(path string, d fs.DirEntry, err error) error {

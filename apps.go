@@ -6,15 +6,16 @@ import (
 	"path/filepath"
 
 	"github.com/movsb/fbiw"
+	"github.com/movsb/fbui/pkg/config"
 )
 
 // 加载所有的Apps列表。
 // 包含机器系统目录的、存储卡内的。
-func loadApps() []*LaunchConfig {
-	launchConfigs := []*LaunchConfig{}
+func loadApps() []*config.LaunchConfig {
+	launchConfigs := []*config.LaunchConfig{}
 
-	launchConfigs = append(launchConfigs, loadDir(filepath.Join(_SDCARDRoot, `Apps`))...)
-	launchConfigs = append(launchConfigs, loadDir(`/usr/trimui/apps`)...)
+	launchConfigs = append(launchConfigs, config.LoadDir(filepath.Join(config.SDCARDRoot, `Apps`))...)
+	launchConfigs = append(launchConfigs, config.LoadDir(`/usr/trimui/apps`)...)
 
 	return launchConfigs
 }
@@ -57,7 +58,7 @@ func (w *MainWindow) asyncInitPorts() {
 		text  *fbiw.Text  `css:"text"`
 	}
 
-	apps := loadDir(filepath.Join(_SDCARDRoot, `Ports`))
+	apps := config.LoadDir(filepath.Join(config.SDCARDRoot, `Ports`))
 
 	w.app.Async(func() {
 		scroll := w.doc.GetBoxByID(`ports`).(*fbiw.Scroll)
@@ -118,7 +119,7 @@ func (n *LauncherNavigator) handleKeyDown(event *fbiw.Event) {
 }
 
 func (n *LauncherNavigator) openApp() {
-	configs := n.scroll.GetData(n.dataKey).([]*LaunchConfig)
+	configs := n.scroll.GetData(n.dataKey).([]*config.LaunchConfig)
 	config := configs[n.scroll.DataIndex()]
 	n.window.app.Detach()
 	go func() {

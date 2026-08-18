@@ -1,9 +1,16 @@
-package main
+package alert_window
 
-import "github.com/movsb/fbiw"
+import (
+	"embed"
+
+	"github.com/movsb/fbiw"
+)
+
+//go:embed *.html
+var _embed embed.FS
 
 func Alert(app *fbiw.App, message string, confirm, cancel func()) {
-	doc := app.New(`alert.html`, `.`)
+	doc := app.New(_embed, `alert.html`)
 
 	window := struct {
 		text *fbiw.Text `css:"text"`

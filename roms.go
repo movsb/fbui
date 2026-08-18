@@ -10,7 +10,9 @@ import (
 	"strings"
 
 	"github.com/movsb/fbiw"
+	"github.com/movsb/fbui/pkg/config"
 	"github.com/movsb/fbui/pkg/game_names"
+	"github.com/movsb/fbui/pkg/search_window"
 )
 
 func (w *MainWindow) asyncInitEmus() {
@@ -20,7 +22,7 @@ func (w *MainWindow) asyncInitEmus() {
 		text  *fbiw.Text  `css:"text"`
 	}
 
-	emus := loadDir(filepath.Join(_SDCARDRoot, `Emus`))
+	emus := config.LoadDir(filepath.Join(config.SDCARDRoot, `Emus`))
 
 	w.app.Async(func() {
 		scroll := w.doc.GetBoxByID(`emus`).(*fbiw.Scroll)
@@ -51,7 +53,7 @@ type GamesNavigator struct {
 	emus       *fbiw.Scroll `css:"#emus"`
 	roms       *fbiw.Scroll `css:"#roms"`
 	noGames    fbiw.Box     `css:"#nogames"`
-	currentEmu *LaunchConfig
+	currentEmu *config.LaunchConfig
 
 	// 当前的目录浏览栈。
 	stack _RomStack
@@ -172,9 +174,7 @@ func (n *GamesNavigator) handleEvents(event *fbiw.Event) {
 }
 
 func (n *GamesNavigator) openSearch() {
-	doc := n.window.app.New(`search.html`, ``)
-	NewSearchWindow(n.window.app, doc)
-	n.window.app.Show(doc)
+	search_window.New(n.window.app)
 }
 
 func (n *GamesNavigator) backToEmulators() {
@@ -198,7 +198,7 @@ func (n *GamesNavigator) switchToRoms() {
 		return
 	}
 
-	emuList := n.emus.GetData(`emus`).([]*LaunchConfig)
+	emuList := n.emus.GetData(`emus`).([]*config.LaunchConfig)
 	emu := emuList[n.emus.DataIndex()]
 	n.currentEmu = emu
 
@@ -286,7 +286,7 @@ type RomInfo struct {
 }
 
 // 基于此rom信息，往上回溯父目录，拼出完整路径。
-func (n *GamesNavigator) romFinalPath(launcher *LaunchConfig, rom RomInfo) string {
+func (n *GamesNavigator) romFinalPath(launcher *config.LaunchConfig, rom RomInfo) string {
 	parts := []string{launcher.RomDir()}
 	for i := 0; i < n.stack.Size(); i++ {
 		parts = append(parts, n.stack.At(i).name)
@@ -300,7 +300,7 @@ func (n *GamesNavigator) romFinalPath(launcher *LaunchConfig, rom RomInfo) strin
 //   - 目前放前面
 //   - 不包含以“.”开头的文件
 //   - 如果目录是空目录，则也不会包含
-func (n *GamesNavigator) listRomsInDir(emu *LaunchConfig, dir string) []RomInfo {
+func (n *GamesNavigator) listRomsInDir(emu *config.LaunchConfig, dir string) []RomInfo {
 	roms := []RomInfo{}
 
 	entries, err := os.ReadDir(dir)

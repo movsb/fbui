@@ -1,8 +1,13 @@
 package main
 
 import (
+	"embed"
+
 	"github.com/movsb/fbiw"
 )
+
+//go:embed window.html
+var _embed embed.FS
 
 type MainWindow struct {
 	app *fbiw.App
@@ -25,7 +30,7 @@ type MainWindow struct {
 }
 
 func NewMainWindow(app *fbiw.App) *MainWindow {
-	doc := app.New(`main.html`, `skin`)
+	doc := app.New(_embed, `window.html`)
 
 	win := &MainWindow{
 		app: app,
@@ -51,6 +56,8 @@ func NewMainWindow(app *fbiw.App) *MainWindow {
 	go win.asyncInitPorts()
 
 	win.statusBarNav.activate()
+
+	app.Show(doc)
 
 	return win
 }

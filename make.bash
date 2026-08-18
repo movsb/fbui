@@ -14,7 +14,7 @@ package() {
     "launch":"./fbui"
 }
 JSON
-	cp logo.png fbui/
+	cp assets/logo.png fbui/
 	rm -f fbui.zip
 	zip -r9 小桃的吹米.zip fbui
 	rm -rf fbui

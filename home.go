@@ -15,6 +15,7 @@ import (
 	"github.com/fswatcher/fswatcher"
 	"github.com/mdlayher/kobject"
 	"github.com/movsb/fbiw"
+	"github.com/movsb/fbui/pkg/alert_window"
 )
 
 func (w *MainWindow) initSystemTime() {
@@ -221,7 +222,7 @@ func (n *StatusBarNavigator) handleEvents(event *fbiw.Event) {
 	keyName := event.Stick.Name
 
 	if keyName == fbiw.B {
-		Alert(n.window.app, `确定要退出吗？`, func() {
+		alert_window.Alert(n.window.app, `确定要退出吗？`, func() {
 			n.window.app.Quit()
 		}, func() {})
 		return
