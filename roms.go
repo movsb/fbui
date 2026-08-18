@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/movsb/fbiw"
-	"github.com/movsb/fbui/assets/game_names"
+	"github.com/movsb/fbui/pkg/game_names"
 )
 
 func (w *MainWindow) asyncInitEmus() {

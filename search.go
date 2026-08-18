@@ -13,8 +13,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/movsb/fbiw"
-	"github.com/movsb/fbui/assets/game_names"
-	"github.com/movsb/fbui/assets/searchable"
+	"github.com/movsb/fbui/pkg/game_names"
+	"github.com/movsb/fbui/pkg/searchable"
 )
 
 type SearchWindow struct {
