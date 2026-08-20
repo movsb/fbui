@@ -25,10 +25,15 @@ func Alert(app *fbiw.App, message string, confirm, cancel func()) {
 	doc.Listen(fbiw.StickDownEvent, func(e *fbiw.Event) {
 		switch e.Stick.Name {
 		case fbiw.A:
-			confirm()
+			doc.Close()
+			if confirm != nil {
+				confirm()
+			}
 		case fbiw.B:
 			doc.Close()
-			cancel()
+			if cancel != nil {
+				cancel()
+			}
 		}
 	}, fbiw.EventOptions{})
 }

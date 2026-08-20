@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/movsb/fbiw"
+	"github.com/movsb/fbui/pkg/file_manager"
 	"github.com/movsb/fbui/pkg/webdav_server"
 )
 
@@ -23,12 +24,16 @@ func NewToolsNavigator(win *MainWindow) *ToolsNavigator {
 				name:  `文件服务器（WebDAV）`,
 				click: func() { webdav_server.New(win.app) },
 			},
+			{
+				name:  `文件管理器`,
+				click: func() { file_manager.New(win.app) },
+			},
 		},
 	}
 	win.doc.Bind(toolsNav)
 	toolsNav.scroll.SetItems(
 		len(toolsNav.tools),
-		func() (fbiw.Box, any) {
+		func() (fbiw.Box, *_ToolItemView) {
 			box := fbiw.Unmarshal[_ToolItemView](win.doc, `
 <block padding=30>
 	<inline spacer align=middle>
@@ -37,9 +42,8 @@ func NewToolsNavigator(win *MainWindow) *ToolsNavigator {
 </block>`)
 			return box.root, box
 		},
-		func(user any, index int) {
-			item := user.(*_ToolItemView)
-			item.name.SetText(win.toolsNav.tools[index].name)
+		func(box *_ToolItemView, index int) {
+			box.name.SetText(win.toolsNav.tools[index].name)
 		},
 	)
 	toolsNav.scroll.Listen(fbiw.StickDownEvent, toolsNav.handleEvents, fbiw.EventOptions{})

@@ -57,6 +57,11 @@ func NewMainWindow(app *fbiw.App) *MainWindow {
 
 	win.statusBarNav.activate()
 
+	app.Listen(fbiw.DocChange, func(e *fbiw.Event) {
+		d := e.DocChange.Doc
+		win.statusBarNav.setTitle(d.Title(), d == doc)
+	}, fbiw.EventOptions{})
+
 	app.Show(doc)
 
 	return win

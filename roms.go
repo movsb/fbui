@@ -25,10 +25,10 @@ func (w *MainWindow) asyncInitEmus() {
 	emus := config.LoadDir(filepath.Join(config.SDCARDRoot, `Emus`))
 
 	w.app.Async(func() {
-		scroll := w.doc.GetBoxByID(`emus`).(*fbiw.Scroll)
+		scroll := w.doc.GetBoxByID[*fbiw.Scroll](`emus`)
 		scroll.SetData(`emus`, emus)
 		scroll.SetItems(len(emus),
-			func() (fbiw.Box, any) {
+			func() (fbiw.Box, *_EmuItem) {
 				item := fbiw.Unmarshal[_EmuItem](w.doc, `
 <block align=center padding=20>
 	<img spacer>
@@ -37,11 +37,10 @@ func (w *MainWindow) asyncInitEmus() {
 `)
 				return item.root, item
 			},
-			func(item any, index int) {
+			func(item *_EmuItem, index int) {
 				emu := emus[index]
-				emuItem := item.(*_EmuItem)
-				emuItem.image.SetPath(emu.IconPath())
-				emuItem.text.SetText(emu.Name())
+				item.image.SetPath(emu.IconPath())
+				item.text.SetText(emu.Name())
 			},
 		)
 	})
@@ -242,32 +241,29 @@ func (n *GamesNavigator) setRomsList(roms []RomInfo, state any) {
 
 	type _RomBox struct {
 		root fbiw.Box
-		icon *fbiw.Text `css:".icon"`
+		icon fbiw.Box   `css:".icon"`
 		name *fbiw.Text `css:".name"`
 	}
 
 	n.roms.SetItems(len(roms),
-		func() (fbiw.Box, any) {
+		func() (fbiw.Box, *_RomBox) {
 			item := fbiw.Unmarshal[_RomBox](n.window.doc, `
 <block padding=10>
 	<inline spacer align=middle>
-		<text class="nerd icon"></text>
-		<spacer width=10></spacer>
+		<inline class="icon">
+			<text class="nerd">&#xf07b;</text>
+			<spacer width=10></spacer>
+		</inline>
 		<text class="name"></text>
 	</inline>
 </block>
 `)
 			return item.root, item
 		},
-		func(item any, index int) {
+		func(item *_RomBox, index int) {
 			rom := roms[index]
-			box := item.(*_RomBox)
-			box.name.SetText(rom.displayName)
-			if rom.isDir {
-				box.icon.SetText("\uf07b")
-			} else {
-				box.icon.SetText(``)
-			}
+			item.name.SetText(rom.displayName)
+			item.icon.SetProp(`display`, fmt.Sprint(rom.isDir))
 		},
 	)
 

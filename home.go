@@ -183,6 +183,8 @@ func (w *MainWindow) initSystemPower() {
 type StatusBarNavigator struct {
 	window       *MainWindow
 	titleBar     *fbiw.Stack `css:"#title-bar"`
+	theTitle     *fbiw.Text  `css:"#title"`
+	catBar       fbiw.Box    `css:"#cat-bar"`
 	catIndex     int
 	catBoxes     []fbiw.Box `css:"#cat-bar text"`
 	contentBoxes []fbiw.Box `css:"#content > *"`
@@ -196,6 +198,14 @@ func NewStatusBarNavigator(win *MainWindow) *StatusBarNavigator {
 	win.doc.Bind(&n)
 	n.titleBar.Listen(fbiw.StickDownEvent, n.handleEvents, fbiw.EventOptions{})
 	return &n
+}
+
+func (n *StatusBarNavigator) setTitle(title string, main bool) {
+	if title == `` {
+		return
+	}
+	n.theTitle.SetText(title)
+	n.catBar.SetProp(`display`, fmt.Sprint(main))
 }
 
 func (n *StatusBarNavigator) activate() {

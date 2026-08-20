@@ -265,7 +265,7 @@ func (w *SearchWindow) asyncSearch(ctx context.Context, search string) {
 		log.Println(`搜索结果:`, len(matched))
 		w.resultList.SetData(`matched`, matched)
 		w.resultList.SetItems(len(matched),
-			func() (root fbiw.Box, user any) {
+			func() (fbiw.Box, *_SearchResultItemView) {
 				view := fbiw.Unmarshal[_SearchResultItemView](w.doc, `
 <block padding=10>
 	<inline><text class="name"></text></inline>
@@ -274,11 +274,10 @@ func (w *SearchWindow) asyncSearch(ctx context.Context, search string) {
 				`)
 				return view.root, view
 			},
-			func(user any, index int) {
-				view := user.(*_SearchResultItemView)
+			func(box *_SearchResultItemView, index int) {
 				item := matched[index]
-				view.name.SetText(item.displayName)
-				view.path.SetText(item.romPath)
+				box.name.SetText(item.displayName)
+				box.path.SetText(item.romPath)
 			},
 		)
 		w.resultList.Activate()

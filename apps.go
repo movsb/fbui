@@ -29,10 +29,10 @@ func (w *MainWindow) asyncInitApps() {
 
 	apps := loadApps()
 	w.app.Async(func() {
-		container := w.doc.GetBoxByID(`apps`).(*fbiw.Scroll)
+		container := w.doc.GetBoxByID[*fbiw.Scroll](`apps`)
 		container.SetData(`apps`, apps)
 		container.SetItems(len(apps),
-			func() (fbiw.Box, any) {
+			func() (fbiw.Box, *_AppItem) {
 				item := fbiw.Unmarshal[_AppItem](w.doc, `
 <block align=center padding=30>
 	<img spacer>
@@ -41,11 +41,10 @@ func (w *MainWindow) asyncInitApps() {
 `)
 				return item.root, item
 			},
-			func(item any, index int) {
+			func(item *_AppItem, index int) {
 				app := apps[index]
-				appItem := item.(*_AppItem)
-				appItem.image.SetPath(filepath.Join(app.Dir, app.Config.IconTop))
-				appItem.text.SetText(fbiw.Iif(app.Config.LabelChinese != ``, app.Config.LabelChinese, app.Config.Label))
+				item.image.SetPath(filepath.Join(app.Dir, app.Config.IconTop))
+				item.text.SetText(fbiw.Iif(app.Config.LabelChinese != ``, app.Config.LabelChinese, app.Config.Label))
 			},
 		)
 	})
@@ -61,7 +60,7 @@ func (w *MainWindow) asyncInitPorts() {
 	apps := config.LoadDir(filepath.Join(config.SDCARDRoot, `Ports`))
 
 	w.app.Async(func() {
-		scroll := w.doc.GetBoxByID(`ports`).(*fbiw.Scroll)
+		scroll := w.doc.GetBoxByID[*fbiw.Scroll](`ports`)
 		scroll.SetData(`ports`, apps)
 		scroll.SetItems(len(apps),
 			func() (fbiw.Box, any) {
@@ -93,7 +92,7 @@ func NewLauncherNavigator(win *MainWindow, selector string, dataKey string) *Lau
 	n := LauncherNavigator{
 		window:  win,
 		dataKey: dataKey,
-		scroll:  win.doc.QuerySelector(selector).(*fbiw.Scroll),
+		scroll:  win.doc.QuerySelector[*fbiw.Scroll](selector),
 	}
 	n.scroll.Listen(fbiw.StickDownEvent, n.handleKeyDown, fbiw.EventOptions{})
 	return &n
