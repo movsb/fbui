@@ -5,12 +5,15 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 
 	"github.com/movsb/fbiw"
 	"github.com/movsb/fbui/pkg/alert_window"
+	"github.com/movsb/fbui/pkg/video_player"
 )
 
 //go:embed *.html
@@ -24,10 +27,11 @@ type FileManagerWindow struct {
 	emptyDir fbiw.Box     `css:"#empty"`
 	scroll   *fbiw.Scroll `css:"#scroll"`
 
-	previewBox   *fbiw.Stack `css:"#preview"`
-	previewImage *fbiw.Image `css:"#preview .image"`
+	previewBox   *fbiw.Stack               `css:"#preview"`
+	previewImage *fbiw.Image               `css:"#preview .image"`
+	previewVideo *video_player.VideoPlayer `css:"#preview .video"`
 
-	// 当前的目录浏览栈。
+	// 当前的目录浏览栈
 	stack _Stack
 }
 
@@ -39,7 +43,21 @@ func New(app *fbiw.App) *FileManagerWindow {
 	n.doc.Bind(n)
 	n.root.Listen(fbiw.StickDownEvent, n.handleEvents, fbiw.EventOptions{})
 	n.previewBox.Listen(fbiw.StickDownEvent, n.handlePreviewEvent, fbiw.EventOptions{})
-	n.enterDirectory(fs.FileInfoToDirEntry(fbiw.Must1(os.Stat(`sdcard`))))
+
+	dir := fbiw.Iif(runtime.GOOS == `linux`, `/mnt/SDCARD`, os.ExpandEnv(`$HOME/Downloads`))
+	components := []string{}
+	for component := range strings.SplitSeq(path.Clean(dir), `/`) {
+		if component == `` {
+			component = `/`
+		}
+		components = append(components, component)
+		if !n.enterDirectory(fs.FileInfoToDirEntry(fbiw.Must1(os.Stat(filepath.Join(components...))))) {
+			alert_window.Alert(app, `无法进入目录。`, nil, nil)
+			n.doc.Close()
+			return nil
+		}
+	}
+
 	n.activate()
 	app.Show(n.doc)
 	return n
@@ -129,12 +147,12 @@ func (n *FileManagerWindow) gotoUpperDirectory() {
 	n.setFileList(top.entries, top.state)
 }
 
-func (n *FileManagerWindow) enterDirectory(entry fs.DirEntry) {
+func (n *FileManagerWindow) enterDirectory(entry fs.DirEntry) bool {
 	// TODO 这里是同步列举的，可能会卡界面
 	list, err := n.list(n.finalPath(entry))
 	if err != nil {
 		alert_window.Alert(n.app, err.Error(), nil, nil)
-		return
+		return false
 	}
 	if n.stack.Size() > 0 {
 		n.stack.Top().state = n.scroll.GetState()
@@ -148,6 +166,7 @@ func (n *FileManagerWindow) enterDirectory(entry fs.DirEntry) {
 	// 其实只需要激活一次就行。
 	// 然后在退出最只有模拟器列表的时候切换激活。
 	// n.scroll.Activate()
+	return true
 }
 
 func (n *FileManagerWindow) setFileList(files []fs.DirEntry, state any) {

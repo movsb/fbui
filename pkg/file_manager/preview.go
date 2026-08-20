@@ -31,12 +31,19 @@ func (n *FileManagerWindow) preview(entry fs.DirEntry) {
 
 	ct := http.DetectContentType(buf)
 
+	n.previewImage.SetProp(`display`, `false`)
+	n.previewVideo.SetProp(`display`, `false`)
+
 	switch {
 	default:
 		alert_window.Alert(n.app, `二进制内容文件暂时不支持查看。`, nil, nil)
 		return
 	case strings.HasPrefix(ct, `image/`):
 		n.previewImage.SetPath(path)
+		n.previewImage.SetProp(`display`, `true`)
+	case strings.HasPrefix(ct, `video/`):
+		n.previewVideo.SetPath(path)
+		n.previewVideo.SetProp(`display`, `true`)
 	}
 
 	n.previewBox.SetProp(`display`, `true`)
@@ -47,6 +54,7 @@ func (n *FileManagerWindow) handlePreviewEvent(e *fbiw.Event) {
 	if e.Stick.Name == fbiw.B {
 		n.activate()
 		n.previewBox.SetProp(`display`, `false`)
+		n.previewVideo.Stop()
 		e.StopPropagation()
 		return
 	}

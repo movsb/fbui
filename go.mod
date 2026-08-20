@@ -16,6 +16,7 @@ require (
 	github.com/clipperhouse/uax29/v2 v2.2.0 // indirect
 	github.com/ebitengine/purego v0.10.0 // indirect
 	github.com/goccy/go-yaml v1.19.2 // indirect
+	github.com/mattn/go-isatty v0.0.24 // indirect
 	github.com/mattn/go-runewidth v0.0.19 // indirect
 	github.com/mdlayher/netlink v1.1.0 // indirect
 	github.com/phuslu/lru v1.0.22 // indirect
