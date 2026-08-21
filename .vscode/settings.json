@@ -5,6 +5,7 @@
 		"ffplay",
 		"ffprobe",
 		"fswatcher",
+		"GOEXPERIMENT",
 		"kobject",
 		"netlink",
 		"osdd",
@@ -12,5 +13,8 @@
 		"TRIMUI",
 		"uevent",
 		"wlan"
-	]
+	],
+	"go.toolsEnvVars": {
+		"GOEXPERIMENT": "simd"
+	}
 }

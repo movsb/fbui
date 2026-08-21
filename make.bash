@@ -5,7 +5,7 @@ set -eu
 package() {
 	rm -rf fbui
 	mkdir -p fbui
-	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags='-s -w' -o fbui/fbui
+	GOEXPERIMENT=simd CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags='-s -w' -o fbui/fbui
 	cat > fbui/config.json << 'JSON'
 {
     "package":"fbui",
