@@ -93,7 +93,7 @@ func (b *Terminal) Draw(canvas *fbiw.Canvas) {
 	b.lock.Lock()
 	defer b.lock.Unlock()
 
-	face := b.Document().LoadFaceWithFallback(b)
+	faces := b.Document().LoadFaces(b)
 	offsetX, offsetY := b.NcWidth(), b.NcWidth()
 
 	for r := range b.screen.Lines {
@@ -112,7 +112,7 @@ func (b *Terminal) Draw(canvas *fbiw.Canvas) {
 			}
 
 			canvas.DrawString(
-				cell.Data, face,
+				cell.Data, faces,
 				fgColor,
 				b.cellWidth, b.cellHeight,
 			)
@@ -133,19 +133,19 @@ func (b *Terminal) Draw(canvas *fbiw.Canvas) {
 
 func (b *Terminal) resize() {
 	// 粗略根据当前字体计算格子的大小。
-	face := b.Document().LoadFaceWithFallback(b)
+	faces := b.Document().LoadFaces(b)
 
 	// 高度应该是各字符统一的。
-	b.cellHeight = face.TextHeight()
+	b.cellHeight = faces[0].TextHeight()
 
 	// 英文和中文（日、韩同）
-	advance, ok := face.GlyphAdvance('A')
+	advance, ok := faces[0].GlyphAdvance('A')
 	if !ok {
 		// ??? 还有不包含alphabetic的script？
 		log.Println(`无法获取字体宽度`)
 		return
 	}
-	if h2, ok := face.GlyphAdvance('桃'); ok {
+	if h2, ok := faces[0].GlyphAdvance('桃'); ok {
 		if math.Abs(float64(h2.Ceil())/float64(advance.Ceil())-2) > 0.001 {
 			log.Println(`可能使用了非等宽字体，渲染可能错位`)
 		}
