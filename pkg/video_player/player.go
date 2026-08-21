@@ -61,7 +61,7 @@ func (b *VideoPlayer) SetPath(path string) {
 func (b *VideoPlayer) Calc(availWidth, availHeight int, constraints fbiw.Constraints) {
 	b.Base().Calc(availWidth, availHeight, constraints)
 
-	if b.GetLayoutBox().Width == b.prevWidth && b.GetLayoutBox().Height == b.prevHeight {
+	if b.GetLayoutBox().Width == b.prevWidth && b.GetLayoutBox().Height == b.prevHeight && b.cmd != nil {
 		return
 	}
 
@@ -114,9 +114,11 @@ func (b *VideoPlayer) Calc(availWidth, availHeight int, constraints fbiw.Constra
 
 func (b *VideoPlayer) Draw(canvas *fbiw.Canvas) {
 	if b.cmd != nil {
+		log.Println(`正在播放，不重绘`)
 		return
 	}
 	if b.videoWidth == 0 {
+		log.Println(`视频没有尺寸，无法播放`)
 		return
 	}
 
@@ -150,11 +152,21 @@ func (b *VideoPlayer) Draw(canvas *fbiw.Canvas) {
 		}
 
 		cmd := exec.Command(bin, b.path, `0`, `0`, fmt.Sprint(fittingWidth), fmt.Sprint(fittingHeight))
+		cmd.Stdin = nil
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
 		if err := cmd.Start(); err != nil {
 			log.Println(err)
 		} else {
 			b.cmd = cmd
-			go cmd.Wait()
+			log.Println(`已启动播放器进程`)
+			go func() {
+				cmd.Wait()
+				log.Println(`播放器已退出`)
+				b.Document().Async(func() {
+					b.Stop()
+				})
+			}()
 		}
 	} else {
 		cmd := exec.Command(`ffplay`, b.path)
