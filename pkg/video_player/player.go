@@ -45,7 +45,7 @@ func (b *VideoPlayer) SetProp(key, val string) error {
 	switch key {
 	case `src`:
 		b.src = val
-		b.cmd = nil
+		b.Stop()
 		b.Document().RequestLayout()
 		return nil
 	default:

@@ -33,6 +33,7 @@ func (n *FileManagerWindow) preview(entry fs.DirEntry) {
 
 	n.previewImage.SetProp(`display`, `false`)
 	n.previewVideo.SetProp(`display`, `false`)
+	n.previewAudio.SetProp(`display`, `false`)
 
 	switch {
 	default:
@@ -44,6 +45,9 @@ func (n *FileManagerWindow) preview(entry fs.DirEntry) {
 	case strings.HasPrefix(ct, `video/`):
 		n.previewVideo.SetPath(path)
 		n.previewVideo.SetProp(`display`, `true`)
+	case strings.HasPrefix(ct, `audio/`):
+		n.previewAudio.SetPath(path)
+		n.previewAudio.SetProp(`display`, `true`)
 	}
 
 	n.previewBox.SetProp(`display`, `true`)
@@ -51,11 +55,12 @@ func (n *FileManagerWindow) preview(entry fs.DirEntry) {
 }
 
 func (n *FileManagerWindow) handlePreviewEvent(e *fbiw.Event) {
+	defer e.StopPropagation()
 	if e.Stick.Name == fbiw.B {
 		n.activate()
 		n.previewBox.SetProp(`display`, `false`)
 		n.previewVideo.Stop()
-		e.StopPropagation()
+		n.previewAudio.Stop()
 		return
 	}
 }

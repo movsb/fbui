@@ -13,6 +13,7 @@ import (
 
 	"github.com/movsb/fbiw"
 	"github.com/movsb/fbui/pkg/alert_window"
+	"github.com/movsb/fbui/pkg/audio_player"
 	"github.com/movsb/fbui/pkg/video_player"
 )
 
@@ -30,6 +31,7 @@ type FileManagerWindow struct {
 	previewBox   *fbiw.Stack               `css:"#preview"`
 	previewImage *fbiw.Image               `css:"#preview .image"`
 	previewVideo *video_player.VideoPlayer `css:"#preview .video"`
+	previewAudio *audio_player.AudioPlayer `css:"#preview .audio"`
 
 	// 当前的目录浏览栈
 	stack _Stack
