@@ -4,6 +4,7 @@ import (
 	_ "embed"
 	"log"
 	"net/url"
+	"os"
 	"os/exec"
 	"runtime"
 	"strings"
@@ -55,7 +56,7 @@ func (b *AudioPlayer) SetPath(path string) {
 func (b *AudioPlayer) Calc(availWidth, availHeight int, constraints fbiw.Constraints) {
 	b.Base().Calc(availWidth, availHeight, constraints)
 
-	if b.GetLayoutBox().Width == b.prevWidth && b.GetLayoutBox().Height == b.prevHeight {
+	if b.GetLayoutBox().Width == b.prevWidth && b.GetLayoutBox().Height == b.prevHeight && b.cmdFF != nil {
 		return
 	}
 
@@ -106,7 +107,10 @@ func (b *AudioPlayer) Start() {
 			return
 		}
 
+		cmdFF.Stderr = os.Stderr
 		cmdAP.Stdin = pipe
+		cmdAP.Stdout = os.Stdout
+		cmdAP.Stderr = os.Stderr
 
 		if err := cmdAP.Start(); err != nil {
 			log.Println(err)
@@ -115,6 +119,7 @@ func (b *AudioPlayer) Start() {
 
 		if err := cmdFF.Start(); err != nil {
 			cmdAP.Process.Signal(syscall.SIGTERM)
+			cmdAP.Wait()
 			return
 		}
 
@@ -124,6 +129,7 @@ func (b *AudioPlayer) Start() {
 		go func() {
 			cmdFF.Wait()
 			cmdAP.Wait()
+			log.Println(`音频播放进程均已退出`)
 		}()
 	} else {
 		cmd := exec.Command(`ffplay`, b.path)
@@ -138,15 +144,18 @@ func (b *AudioPlayer) Start() {
 	}
 }
 
+// 结束播放。
+//
+// 不知道为啥 sigTerm 杀不掉，只得暴力 kill 了。
 func (b *AudioPlayer) Stop() {
 	if b.cmdFF != nil {
-		// 不要用 Kill()，它发的是 Kill 信号，播放器来不及把屏幕恢复，
-		// 会导致灰屏。
-		b.cmdFF.Process.Signal(syscall.SIGTERM)
+		b.cmdFF.Process.Kill()
 		b.cmdFF = nil
+		log.Println(`结束ff进程`)
 	}
 	if b.cmdAP != nil {
-		b.cmdAP.Process.Signal(syscall.SIGTERM)
+		b.cmdAP.Process.Kill()
 		b.cmdAP = nil
+		log.Println(`结束ap进程`)
 	}
 }
