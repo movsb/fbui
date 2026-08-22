@@ -94,7 +94,7 @@ func (b *Terminal) Draw(canvas *fbiw.Canvas) {
 	defer b.lock.Unlock()
 
 	faces := b.Document().LoadFaces(b)
-	offsetX, offsetY := b.NcWidth(), b.NcWidth()
+	offsetX, offsetY := b.InsetLeft(), b.InsetTop()
 
 	for r := range b.screen.Lines {
 		for c := range b.screen.Columns {
@@ -120,12 +120,12 @@ func (b *Terminal) Draw(canvas *fbiw.Canvas) {
 			offsetX += b.cellWidth + b.spacingHorizontal
 		}
 		offsetY += b.cellHeight + b.spacingVertical
-		offsetX = b.NcWidth()
+		offsetX = b.InsetLeft()
 	}
 
 	if cursor := b.screen.Cursor; !cursor.Hidden {
-		offsetX := b.NcWidth() + (b.cellWidth+b.spacingHorizontal)*cursor.Col
-		offsetY := b.NcWidth() + (b.cellHeight+b.spacingVertical)*cursor.Row
+		offsetX := b.InsetLeft() + (b.cellWidth+b.spacingHorizontal)*cursor.Col
+		offsetY := b.InsetTop() + (b.cellHeight+b.spacingVertical)*cursor.Row
 		canvas := canvas.Offset(offsetX, offsetY)
 		canvas.FillRect(0, 0+3, b.cellWidth, b.cellHeight-6, fbiw.ColorFromRGBA(0, 0, 0, 0xFF))
 	}
@@ -157,8 +157,8 @@ func (b *Terminal) resize() {
 	// 英语字符的宽度
 	b.cellWidth = advance.Ceil()
 
-	maxWindowWidth := b.old.Width - b.NcWidth()*2
-	maxWindowHeight := b.old.Height - b.NcWidth()*2
+	maxWindowWidth := b.old.Width - b.HorizontalInsets()
+	maxWindowHeight := b.old.Height - b.VerticalInsets()
 
 	cols := (maxWindowWidth + b.spacingHorizontal) / (b.cellWidth + b.spacingHorizontal)
 	rows := (maxWindowHeight + b.spacingVertical) / (b.cellHeight + b.spacingVertical)

@@ -267,9 +267,9 @@ func (w *SearchWindow) asyncSearch(ctx context.Context, search string) {
 		w.resultList.SetItems(len(matched),
 			func() (fbiw.Box, *_SearchResultItemView) {
 				view := fbiw.Unmarshal[_SearchResultItemView](w.doc, `
-<block padding=10>
-	<inline><text class="name"></text></inline>
-	<inline><text class="path" font-size=15></text></inline>
+<block padding="0 20" align=middle>
+	<inline><text class="name" font-size=small></text></inline>
+	<inline><text class="path" font-size=x-small></text></inline>
 </block>
 				`)
 				return view.root, view

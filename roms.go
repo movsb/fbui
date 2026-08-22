@@ -248,7 +248,7 @@ func (n *GamesNavigator) setRomsList(roms []RomInfo, state any) {
 	n.roms.SetItems(len(roms),
 		func() (fbiw.Box, *_RomBox) {
 			item := fbiw.Unmarshal[_RomBox](n.window.doc, `
-<block padding=10>
+<block padding="0 10">
 	<inline spacer align=middle>
 		<inline class="icon">
 			<text class="nerd">&#xf07b;</text>

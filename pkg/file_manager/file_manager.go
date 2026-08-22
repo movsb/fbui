@@ -184,7 +184,7 @@ func (n *FileManagerWindow) setFileList(files []fs.DirEntry, state any) {
 	n.scroll.SetItems(len(files),
 		func() (fbiw.Box, *_FileBox) {
 			item := fbiw.Unmarshal[_FileBox](n.doc, `
-<block padding=10>
+<block padding="0 20">
 	<inline spacer align=middle>
 		<inline class="icon">
 			<text class="nerd">&#xf07b;</text>
