@@ -210,11 +210,13 @@ func (n *StatusBarNavigator) setTitle(title string, main bool) {
 
 func (n *StatusBarNavigator) activate() {
 	n.titleBar.Activate()
+	n.titleBar.ClassAdd(`active`)
 }
 
 func (n *StatusBarNavigator) activateContent() {
 	if n.catIndex >= 0 && n.catIndex <= len(n.contentBoxes)-1 {
 		content := n.contentBoxes[n.catIndex]
+		removeActive := true
 		switch content.Base().ID {
 		case `games`:
 			n.window.gamesNav.activate()
@@ -224,6 +226,11 @@ func (n *StatusBarNavigator) activateContent() {
 			n.window.appsNav.activate()
 		case `tools`:
 			n.window.toolsNav.activate()
+		default:
+			removeActive = false
+		}
+		if removeActive {
+			n.titleBar.ClassRemove(`active`)
 		}
 	}
 }
