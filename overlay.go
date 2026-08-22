@@ -15,25 +15,71 @@ import (
 	"github.com/fswatcher/fswatcher"
 	"github.com/mdlayher/kobject"
 	"github.com/movsb/fbiw"
-	"github.com/movsb/fbui/pkg/alert_window"
 )
 
-func (w *MainWindow) initSystemTime() {
-	w.txtTime.SetText(time.Now().Format(`15:04`))
+type OverlayWindow struct {
+	app *fbiw.App
+	doc *fbiw.Document
+
+	theTitle *fbiw.Text `css:"#title"`
+
+	txtTime              *fbiw.Text `css:"#time"`
+	txtBatteryPercentage *fbiw.Text `css:"#battery"`
+	boxBatteryCharging   fbiw.Box   `css:"#battery-charging-box"`
+
+	txtVolumeOpen    *fbiw.Text `css:"#speaker"`
+	txtWifiOpen      *fbiw.Text `css:"#wifi"`
+	txtBluetoothOpen *fbiw.Text `css:"#bluetooth"`
+	txtCpuStatus     *fbiw.Text `css:"#cpu"`
+}
+
+func NewOverlayWindow(app *fbiw.App) *OverlayWindow {
+	doc := app.NewOverlay(_embed, `overlay.html`)
+
+	win := &OverlayWindow{
+		app: app,
+		doc: doc,
+	}
+
+	doc.Bind(win)
+	app.SetOverlay(doc)
+
+	win.initSystemTime()
+	win.initSystemPower()
+
+	go win.watchOsdEvents()
+	go win.watchCPU()
+
+	app.Listen(fbiw.DocChange, func(e *fbiw.Event) {
+		d := e.DocChange.Doc
+		if d.Title() != `` {
+			win.theTitle.SetText(d.Title())
+		}
+	}, fbiw.EventOptions{})
+
+	return win
+}
+
+func (win *OverlayWindow) SetTitle(s string) {
+	win.theTitle.SetText(s)
+}
+
+func (win *OverlayWindow) initSystemTime() {
+	win.txtTime.SetText(time.Now().Format(`15:04`))
 	go func() {
 		last := ``
 		for range time.Tick(time.Minute) {
 			select {
-			case <-w.app.Context().Done():
+			case <-win.app.Context().Done():
 				return
 			default:
-				w.app.Async(func() {
+				win.app.Async(func() {
 					now := time.Now().Format(`15:04`)
 					if now == last {
 						return
 					}
 					last = now
-					w.txtTime.SetText(now)
+					win.txtTime.SetText(now)
 				})
 			}
 		}
@@ -131,7 +177,7 @@ func WatchKernelObjectEvents(ctx context.Context, callback func(event *kobject.E
 	return nil
 }
 
-func (w *MainWindow) initSystemPower() {
+func (win *OverlayWindow) initSystemPower() {
 	last := uint8(0)
 	lastCharging := false
 
@@ -148,11 +194,11 @@ func (w *MainWindow) initSystemPower() {
 			return
 		}
 
-		w.app.Async(func() {
-			w.txtBatteryPercentage.SetText(fmt.Sprintf(`%d%%`, info.Capacity))
+		win.app.Async(func() {
+			win.txtBatteryPercentage.SetText(fmt.Sprintf(`%d%%`, info.Capacity))
 
 			// 只有充电的时候显示。放电或已满均不显示。
-			w.boxBatteryCharging.Base().SetProp(`display`, fmt.Sprint(charging))
+			win.boxBatteryCharging.Base().SetProp(`display`, fmt.Sprint(charging))
 
 			last = info.Capacity
 			lastCharging = charging
@@ -170,7 +216,7 @@ func (w *MainWindow) initSystemPower() {
 		}); err != nil {
 			for range time.Tick(time.Second * 10) {
 				select {
-				case <-w.app.Context().Done():
+				case <-win.app.Context().Done():
 					return
 				default:
 					update()
@@ -180,110 +226,7 @@ func (w *MainWindow) initSystemPower() {
 	}()
 }
 
-type StatusBarNavigator struct {
-	window       *MainWindow
-	titleBar     *fbiw.Stack `css:"#title-bar"`
-	theTitle     *fbiw.Text  `css:"#title"`
-	catBar       fbiw.Box    `css:"#cat-bar"`
-	catIndex     int
-	catBoxes     []fbiw.Box `css:"#cat-bar text"`
-	contentBoxes []fbiw.Box `css:"#content > *"`
-}
-
-func NewStatusBarNavigator(win *MainWindow) *StatusBarNavigator {
-	n := StatusBarNavigator{
-		window:   win,
-		catIndex: 0,
-	}
-	win.doc.Bind(&n)
-	n.titleBar.Listen(fbiw.StickDownEvent, n.handleEvents, fbiw.EventOptions{})
-	return &n
-}
-
-func (n *StatusBarNavigator) setTitle(title string, main bool) {
-	if title == `` {
-		return
-	}
-	n.theTitle.SetText(title)
-	n.catBar.SetProp(`display`, fmt.Sprint(main))
-}
-
-func (n *StatusBarNavigator) activate() {
-	n.titleBar.Activate()
-	n.titleBar.ClassAdd(`active`)
-}
-
-func (n *StatusBarNavigator) activateContent() {
-	if n.catIndex >= 0 && n.catIndex <= len(n.contentBoxes)-1 {
-		content := n.contentBoxes[n.catIndex]
-		removeActive := true
-		switch content.Base().ID {
-		case `games`:
-			n.window.gamesNav.activate()
-		case `ports`:
-			n.window.portsNav.activate()
-		case `apps`:
-			n.window.appsNav.activate()
-		case `tools`:
-			n.window.toolsNav.activate()
-		default:
-			removeActive = false
-		}
-		if removeActive {
-			n.titleBar.ClassRemove(`active`)
-		}
-	}
-}
-
-func (n *StatusBarNavigator) handleEvents(event *fbiw.Event) {
-	keyName := event.Stick.Name
-
-	if keyName == fbiw.B {
-		alert_window.Alert(n.window.app, `确定要退出吗？`, func() {
-			n.window.app.Quit()
-		}, func() {})
-		return
-	}
-
-	if n.catIndex <= 0 && keyName == fbiw.Left {
-		return
-	}
-	if n.catIndex >= len(n.catBoxes)-1 && keyName == fbiw.Right {
-		return
-	}
-
-	if keyName == fbiw.Left || keyName == fbiw.Right {
-		// 原来的去掉选中
-		if n.catIndex >= 0 && n.catIndex < len(n.catBoxes) {
-			t := n.catBoxes[n.catIndex].(*fbiw.Text)
-			t.ClassRemove(`selected`)
-			b := n.contentBoxes[n.catIndex]
-			b.Base().ClassRemove(`selected`)
-		}
-
-		switch keyName {
-		case fbiw.Left:
-			n.catIndex--
-		case fbiw.Right:
-			n.catIndex++
-		}
-
-		t := n.catBoxes[n.catIndex].(*fbiw.Text)
-		t.ClassAdd(`selected`)
-		b := n.contentBoxes[n.catIndex]
-		b.Base().ClassAdd(`selected`)
-
-		event.StopPropagation()
-		return
-	}
-
-	if keyName == fbiw.Down {
-		n.activateContent()
-		event.StopPropagation()
-	}
-}
-
-func (win *MainWindow) watchOsdEvents() {
+func (win *OverlayWindow) watchOsdEvents() {
 	watcher, err := fswatcher.NewWatcher()
 	if err != nil {
 		log.Println(`创建观察器失败:`, err)
@@ -316,7 +259,7 @@ func (win *MainWindow) watchOsdEvents() {
 			if open != statusVolumeOpen || force {
 				win.app.Async(func() {
 					log.Println(`音量状态:`, open)
-					win.txtVolumeOpen.SetText(fbiw.Iif(open, string(0xefcf), ``))
+					win.txtVolumeOpen.SetText(fbiw.Iif(open, string(rune(0xefcf)), ``))
 				})
 				statusVolumeOpen = open
 			}
@@ -326,7 +269,7 @@ func (win *MainWindow) watchOsdEvents() {
 			if open != statusBluetoothOpen || force {
 				win.app.Async(func() {
 					log.Println(`蓝牙状态:`, open)
-					win.txtBluetoothOpen.SetText(fbiw.Iif(open, string(0xf00af), ``))
+					win.txtBluetoothOpen.SetText(fbiw.Iif(open, string(rune(0xf00af)), ``))
 				})
 				statusBluetoothOpen = open
 			}
@@ -337,7 +280,7 @@ func (win *MainWindow) watchOsdEvents() {
 			if open != statusWifiOpen || force {
 				win.app.Async(func() {
 					log.Println(`网络状态:`, open)
-					win.txtWifiOpen.SetText(fbiw.Iif(open, string(0xf1eb), ``))
+					win.txtWifiOpen.SetText(fbiw.Iif(open, string(rune(0xf1eb)), ``))
 				})
 				statusWifiOpen = open
 			}
@@ -449,7 +392,7 @@ func cpuUsage(prev, curr CPUStat) float64 {
 	return float64(totalDelta-idleDelta) / float64(totalDelta)
 }
 
-func (win *MainWindow) watchCPU() {
+func (win *OverlayWindow) watchCPU() {
 	ctx := context.Background()
 	prev, err := readCPUStat()
 	if err != nil {

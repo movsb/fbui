@@ -22,6 +22,7 @@ func main() {
 
 	fonts.Init(app)
 
+	NewOverlayWindow(app)
 	NewMainWindow(app)
 
 	app.Run()

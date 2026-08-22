@@ -7,13 +7,13 @@ document {
 	font-family: nerd;
 	bold: false;
 }
-#title-bar {
+#cat-bar {
 	font-size: small;
 }
-#title-bar text {
-	padding: 3 5;
+#cat-bar text {
+	padding: 0 5;
 }
-#title-bar.active .selected {
+#cat-bar.active .selected {
 	outline-width: 3;
 	outline-color: green;
 	background-color: #174417;
@@ -50,50 +50,37 @@ document {
 }
 </style>
 <title>小桃的吹米</title>
-<block padding="10">
-	<stack id="title-bar">
-		<inline id="time-bar" align="middle">
-			<text bold id="title">小桃的吹米</text>
-			<spacer width="5"></spacer>
-			<text id="cpu"></text>
-			<spacer></spacer>
-			<text class="nerd" id="wifi"></text>
-			<text class="nerd" id="bluetooth"></text>
-			<text class="nerd" id="speaker"></text>
-			<text id="battery">100%</text>
-			<text class="nerd" id="battery-charging-box">&#xf0e7;</text>
-			<text id="time"></text>
-		</inline>
-		<inline id="cat-bar">
-			<spacer></spacer>
-			<text class="selected" name="games">游戏</text>
-			<text name="ports">独立</text>
-			<text name="apps">应用</text>
-			<text name="system">终端</text>
-			<text name="tools">工具</text>
-			<spacer></spacer>
-		</inline>
-	</stack>
-	<spacer height="10"></spacer>
-	<stack id="content" spacer fill>
-		<stack class="content-item selected" id="games" fill>
-			<scroll id="emus" rows="2" cols="3" gap="30" padding="20">
+<stack fill>
+	<inline id="cat-bar" padding="10">
+		<spacer></spacer>
+		<text class="selected" name="games">游戏</text>
+		<text name="ports">独立</text>
+		<text name="apps">应用</text>
+		<text name="system">终端</text>
+		<text name="tools">工具</text>
+		<spacer></spacer>
+	</inline>
+	<safe-area>
+		<stack id="content" spacer fill>
+			<stack class="content-item selected" id="games" fill>
+				<scroll id="emus" rows="2" cols="3" gap="30" padding="20">
+				</scroll>
+				<scroll id="roms" rows="8" cols="1" gap="10" display="false" padding="20">
+				</scroll>
+				<inline id="nogames" align="both" display="false">
+					<text>没有游戏</text>
+				</inline>
+			</stack>
+			<scroll class="content-item" id="ports" rows="2" cols="3" gap="30" padding="20">
 			</scroll>
-			<scroll id="roms" rows="10" cols="1" gap="10" display="false" padding="20">
+			<scroll class="content-item" id="apps" rows="2" cols="3" gap="30" padding="20">
 			</scroll>
-			<inline id="nogames" align="both" display="false">
-				<text>没有游戏</text>
-			</inline>
+			<block class="content-item" id="system" background-color="yellow">
+				<terminal spacer font-size="18" font-family="monospace"></terminal>
+			</block>
+			<scroll class="content-item" id="tools" rows="5" cols="1" gap="10" padding="20">
+			</scroll>
 		</stack>
-		<scroll class="content-item" id="ports" rows="2" cols="3" gap="30" padding="20">
-		</scroll>
-		<scroll class="content-item" id="apps" rows="2" cols="3" gap="30" padding="20">
-		</scroll>
-		<block class="content-item" id="system" background-color="yellow">
-			<terminal spacer font-size="18" font-family="monospace"></terminal>
-		</block>
-		<scroll class="content-item" id="tools" rows="5" cols="1" gap="10" padding="20">
-		</scroll>
-	</stack>
-</block>
+	</safe-area>
+</stack>
 </document>

@@ -16,20 +16,22 @@ scroll .selected {
 	background-color: #174417;
 }
 </style>
-<block background-color="#000000E8">
-	<stack fill>
-		<stack padding="20" fill>
-			<scroll id="scroll" rows="8" cols="1"></scroll>
-			<block id="empty" align="both" display="false">
-				<text><i>没有内容</i></text>
-			</block>
+<stack fill>
+	<safe-area>
+		<stack fill background-color="#000000E8">
+			<stack padding="10 20" fill>
+				<scroll id="scroll" rows="8" cols="1"></scroll>
+				<block id="empty" align="both" display="false">
+					<text><i>没有内容</i></text>
+				</block>
+			</stack>
+			<stack id="preview" fill background-color="clear" display="false">
+				<img class="image" fill="scale-down">
+				<video class="video" fill="contain"></video>
+				<audio class="audio"></audio>
+				<text class="text mono" padding="10" font-size="small"></text>
+			</stack>
 		</stack>
-		<stack id="preview" fill background-color="clear" display="false">
-			<img class="image" fill="scale-down">
-			<video class="video" fill="contain"></video>
-			<audio class="audio"></audio>
-			<text class="text mono" padding="10" font-size="small"></text>
-		</stack>
-	</stack>
-</block>
+	</safe-area>
+</stack>
 </document>
