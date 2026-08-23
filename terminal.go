@@ -70,11 +70,7 @@ func (b *Terminal) SetProp(key, val string) error {
 	}
 }
 
-func (b *Terminal) Calc(availWidth, availHeight int, constraints fbiw.Constraints) {
-	b.Base().Calc(availWidth, availHeight, constraints)
-
-	// 仅在大小更新时通知伪终端调整大小，防止不必要的计算。
-	// TODO 还有字体大小变化的时候
+func (b *Terminal) Draw(canvas *fbiw.Canvas) {
 	if new := b.BaseBox.GetLayoutBox(); new != b.old {
 		b.old = new
 		if b.master == nil {
@@ -82,12 +78,6 @@ func (b *Terminal) Calc(availWidth, availHeight int, constraints fbiw.Constraint
 		} else {
 			b.resize()
 		}
-	}
-}
-
-func (b *Terminal) Draw(canvas *fbiw.Canvas) {
-	if b.master == nil {
-		return
 	}
 
 	b.lock.Lock()
