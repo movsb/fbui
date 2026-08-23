@@ -24,11 +24,14 @@ var _embed embed.FS
 type FileManagerWindow struct {
 	app *fbiw.App
 
-	doc      *fbiw.Document
-	root     fbiw.Box
-	emptyDir fbiw.Box     `css:"#empty"`
-	scroll   *fbiw.Scroll `css:"#scroll"`
-	path     *fbiw.Text   `css:"#path"`
+	doc         *fbiw.Document
+	root        fbiw.Box
+	emptyDir    fbiw.Box     `css:"#empty"`
+	scroll      *fbiw.Scroll `css:"#scroll"`
+	path        *fbiw.Text   `css:"#path"`
+	statSize    *fbiw.Text   `css:"#stat .size"`
+	statPerm    *fbiw.Text   `css:"#stat .perm"`
+	statModTime *fbiw.Text   `css:"#stat .time"`
 
 	previewBox   *fbiw.Stack               `css:"#preview"`
 	previewImage *fbiw.Image               `css:"#preview img"`
@@ -45,9 +48,11 @@ func New(app *fbiw.App) *FileManagerWindow {
 		app: app,
 		doc: app.New(_embed, `file_manager.html`),
 	}
+
 	n.doc.Bind(n)
 	n.root.Listen(fbiw.StickDownEvent, n.handleEvents)
 	n.previewBox.Listen(fbiw.StickDownEvent, n.handlePreviewEvent)
+	n.scroll.Listen(fbiw.ScrollSelectionChange, n.handleSelectionChangeEvent)
 
 	dir := fbiw.Iif(runtime.GOOS == `linux`, `/mnt/SDCARD`, os.ExpandEnv(`$HOME/Downloads`))
 	components := []string{}
@@ -127,7 +132,7 @@ func (n *FileManagerWindow) handleEvents(event *fbiw.Event) {
 			n.doc.Close()
 			return
 		} else {
-			n.gotoUpperDirectory()
+			n.leaveDirectory()
 			event.StopPropagation()
 			return
 		}
@@ -151,11 +156,12 @@ func (n *FileManagerWindow) handleEvents(event *fbiw.Event) {
 	}
 }
 
-func (n *FileManagerWindow) gotoUpperDirectory() {
+func (n *FileManagerWindow) leaveDirectory() {
 	n.stack.Pop()
 	top := n.stack.Top()
 	n.setFileList(top.entries, top.state)
 	n.setPath(n.finalPath(``))
+	// n.clearStats()
 }
 
 func (n *FileManagerWindow) enterDirectory(entry _Entry) bool {
@@ -175,11 +181,19 @@ func (n *FileManagerWindow) enterDirectory(entry _Entry) bool {
 		state:   nil,
 	})
 	n.setFileList(list, nil)
-	// 其实只需要激活一次就行。
-	// 然后在退出最只有模拟器列表的时候切换激活。
-	// n.scroll.Activate()
 	n.setPath(path)
+	// n.clearStats()
 	return true
+}
+
+func (n *FileManagerWindow) clearStats() {
+	for _, t := range []*fbiw.Text{
+		n.statModTime,
+		n.statPerm,
+		n.statSize,
+	} {
+		t.SetText(``)
+	}
 }
 
 func (n *FileManagerWindow) setPath(path string) {

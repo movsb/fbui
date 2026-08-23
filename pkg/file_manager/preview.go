@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/movsb/fbiw"
 	"github.com/movsb/fbui/pkg/alert_window"
@@ -144,4 +145,40 @@ func (n *FileManagerWindow) handlePreviewEvent(e *fbiw.Event) {
 			n.previewText.PageRight()
 		}
 	}
+}
+
+func (n *FileManagerWindow) handleSelectionChangeEvent(e *fbiw.Event) {
+	top := n.stack.Top()
+	index := n.scroll.DataIndex()
+	if index == -1 {
+		return
+	}
+	entry := top.entries[index]
+	info, err := entry.Info()
+	if err != nil {
+		n.statPerm.SetText(err.Error())
+		return
+	}
+	n.statPerm.SetText(info.Mode().String())
+	if !info.IsDir() {
+		n.statSize.SetText(formatBytes(info.Size()))
+	} else {
+		n.statSize.SetText(``)
+	}
+	n.statModTime.SetText(info.ModTime().Format(time.DateTime))
+}
+
+func formatBytes(n int64) string {
+	const unit = 1024
+	if n < unit {
+		return fmt.Sprintf("%dB", n)
+	}
+
+	div, exp := int64(unit), 0
+	for v := n / unit; v >= unit; v /= unit {
+		div *= unit
+		exp++
+	}
+
+	return fmt.Sprintf("%.1f%cB", float64(n)/float64(div), "KMGTPE"[exp])
 }
