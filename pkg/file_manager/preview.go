@@ -153,12 +153,14 @@ func (n *FileManagerWindow) handleSelectionChangeEvent(e *fbiw.Event) {
 	if index == -1 {
 		return
 	}
+
 	entry := top.entries[index]
 	info, err := entry.Info()
 	if err != nil {
 		n.statPerm.SetText(err.Error())
 		return
 	}
+
 	n.statPerm.SetText(info.Mode().String())
 	if !info.IsDir() {
 		n.statSize.SetText(formatBytes(info.Size()))
@@ -166,6 +168,8 @@ func (n *FileManagerWindow) handleSelectionChangeEvent(e *fbiw.Event) {
 		n.statSize.SetText(``)
 	}
 	n.statModTime.SetText(info.ModTime().Format(time.DateTime))
+
+	n.textPagination.SetTextFormat(`%d/%d`, index+1, n.scroll.DataCount())
 }
 
 func formatBytes(n int64) string {

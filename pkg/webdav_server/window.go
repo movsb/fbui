@@ -3,7 +3,6 @@ package webdav_server
 import (
 	"context"
 	"embed"
-	"fmt"
 
 	"github.com/movsb/fbiw"
 )
@@ -67,12 +66,12 @@ func (t *WebDavWindow) handleEvents(event *fbiw.Event) {
 				t.app.Async(func() {
 					if err == nil {
 						t.status.ClassRemove(`warning`)
-						t.status.SetText(fmt.Sprintf(`已打开。服务器地址: %s。请在支持的软件中填入此地址，空用户名、空密码。`, ip))
+						t.status.SetTextFormat(`已打开。服务器地址: %s。请在支持的软件中填入此地址，空用户名、空密码。`, ip)
 						t.btn.SetText(string(rune(0xf205)))
 						t.open = 2
 					} else {
 						t.status.ClassAdd(`warning`)
-						t.status.SetText(fmt.Sprintf(`启动失败: %v`, err))
+						t.status.SetTextFormat(`启动失败: %v`, err)
 						t.open = 0
 					}
 				})

@@ -75,7 +75,7 @@ func (win *OverlayWindow) initCpuUsage() {
 func (win *OverlayWindow) initPowerStatus() {
 	helpers.WatchPowerStatus(win.app.Context(), func(capacity int, charging bool) {
 		win.doc.Async(func() {
-			win.txtBatteryPercentage.SetText(fmt.Sprintf(`%d%%`, capacity))
+			win.txtBatteryPercentage.SetTextFormat(`%d%%`, capacity)
 			// 只有充电的时候显示。放电或已满均不显示。
 			win.boxBatteryCharging.SetProp(`display`, fmt.Sprint(charging))
 		})

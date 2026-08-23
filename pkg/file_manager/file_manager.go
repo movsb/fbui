@@ -33,6 +33,8 @@ type FileManagerWindow struct {
 	statPerm    *fbiw.Text   `css:"#stat .perm"`
 	statModTime *fbiw.Text   `css:"#stat .time"`
 
+	textPagination *fbiw.Text `css:"#pagination"`
+
 	previewBox   *fbiw.Stack               `css:"#preview"`
 	previewImage *fbiw.Image               `css:"#preview img"`
 	previewVideo *video_player.VideoPlayer `css:"#preview video"`
@@ -54,23 +56,8 @@ func New(app *fbiw.App) *FileManagerWindow {
 	n.previewBox.Listen(fbiw.StickDownEvent, n.handlePreviewEvent)
 	n.scroll.Listen(fbiw.ScrollSelectionChange, n.handleSelectionChangeEvent)
 
-	dir := fbiw.Iif(runtime.GOOS == `linux`, `/mnt/SDCARD`, os.ExpandEnv(`$HOME/Downloads`))
-	components := []string{}
-	for component := range strings.SplitSeq(path.Clean(dir), `/`) {
-		if component == `` {
-			component = `/`
-		}
-		components = append(components, component)
-		info := fbiw.Must1(os.Stat(filepath.Join(components...)))
-		entry := _Entry{
-			DirEntry: fs.FileInfoToDirEntry(info),
-			IsDir:    true,
-		}
-		if !n.enterDirectory(entry) {
-			alert_window.Alert(app, `无法进入目录。`, nil, nil)
-			n.doc.Close()
-			return nil
-		}
+	if !n.initView() {
+		return nil
 	}
 
 	n.activate()
@@ -116,6 +103,28 @@ type _StackItem struct {
 
 	// 滚动条状态。
 	state any
+}
+
+func (n *FileManagerWindow) initView() bool {
+	dir := fbiw.Iif(runtime.GOOS == `linux`, `/mnt/SDCARD`, os.ExpandEnv(`$HOME/Downloads`))
+	components := []string{}
+	for component := range strings.SplitSeq(path.Clean(dir), `/`) {
+		if component == `` {
+			component = `/`
+		}
+		components = append(components, component)
+		info := fbiw.Must1(os.Stat(filepath.Join(components...)))
+		entry := _Entry{
+			DirEntry: fs.FileInfoToDirEntry(info),
+			IsDir:    true,
+		}
+		if !n.enterDirectory(entry) {
+			alert_window.Alert(n.app, `无法进入目录。`, nil, nil)
+			n.doc.Close()
+			return false
+		}
+	}
+	return true
 }
 
 func (n *FileManagerWindow) activate() {
