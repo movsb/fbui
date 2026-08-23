@@ -46,6 +46,8 @@ func (b *VideoPlayer) SetProp(key, val string) error {
 	case `src`:
 		b.src = val
 		b.Stop()
+		b.prevWidth = 0
+		b.prevHeight = 0
 		b.Document().RequestLayout()
 		return nil
 	default:
@@ -58,16 +60,30 @@ func (b *VideoPlayer) SetPath(path string) {
 	b.SetProp(`src`, u)
 }
 
-func (b *VideoPlayer) Calc(availWidth, availHeight int, constraints fbiw.Constraints) {
-	b.Base().Calc(availWidth, availHeight, constraints)
+func (b *VideoPlayer) Draw(canvas *fbiw.Canvas) {
+	if b.cmd != nil {
+		log.Println(`正在播放，不重绘`)
+		return
+	}
 
-	if b.GetLayoutBox().Width == b.prevWidth && b.GetLayoutBox().Height == b.prevHeight && b.cmd != nil {
+	if b.GetLayoutBox().Width == b.prevWidth && b.GetLayoutBox().Height == b.prevHeight {
 		return
 	}
 
 	b.prevWidth = b.GetLayoutBox().Width
 	b.prevHeight = b.GetLayoutBox().Height
 
+	b.probe()
+
+	if b.videoWidth == 0 {
+		log.Println(`视频没有尺寸，无法播放`)
+		return
+	}
+
+	b.Play()
+}
+
+func (b *VideoPlayer) probe() {
 	if b.src == `` {
 		return
 	}
@@ -112,16 +128,7 @@ func (b *VideoPlayer) Calc(availWidth, availHeight int, constraints fbiw.Constra
 	b.videoHeight = height
 }
 
-func (b *VideoPlayer) Draw(canvas *fbiw.Canvas) {
-	if b.cmd != nil {
-		log.Println(`正在播放，不重绘`)
-		return
-	}
-	if b.videoWidth == 0 {
-		log.Println(`视频没有尺寸，无法播放`)
-		return
-	}
-
+func (b *VideoPlayer) Play() {
 	if runtime.GOOS == `linux` {
 		bin := filepath.Join(os.ExpandEnv(`$HOME/.local/bin`), `player`)
 		if _, err := os.Stat(bin); os.IsNotExist(err) {
@@ -174,7 +181,13 @@ func (b *VideoPlayer) Draw(canvas *fbiw.Canvas) {
 			log.Println(err)
 		} else {
 			b.cmd = cmd
-			go cmd.Wait()
+			go func() {
+				cmd.Wait()
+				log.Println(`播放器已退出`)
+				b.Document().Async(func() {
+					b.Stop()
+				})
+			}()
 		}
 	}
 }

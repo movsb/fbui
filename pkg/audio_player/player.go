@@ -41,6 +41,8 @@ func (b *AudioPlayer) SetProp(key, val string) error {
 	case `src`:
 		b.src = val
 		b.Stop()
+		b.prevWidth = 0
+		b.prevHeight = 0
 		b.Document().RequestLayout()
 		return nil
 	default:
@@ -53,8 +55,10 @@ func (b *AudioPlayer) SetPath(path string) {
 	b.SetProp(`src`, u)
 }
 
-func (b *AudioPlayer) Calc(availWidth, availHeight int, constraints fbiw.Constraints) {
-	b.Base().Calc(availWidth, availHeight, constraints)
+func (b *AudioPlayer) Draw(canvas *fbiw.Canvas) {
+	if b.cmdFF != nil {
+		return
+	}
 
 	if b.GetLayoutBox().Width == b.prevWidth && b.GetLayoutBox().Height == b.prevHeight && b.cmdFF != nil {
 		return
@@ -86,12 +90,6 @@ func (b *AudioPlayer) Calc(availWidth, availHeight int, constraints fbiw.Constra
 	}
 
 	b.path = path
-}
-
-func (b *AudioPlayer) Draw(canvas *fbiw.Canvas) {
-	if b.cmdFF != nil {
-		return
-	}
 
 	b.Start()
 }
