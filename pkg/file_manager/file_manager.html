@@ -18,13 +18,14 @@ scroll .selected {
 </style>
 <stack fill>
 	<safe-area>
-		<stack fill background-color="#000000E8">
-			<stack padding="10 20" fill>
+		<stack padding="10 20" fill background-color="#000000E8">
+			<block>
+				<inline padding="10 0" font-size="x-small"><text id="path"></text></inline>
 				<scroll id="scroll" rows="8" cols="1"></scroll>
-				<block id="empty" align="both" display="false">
-					<text><i>没有内容</i></text>
-				</block>
-			</stack>
+			</block>
+			<block id="empty" align="both" display="false">
+				<text><i>没有内容</i></text>
+			</block>
 		</stack>
 	</safe-area>
 	<!-- 预览窗口全屏挺好看的 -->

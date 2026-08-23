@@ -28,6 +28,7 @@ type FileManagerWindow struct {
 	root     fbiw.Box
 	emptyDir fbiw.Box     `css:"#empty"`
 	scroll   *fbiw.Scroll `css:"#scroll"`
+	path     *fbiw.Text   `css:"#path"`
 
 	previewBox   *fbiw.Stack               `css:"#preview"`
 	previewImage *fbiw.Image               `css:"#preview img"`
@@ -154,11 +155,13 @@ func (n *FileManagerWindow) gotoUpperDirectory() {
 	n.stack.Pop()
 	top := n.stack.Top()
 	n.setFileList(top.entries, top.state)
+	n.setPath(n.finalPath(``))
 }
 
 func (n *FileManagerWindow) enterDirectory(entry _Entry) bool {
+	path := n.finalPath(entry.Name())
 	// TODO 这里是同步列举的，可能会卡界面
-	list, err := n.list(n.finalPath(entry))
+	list, err := n.list(path)
 	if err != nil {
 		alert_window.Alert(n.app, err.Error(), nil, nil)
 		return false
@@ -175,7 +178,15 @@ func (n *FileManagerWindow) enterDirectory(entry _Entry) bool {
 	// 其实只需要激活一次就行。
 	// 然后在退出最只有模拟器列表的时候切换激活。
 	// n.scroll.Activate()
+	n.setPath(path)
 	return true
+}
+
+func (n *FileManagerWindow) setPath(path string) {
+	if path != `/` {
+		path += `/`
+	}
+	n.path.SetText(path)
 }
 
 func (n *FileManagerWindow) setFileList(files []_Entry, state any) {
@@ -215,12 +226,16 @@ func (n *FileManagerWindow) setFileList(files []_Entry, state any) {
 }
 
 // 基于文件信息，往上回溯父目录，拼出完整路径。
-func (n *FileManagerWindow) finalPath(entry _Entry) string {
+//
+// 如果参数为空，只拼目录路径。
+func (n *FileManagerWindow) finalPath(currentName string) string {
 	parts := []string{}
 	for i := 0; i < n.stack.Size(); i++ {
 		parts = append(parts, n.stack.At(i).dir.Name())
 	}
-	parts = append(parts, entry.Name())
+	if currentName != `` {
+		parts = append(parts, currentName)
+	}
 	return filepath.Join(parts...)
 }
 

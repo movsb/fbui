@@ -16,7 +16,7 @@ import (
 )
 
 func (n *FileManagerWindow) preview(entry _Entry) {
-	path := n.finalPath(entry)
+	path := n.finalPath(entry.Name())
 	fp, err := os.Open(path)
 	if err != nil {
 		alert_window.Alert(n.app, fmt.Sprintf(`无法打开此文件: %v`, err), nil, nil)
