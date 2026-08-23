@@ -9,7 +9,17 @@ import (
 //go:embed *.html
 var _embed embed.FS
 
+func Error(app *fbiw.App, message string, confirm, cancel func()) {
+	alert(app, message, confirm, cancel, func(doc *fbiw.Document) {
+		doc.Root().SetProp(`border-color`, `red`)
+	})
+}
+
 func Alert(app *fbiw.App, message string, confirm, cancel func()) {
+	alert(app, message, confirm, cancel, nil)
+}
+
+func alert(app *fbiw.App, message string, confirm, cancel func(), beforeShow func(doc *fbiw.Document)) {
 	doc := app.New(_embed, `alert.html`)
 
 	window := struct {
@@ -19,6 +29,10 @@ func Alert(app *fbiw.App, message string, confirm, cancel func()) {
 	doc.Bind(&window)
 
 	window.text.SetText(message)
+
+	if beforeShow != nil {
+		beforeShow(doc)
+	}
 
 	app.Show(doc)
 
