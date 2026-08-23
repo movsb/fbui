@@ -24,7 +24,10 @@ func (n *FileManagerWindow) preview(entry _Entry) {
 		return
 	}
 	defer fp.Close()
+
 	buf := make([]byte, 512)
+	// 不小心读别人的stdin……然后假死了😅
+	fp.SetReadDeadline(time.Now().Add(time.Second))
 	if count, err := fp.Read(buf); err != nil {
 		if errors.Is(err, io.EOF) {
 			alert_window.Alert(n.app, `空文件（0字节大小）`, nil, nil)
@@ -39,6 +42,7 @@ func (n *FileManagerWindow) preview(entry _Entry) {
 			return
 		}
 	}
+	fp.SetReadDeadline(time.Time{})
 
 	ct := http.DetectContentType(buf)
 
@@ -105,6 +109,7 @@ func (n *FileManagerWindow) previewTextContent(fp *os.File, preprocess func(data
 		alert_window.Alert(n.app, `文件太大，暂时不支持查看。`, nil, nil)
 		return
 	}
+	fp.SetReadDeadline(time.Now().Add(time.Second * 5))
 	data, err := io.ReadAll(fp)
 	if err != nil {
 		alert_window.Alert(n.app, fmt.Sprintf(`读取文件内容失败: %v`, err), nil, nil)
