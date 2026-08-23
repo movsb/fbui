@@ -280,10 +280,14 @@ func (w *SearchWindow) asyncSearch(ctx context.Context, search string) {
 				box.path.SetText(item.romPath)
 			},
 		)
-		w.resultList.Activate()
 
-		w.resultStatusWrapper.SetProp(`display`, `false`)
-		w.resultList.SetProp(`display`, `true`)
+		if len(matched) > 0 {
+			w.resultList.Activate()
+			w.resultStatusWrapper.SetProp(`display`, `false`)
+			w.resultList.SetProp(`display`, `true`)
+		} else {
+			w.resultStatus.SetText(`没有结果。`)
+		}
 	})
 }
 
