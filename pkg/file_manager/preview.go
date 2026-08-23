@@ -1,6 +1,8 @@
 package file_manager
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
 	_ "image/jpeg"
 	_ "image/png"
@@ -23,6 +25,10 @@ func (n *FileManagerWindow) preview(entry _Entry) {
 	defer fp.Close()
 	buf := make([]byte, 512)
 	if count, err := fp.Read(buf); err != nil {
+		if errors.Is(err, io.EOF) {
+			alert_window.Alert(n.app, `空文件（0字节大小）`, nil, nil)
+			return
+		}
 		alert_window.Alert(n.app, fmt.Sprintf(`无法读取此文件: %v`, err), nil, nil)
 		return
 	} else {
@@ -41,9 +47,6 @@ func (n *FileManagerWindow) preview(entry _Entry) {
 	n.previewText.SetProp(`display`, `false`)
 
 	switch {
-	default:
-		alert_window.Alert(n.app, `暂时不支持查看此文件。`, nil, nil)
-		return
 	case strings.HasPrefix(ct, `image/`):
 		n.previewImage.SetPath(path)
 		n.previewImage.SetProp(`display`, `true`)
@@ -54,30 +57,69 @@ func (n *FileManagerWindow) preview(entry _Entry) {
 		n.previewAudio.SetPath(path)
 		n.previewAudio.SetProp(`display`, `true`)
 	case strings.HasPrefix(ct, `text/`):
-		info, err := fp.Stat()
-		if err != nil {
-			alert_window.Alert(n.app, fmt.Sprintf(`无法获取基本信息: %v`, err), nil, nil)
+		n.previewTextContent(fp, nil)
+	default:
+		// 尽量猜一下先再放弃？
+
+		viewed := false
+
+		// 类似 /proc/1/{cmdline,environ} 这种不含除 0x00 非 printable 字符。
+		if bytes.IndexByte(buf, 0) != -1 {
+			extra := false
+			for i := range len(buf) {
+				if buf[i] > 0 && buf[i] < 0x20 {
+					extra = true
+					break
+				}
+			}
+			if !extra {
+				n.previewTextContent(fp, func(data []byte) {
+					for i := range len(data) {
+						if data[i] == 0 {
+							data[i] = '\n'
+						}
+					}
+				})
+				viewed = true
+			}
+		}
+
+		if !viewed {
+			alert_window.Alert(n.app, `暂时不支持查看此文件。`, nil, nil)
 			return
 		}
-		if info.Size() > 10<<20 {
-			alert_window.Alert(n.app, `文件太大，暂时不支持查看。`, nil, nil)
-			return
-		}
-		data, err := io.ReadAll(fp)
-		if err != nil {
-			alert_window.Alert(n.app, fmt.Sprintf(`读取文件内容失败: %v`, err), nil, nil)
-			return
-		}
-		// skip bom
-		if len(data) > 3 && data[0] == 0xEF && data[1] == 0xBB && data[2] == 0xBF {
-			data = data[3:]
-		}
-		n.previewText.SetText(string(data))
-		n.previewText.SetProp(`display`, `true`)
 	}
 
 	n.previewBox.SetProp(`display`, `true`)
 	n.previewBox.Activate()
+}
+
+func (n *FileManagerWindow) previewTextContent(fp *os.File, preprocess func(data []byte)) {
+	info, err := fp.Stat()
+	if err != nil {
+		alert_window.Alert(n.app, fmt.Sprintf(`无法获取基本信息: %v`, err), nil, nil)
+		return
+	}
+	if info.Size() > 10<<20 {
+		alert_window.Alert(n.app, `文件太大，暂时不支持查看。`, nil, nil)
+		return
+	}
+	data, err := io.ReadAll(fp)
+	if err != nil {
+		alert_window.Alert(n.app, fmt.Sprintf(`读取文件内容失败: %v`, err), nil, nil)
+		return
+	}
+	// skip bom
+	if len(data) > 3 && data[0] == 0xEF && data[1] == 0xBB && data[2] == 0xBF {
+		data = data[3:]
+	}
+
+	if preprocess != nil {
+		preprocess(data)
+	}
+
+	n.previewText.SetText(string(data))
+	n.previewText.SetProp(`display`, `true`)
 }
 
 func (n *FileManagerWindow) handlePreviewEvent(e *fbiw.Event) {
