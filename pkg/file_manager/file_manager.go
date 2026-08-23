@@ -29,10 +29,10 @@ type FileManagerWindow struct {
 	scroll   *fbiw.Scroll `css:"#scroll"`
 
 	previewBox   *fbiw.Stack               `css:"#preview"`
-	previewImage *fbiw.Image               `css:"#preview .image"`
-	previewVideo *video_player.VideoPlayer `css:"#preview .video"`
-	previewAudio *audio_player.AudioPlayer `css:"#preview .audio"`
-	previewText  *fbiw.Text                `css:"#preview .text"`
+	previewImage *fbiw.Image               `css:"#preview img"`
+	previewVideo *video_player.VideoPlayer `css:"#preview video"`
+	previewAudio *audio_player.AudioPlayer `css:"#preview audio"`
+	previewText  *fbiw.Text                `css:"#preview text"`
 
 	// 当前的目录浏览栈
 	stack _Stack

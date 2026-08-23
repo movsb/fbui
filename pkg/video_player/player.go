@@ -144,21 +144,19 @@ func (b *VideoPlayer) Play() {
 			}
 		}
 
-		// 缩放到scale-down大小。
+		// 缩放到 contain 大小。
 		// 参考图片的缩放算法。
-		fittingWidth, fittingHeight := 0, 0
 		scaleX := float64(b.prevWidth) / float64(b.videoWidth)
 		scaleY := float64(b.prevHeight) / float64(b.videoHeight)
 		scale := min(scaleX, scaleY)
-		if scale < 1 {
-			fittingWidth = int(float64(b.videoWidth) * scale)
-			fittingHeight = int(float64(b.videoHeight) * scale)
-		} else {
-			fittingWidth = b.videoWidth
-			fittingHeight = b.videoHeight
-		}
+		fittingWidth := int(float64(b.videoWidth) * scale)
+		fittingHeight := int(float64(b.videoHeight) * scale)
 
-		cmd := exec.Command(bin, b.path, `0`, `0`, fmt.Sprint(fittingWidth), fmt.Sprint(fittingHeight))
+		// 简单居中一下，目前没有getBoundingClientRect可用。
+		x := (b.prevWidth - fittingWidth) / 2
+		y := (b.prevHeight - fittingHeight) / 2
+
+		cmd := exec.Command(bin, b.path, fmt.Sprint(x), fmt.Sprint(y), fmt.Sprint(fittingWidth), fmt.Sprint(fittingHeight))
 		cmd.Stdin = nil
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
