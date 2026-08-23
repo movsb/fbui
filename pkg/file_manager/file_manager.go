@@ -4,6 +4,7 @@ import (
 	"embed"
 	"fmt"
 	"io/fs"
+	"log"
 	"os"
 	"path"
 	"path/filepath"
@@ -54,7 +55,12 @@ func New(app *fbiw.App) *FileManagerWindow {
 			component = `/`
 		}
 		components = append(components, component)
-		if !n.enterDirectory(fs.FileInfoToDirEntry(fbiw.Must1(os.Stat(filepath.Join(components...))))) {
+		info := fbiw.Must1(os.Stat(filepath.Join(components...)))
+		entry := _Entry{
+			DirEntry: fs.FileInfoToDirEntry(info),
+			IsDir:    true,
+		}
+		if !n.enterDirectory(entry) {
 			alert_window.Alert(app, `无法进入目录。`, nil, nil)
 			n.doc.Close()
 			return nil
@@ -97,10 +103,10 @@ func (s *_Stack) Top() *_StackItem {
 
 type _StackItem struct {
 	// 当前目录。
-	dir fs.DirEntry
+	dir _Entry
 
 	// 其下的子项。
-	entries []fs.DirEntry
+	entries []_Entry
 
 	// 滚动条状态。
 	state any
@@ -134,7 +140,7 @@ func (n *FileManagerWindow) handleEvents(event *fbiw.Event) {
 			return
 		}
 		entry := n.stack.Top().entries[index]
-		if entry.IsDir() {
+		if entry.IsDir {
 			n.enterDirectory(entry)
 		} else {
 			n.preview(entry)
@@ -150,7 +156,7 @@ func (n *FileManagerWindow) gotoUpperDirectory() {
 	n.setFileList(top.entries, top.state)
 }
 
-func (n *FileManagerWindow) enterDirectory(entry fs.DirEntry) bool {
+func (n *FileManagerWindow) enterDirectory(entry _Entry) bool {
 	// TODO 这里是同步列举的，可能会卡界面
 	list, err := n.list(n.finalPath(entry))
 	if err != nil {
@@ -172,7 +178,7 @@ func (n *FileManagerWindow) enterDirectory(entry fs.DirEntry) bool {
 	return true
 }
 
-func (n *FileManagerWindow) setFileList(files []fs.DirEntry, state any) {
+func (n *FileManagerWindow) setFileList(files []_Entry, state any) {
 	n.emptyDir.SetProp(`display`, fmt.Sprint(len(files) == 0))
 
 	type _FileBox struct {
@@ -199,7 +205,7 @@ func (n *FileManagerWindow) setFileList(files []fs.DirEntry, state any) {
 		func(box *_FileBox, index int) {
 			file := files[index]
 			box.name.SetText(file.Name())
-			box.icon.SetProp(`display`, fbiw.Iif(file.IsDir(), `true`, `false`))
+			box.icon.SetProp(`display`, fbiw.Iif(file.IsDir, `true`, `false`))
 		},
 	)
 
@@ -209,7 +215,7 @@ func (n *FileManagerWindow) setFileList(files []fs.DirEntry, state any) {
 }
 
 // 基于文件信息，往上回溯父目录，拼出完整路径。
-func (n *FileManagerWindow) finalPath(entry fs.DirEntry) string {
+func (n *FileManagerWindow) finalPath(entry _Entry) string {
 	parts := []string{}
 	for i := 0; i < n.stack.Size(); i++ {
 		parts = append(parts, n.stack.At(i).dir.Name())
@@ -222,22 +228,52 @@ func (n *FileManagerWindow) finalPath(entry fs.DirEntry) string {
 //   - 不会递归进子目录
 //   - 目前放前面
 //   - 结果中不含 . 和 ..
-func (n *FileManagerWindow) list(dir string) ([]fs.DirEntry, error) {
+func (n *FileManagerWindow) list(dir string) ([]_Entry, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, err
 	}
 
+	isDir := func(entry fs.DirEntry) bool {
+		if entry.IsDir() {
+			return true
+		}
+		if entry.Type()&fs.ModeSymlink > 0 {
+			info, err := os.Stat(filepath.Join(dir, entry.Name()))
+			if err != nil {
+				log.Println(err)
+				return false
+			}
+			if info.IsDir() {
+				return true
+			}
+		}
+		return false
+	}
+
+	out := make([]_Entry, 0, len(entries))
+	for entry := range slices.Values(entries) {
+		out = append(out, _Entry{
+			DirEntry: entry,
+			IsDir:    isDir(entry),
+		})
+	}
+
 	// 目录放前面。
-	slices.SortFunc(entries, func(a, b fs.DirEntry) int {
-		if a.IsDir() && !b.IsDir() {
+	slices.SortFunc(out, func(a, b _Entry) int {
+		if a.IsDir && !b.IsDir {
 			return -1
 		}
-		if !a.IsDir() && b.IsDir() {
+		if !a.IsDir && b.IsDir {
 			return +1
 		}
 		return strings.Compare(a.Name(), b.Name())
 	})
 
-	return entries, nil
+	return out, nil
+}
+
+type _Entry struct {
+	fs.DirEntry
+	IsDir bool
 }

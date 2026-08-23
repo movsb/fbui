@@ -5,7 +5,6 @@ import (
 	_ "image/jpeg"
 	_ "image/png"
 	"io"
-	"io/fs"
 	"net/http"
 	"os"
 	"strings"
@@ -14,7 +13,7 @@ import (
 	"github.com/movsb/fbui/pkg/alert_window"
 )
 
-func (n *FileManagerWindow) preview(entry fs.DirEntry) {
+func (n *FileManagerWindow) preview(entry _Entry) {
 	path := n.finalPath(entry)
 	fp, err := os.Open(path)
 	if err != nil {
