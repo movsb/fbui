@@ -29,7 +29,7 @@ func New(app *fbiw.App) *WebDavWindow {
 		doc: app.New(_embed, `webdav.html`),
 	}
 	win.doc.Bind(&win)
-	win.doc.Listen(fbiw.StickDownEvent, win.handleEvents, fbiw.EventOptions{})
+	win.doc.Listen(fbiw.StickDownEvent, win.handleEvents)
 	app.Show(win.doc)
 	return &win
 }

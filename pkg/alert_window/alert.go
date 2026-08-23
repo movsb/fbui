@@ -35,5 +35,5 @@ func Alert(app *fbiw.App, message string, confirm, cancel func()) {
 				cancel()
 			}
 		}
-	}, fbiw.EventOptions{})
+	})
 }

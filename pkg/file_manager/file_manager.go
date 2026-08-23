@@ -44,8 +44,8 @@ func New(app *fbiw.App) *FileManagerWindow {
 		doc: app.New(_embed, `file_manager.html`),
 	}
 	n.doc.Bind(n)
-	n.root.Listen(fbiw.StickDownEvent, n.handleEvents, fbiw.EventOptions{})
-	n.previewBox.Listen(fbiw.StickDownEvent, n.handlePreviewEvent, fbiw.EventOptions{})
+	n.root.Listen(fbiw.StickDownEvent, n.handleEvents)
+	n.previewBox.Listen(fbiw.StickDownEvent, n.handlePreviewEvent)
 
 	dir := fbiw.Iif(runtime.GOOS == `linux`, `/mnt/SDCARD`, os.ExpandEnv(`$HOME/Downloads`))
 	components := []string{}

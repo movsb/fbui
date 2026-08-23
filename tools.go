@@ -46,7 +46,7 @@ func NewToolsNavigator(win *MainWindow) *ToolsNavigator {
 			box.name.SetText(win.toolsNav.tools[index].name)
 		},
 	)
-	toolsNav.scroll.Listen(fbiw.StickDownEvent, toolsNav.handleEvents, fbiw.EventOptions{})
+	toolsNav.scroll.Listen(fbiw.StickDownEvent, toolsNav.handleEvents)
 	return toolsNav
 }
 

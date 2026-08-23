@@ -47,7 +47,7 @@ func NewMainWindow(app *fbiw.App) *MainWindow {
 	app.Listen(fbiw.DocChange, func(e *fbiw.Event) {
 		d := e.DocChange.Doc
 		win.statusBarNav.showCatBar(d == doc)
-	}, fbiw.EventOptions{})
+	})
 
 	app.Show(doc)
 
@@ -68,7 +68,7 @@ func NewStatusBarNavigator(win *MainWindow) *StatusBarNavigator {
 		catIndex: 0,
 	}
 	win.doc.Bind(&n)
-	n.catBar.Listen(fbiw.StickDownEvent, n.handleEvents, fbiw.EventOptions{})
+	n.catBar.Listen(fbiw.StickDownEvent, n.handleEvents)
 	return &n
 }
 

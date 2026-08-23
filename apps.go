@@ -94,7 +94,7 @@ func NewLauncherNavigator(win *MainWindow, selector string, dataKey string) *Lau
 		dataKey: dataKey,
 		scroll:  win.doc.QuerySelector[*fbiw.Scroll](selector),
 	}
-	n.scroll.Listen(fbiw.StickDownEvent, n.handleKeyDown, fbiw.EventOptions{})
+	n.scroll.Listen(fbiw.StickDownEvent, n.handleKeyDown)
 	return &n
 }
 

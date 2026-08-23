@@ -61,7 +61,7 @@ func (win *OverlayWindow) watchDocChange() {
 		if d.Title() != `` {
 			win.theTitle.SetText(d.Title())
 		}
-	}, fbiw.EventOptions{})
+	})
 }
 
 func (win *OverlayWindow) initCpuUsage() {

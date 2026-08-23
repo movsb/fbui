@@ -53,8 +53,8 @@ func New(app *fbiw.App) *SearchWindow {
 		keyCol: -1,
 	}
 	doc.Bind(win)
-	win.searchBox.Listen(fbiw.StickDownEvent, win.handleSearchEvents, fbiw.EventOptions{})
-	win.resultBox.Listen(fbiw.StickDownEvent, win.handleResultEvents, fbiw.EventOptions{})
+	win.searchBox.Listen(fbiw.StickDownEvent, win.handleSearchEvents)
+	win.resultBox.Listen(fbiw.StickDownEvent, win.handleResultEvents)
 	win.searchBox.Activate()
 	go win.asyncInitAllSearchableItems()
 	app.Show(doc)

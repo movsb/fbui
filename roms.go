@@ -63,7 +63,7 @@ func NewGamesNavigator(win *MainWindow) *GamesNavigator {
 		window: win,
 	}
 	win.doc.Bind(n)
-	n.container.Listen(fbiw.StickDownEvent, n.handleEvents, fbiw.EventOptions{})
+	n.container.Listen(fbiw.StickDownEvent, n.handleEvents)
 	return n
 }
 
