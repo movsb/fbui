@@ -15,9 +15,10 @@ type MenuPopup struct {
 
 	items []MenuItem
 
-	scroll *fbiw.Scroll `css:"scroll"`
-	header fbiw.Box     `css:"#header"`
-	footer fbiw.Box     `css:"#footer"`
+	content fbiw.Box     `css:"#content"`
+	scroll  *fbiw.Scroll `css:"scroll"`
+	header  fbiw.Box     `css:"#header"`
+	footer  fbiw.Box     `css:"#footer"`
 }
 
 type MenuItem struct {
@@ -31,10 +32,25 @@ type _ItemView struct {
 }
 
 func NewMenuPopup(app *fbiw.App, opener *fbiw.Document, items []MenuItem, header, footer fbiw.Box) *MenuPopup {
+	return _NewMenuPopup(app, opener, items, header, footer)
+}
+
+func NewSwitcher(app *fbiw.App, items []MenuItem) *fbiw.Document {
+	popup := _NewMenuPopup(app, nil, items, nil, nil)
+	popup.content.SetProp(`border-width`, `5`)
+	return popup.doc
+}
+
+func _NewMenuPopup(app *fbiw.App, opener *fbiw.Document, items []MenuItem, header, footer fbiw.Box) *MenuPopup {
 	win := &MenuPopup{
 		app:   app,
-		doc:   app.NewPopup(_embed, `menu_popup.html`, opener),
 		items: items,
+	}
+
+	if opener != nil {
+		win.doc = app.NewPopup(_embed, `menu_popup.html`, opener)
+	} else {
+		win.doc = app.NewOverlay(_embed, `menu_popup.html`)
 	}
 
 	win.doc.Bind(win)
