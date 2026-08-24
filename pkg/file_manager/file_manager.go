@@ -2,7 +2,9 @@ package file_manager
 
 import (
 	"embed"
+	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"log"
 	"os"
@@ -11,6 +13,7 @@ import (
 	"runtime"
 	"slices"
 	"strings"
+	"syscall"
 
 	"github.com/movsb/fbiw"
 	"github.com/movsb/fbui/pkg/alert_window"
@@ -44,6 +47,14 @@ type FileManagerWindow struct {
 
 	// 当前的目录浏览栈
 	stack _Stack
+
+	// 文件操作剪贴板。move 为 true 时，粘贴会移动源项目。
+	clipboard *_FileClipboard
+}
+
+type _FileClipboard struct {
+	path string
+	move bool
 }
 
 func New(app *fbiw.App) *FileManagerWindow {
@@ -104,6 +115,10 @@ type _StackItem struct {
 
 	// 滚动条状态。
 	state any
+
+	// 重新枚举目录后，用名称和可视行安全地恢复选中项。
+	selectedName string
+	rowIndex     int
 }
 
 func (n *FileManagerWindow) initView() bool {
@@ -167,30 +182,169 @@ func (n *FileManagerWindow) handleEvents(event *fbiw.Event) {
 
 	if name == fbiw.Y {
 		index := n.scroll.DataIndex()
-		if index < 0 {
-			return
-		}
-		entry := n.stack.Top().entries[index]
-		if entry.IsDir {
-			menu_popup.NewMenuPopup(n.app, []menu_popup.MenuItem{
-				{
-					Name: `打开`,
-					Click: func() {
-						alert_window.Error(n.app, `点击了打开`, nil, nil)
-					},
-				},
-			}, nil, nil)
-		} else {
-			n.preview(entry)
-		}
+		n.openFileMenu(index)
 		event.StopPropagation()
+		return
 	}
+}
+
+func (n *FileManagerWindow) openFileMenu(index int) {
+	items := []menu_popup.MenuItem{}
+	if index >= 0 && index < len(n.stack.Top().entries) {
+		entry := n.stack.Top().entries[index]
+		entryPath := n.finalPath(entry.Name())
+
+		if entry.IsDir {
+			items = append(items, menu_popup.MenuItem{
+				Name: `打开`,
+				Click: func() {
+					n.enterDirectory(entry)
+				},
+			})
+		} else {
+			items = append(items, menu_popup.MenuItem{
+				Name: `预览`,
+				Click: func() {
+					n.preview(entry)
+				},
+			})
+		}
+
+		items = append(items,
+			menu_popup.MenuItem{
+				Name: `复制`,
+				Click: func() {
+					n.clipboard = &_FileClipboard{path: entryPath}
+				},
+			},
+			menu_popup.MenuItem{
+				Name: `移动`,
+				Click: func() {
+					n.clipboard = &_FileClipboard{path: entryPath, move: true}
+				},
+			},
+			menu_popup.MenuItem{
+				Name: `删除...`,
+				Click: func() {
+					n.confirmDelete(entryPath, entry.Name(), index)
+				},
+			},
+		)
+	}
+
+	if n.clipboard != nil {
+		items = append(items, menu_popup.MenuItem{Name: `粘贴`, Click: n.paste})
+	}
+	if len(items) > 0 {
+		menu_popup.NewMenuPopup(n.app, items, nil, nil)
+	}
+}
+
+func (n *FileManagerWindow) confirmDelete(entryPath, name string, index int) {
+	rowIndex := n.scroll.RowIndex()
+	alert_window.Error(n.app,
+		fmt.Sprintf(`确定删除“%s”？此操作无法撤销。`, name),
+		func() {
+			// TODO 这里是同步的，可以导致界面死掉。
+			if err := os.RemoveAll(entryPath); err != nil {
+				alert_window.Error(n.app, fmt.Sprintf(`删除失败：%v`, err), nil, nil)
+				return
+			}
+			if n.clipboard != nil && n.clipboard.path == entryPath {
+				n.clipboard = nil
+			}
+			if n.refreshCurrentDirectory() {
+				n.selectAfterDelete(index, rowIndex)
+			}
+		},
+		nil,
+	)
+}
+
+func (n *FileManagerWindow) paste() {
+	clipboard := n.clipboard
+	if clipboard == nil {
+		return
+	}
+	selectedName := ``
+	selectedIndex := n.scroll.DataIndex()
+	selectedRowIndex := n.scroll.RowIndex()
+	if selectedIndex >= 0 && selectedIndex < len(n.stack.Top().entries) {
+		selectedName = n.stack.Top().entries[selectedIndex].Name()
+	}
+	destination := filepath.Join(n.finalPath(``), filepath.Base(clipboard.path))
+	var err error
+	if clipboard.move {
+		err = movePath(clipboard.path, destination)
+	} else {
+		err = copyPath(clipboard.path, destination)
+	}
+	if err != nil {
+		alert_window.Error(n.app, fmt.Sprintf(`粘贴失败：%v`, err), nil, nil)
+		return
+	}
+	if clipboard.move {
+		n.clipboard = nil
+	}
+	if n.refreshCurrentDirectory() {
+		index := n.entryIndex(selectedName)
+		if index < 0 {
+			index = n.entryIndex(filepath.Base(destination))
+		}
+		n.selectIndex(index, selectedRowIndex)
+	}
+}
+
+func (n *FileManagerWindow) refreshCurrentDirectory() bool {
+	top := n.stack.Top()
+	entries, err := n.list(n.finalPath(``))
+	if err != nil {
+		alert_window.Error(n.app, fmt.Sprintf(`刷新目录失败：%v`, err), nil, nil)
+		return false
+	}
+	top.entries = entries
+	top.state = nil
+	n.setFileList(entries, nil)
+	return true
+}
+
+func (n *FileManagerWindow) selectAfterDelete(index, rowIndex int) {
+	count := len(n.stack.Top().entries)
+	if count == 0 {
+		return
+	}
+	index = min(index, count-1)
+	n.selectIndex(index, rowIndex)
+}
+
+func (n *FileManagerWindow) entryIndex(name string) int {
+	if name == `` {
+		return -1
+	}
+	return slices.IndexFunc(n.stack.Top().entries, func(entry _Entry) bool {
+		return entry.Name() == name
+	})
+}
+
+func (n *FileManagerWindow) selectIndex(index, rowIndex int) {
+	if index < 0 || index >= len(n.stack.Top().entries) {
+		return
+	}
+	rowIndex = min(max(rowIndex, 0), index)
+	n.scroll.SetIndex(rowIndex, 0, index-rowIndex)
 }
 
 func (n *FileManagerWindow) leaveDirectory() {
 	n.stack.Pop()
 	top := n.stack.Top()
-	n.setFileList(top.entries, top.state)
+	if entries, err := n.list(n.finalPath(``)); err == nil {
+		top.entries = entries
+		n.setFileList(top.entries, nil)
+		n.selectIndex(n.entryIndex(top.selectedName), top.rowIndex)
+	} else {
+		alert_window.Error(n.app, fmt.Sprintf(`刷新目录失败：%v`, err), nil, nil)
+		n.setFileList(top.entries, top.state)
+	}
 	n.setPath(n.finalPath(``))
 	// n.clearStats()
 }
@@ -204,7 +358,15 @@ func (n *FileManagerWindow) enterDirectory(entry _Entry) bool {
 		return false
 	}
 	if n.stack.Size() > 0 {
-		n.stack.Top().state = n.scroll.GetState()
+		top := n.stack.Top()
+		top.state = n.scroll.GetState()
+		top.rowIndex = n.scroll.RowIndex()
+		index := n.scroll.DataIndex()
+		if index >= 0 && index < len(top.entries) {
+			top.selectedName = top.entries[index].Name()
+		} else {
+			top.selectedName = ``
+		}
 	}
 	n.stack.Push(_StackItem{
 		dir:     entry,
@@ -336,4 +498,117 @@ func (n *FileManagerWindow) list(dir string) ([]_Entry, error) {
 type _Entry struct {
 	fs.DirEntry
 	IsDir bool
+}
+
+func movePath(source, destination string) error {
+	if err := validateDestination(source, destination); err != nil {
+		return err
+	}
+	if err := os.Rename(source, destination); err != nil {
+		if !errors.Is(err, syscall.EXDEV) {
+			return fmt.Errorf(`无法移动“%s”：%w`, filepath.Base(source), err)
+		}
+		if err := copyPath(source, destination); err != nil {
+			return err
+		}
+		if err := os.RemoveAll(source); err != nil {
+			return fmt.Errorf(`已复制项目，但无法删除源项目：%w`, err)
+		}
+	}
+	return nil
+}
+
+func copyPath(source, destination string) error {
+	if err := validateDestination(source, destination); err != nil {
+		return err
+	}
+	info, err := os.Lstat(source)
+	if err != nil {
+		return fmt.Errorf(`无法读取源项目：%w`, err)
+	}
+	if err := copyPathWithInfo(source, destination, info); err != nil {
+		// destination 在调用前已确认不存在，因此这里只清理由本次复制创建的内容。
+		_ = os.RemoveAll(destination)
+		return err
+	}
+	return nil
+}
+
+func validateDestination(source, destination string) error {
+	source, err := filepath.Abs(source)
+	if err != nil {
+		return err
+	}
+	destination, err = filepath.Abs(destination)
+	if err != nil {
+		return err
+	}
+	if source == destination {
+		return fmt.Errorf(`源位置与目标位置相同`)
+	}
+	if _, err := os.Lstat(destination); err == nil {
+		return fmt.Errorf(`目标位置已存在“%s”`, filepath.Base(destination))
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf(`无法检查目标位置：%w`, err)
+	}
+	if relative, err := filepath.Rel(source, destination); err == nil && relative != `..` && !strings.HasPrefix(relative, `..`+string(filepath.Separator)) {
+		return fmt.Errorf(`不能将目录粘贴到其自身内部`)
+	}
+	return nil
+}
+
+func copyPathWithInfo(source, destination string, info fs.FileInfo) error {
+	switch {
+	case info.Mode()&os.ModeSymlink != 0:
+		target, err := os.Readlink(source)
+		if err != nil {
+			return err
+		}
+		return os.Symlink(target, destination)
+	case info.IsDir():
+		if err := os.Mkdir(destination, info.Mode().Perm()); err != nil {
+			return err
+		}
+		entries, err := os.ReadDir(source)
+		if err != nil {
+			return err
+		}
+		for _, entry := range entries {
+			childSource := filepath.Join(source, entry.Name())
+			childInfo, err := os.Lstat(childSource)
+			if err != nil {
+				return err
+			}
+			if err := copyPathWithInfo(childSource, filepath.Join(destination, entry.Name()), childInfo); err != nil {
+				return err
+			}
+		}
+		return os.Chtimes(destination, info.ModTime(), info.ModTime())
+	case info.Mode().IsRegular():
+		return copyRegularFile(source, destination, info)
+	default:
+		return fmt.Errorf(`不支持复制此文件类型：“%s”`, filepath.Base(source))
+	}
+}
+
+func copyRegularFile(source, destination string, info fs.FileInfo) (err error) {
+	input, err := os.Open(source)
+	if err != nil {
+		return err
+	}
+	defer input.Close()
+
+	output, err := os.OpenFile(destination, os.O_WRONLY|os.O_CREATE|os.O_EXCL, info.Mode().Perm())
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if closeErr := output.Close(); err == nil {
+			err = closeErr
+		}
+	}()
+	if _, err = io.Copy(output, input); err != nil {
+		return err
+	}
+	return os.Chtimes(destination, info.ModTime(), info.ModTime())
 }
