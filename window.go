@@ -23,7 +23,7 @@ type MainWindow struct {
 }
 
 func NewMainWindow(app *fbiw.App) *MainWindow {
-	doc := app.New(_embed, `window.html`)
+	doc := app.NewDesktop(_embed, `window.html`)
 
 	win := &MainWindow{
 		app: app,
@@ -48,8 +48,6 @@ func NewMainWindow(app *fbiw.App) *MainWindow {
 		d := e.DocChange.Doc
 		win.statusBarNav.showCatBar(d == doc)
 	})
-
-	app.Show(doc)
 
 	return win
 }
@@ -107,7 +105,7 @@ func (n *StatusBarNavigator) handleEvents(event *fbiw.Event) {
 	keyName := event.Stick.Name
 
 	if keyName == fbiw.B {
-		alert_window.Alert(n.window.app, `确定要退出吗？`, func() {
+		alert_window.Alert(n.window.app, n.window.doc, `确定要退出吗？`, func() {
 			n.window.app.Quit()
 		}, func() {})
 		return

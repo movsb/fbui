@@ -42,13 +42,12 @@ type _UploadWindow struct {
 func New(app *fbiw.App, dir string, onClose func()) {
 	win := &_UploadWindow{
 		app:     app,
-		doc:     app.New(_embed, `upload.html`),
+		doc:     app.NewDesktop(_embed, `upload.html`),
 		dir:     dir,
 		onClose: onClose,
 	}
 	win.doc.Bind(win)
 	win.doc.Listen(fbiw.StickDownEvent, win.handleEvents)
-	app.Show(win.doc)
 	win.start()
 }
 
@@ -71,7 +70,7 @@ func (win *_UploadWindow) start() {
 	win.status.SetText(`等待上传…`)
 
 	if qr, _ := qrcode.New(address, qrcode.Low); qr != nil {
-		win.qrCode.SetImage(qr.Image(200))
+		win.qrCode.SetImage(qr.Image(400))
 	}
 
 	mux := http.NewServeMux()

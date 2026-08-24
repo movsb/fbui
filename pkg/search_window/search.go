@@ -44,8 +44,8 @@ type SearchWindow struct {
 	allSearchableItems atomic.Value
 }
 
-func New(app *fbiw.App) *SearchWindow {
-	doc := app.New(_embed, `search.html`)
+func New(app *fbiw.App, opener *fbiw.Document) *SearchWindow {
+	doc := app.NewPopup(_embed, `search.html`, opener)
 	win := &SearchWindow{
 		app:    app,
 		doc:    doc,
@@ -57,7 +57,6 @@ func New(app *fbiw.App) *SearchWindow {
 	win.resultBox.Listen(fbiw.StickDownEvent, win.handleResultEvents)
 	win.searchBox.Activate()
 	go win.asyncInitAllSearchableItems()
-	app.Show(doc)
 	return win
 }
 

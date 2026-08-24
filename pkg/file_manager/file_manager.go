@@ -62,7 +62,7 @@ type _FileClipboard struct {
 func New(app *fbiw.App) *FileManagerWindow {
 	n := &FileManagerWindow{
 		app: app,
-		doc: app.New(_embed, `file_manager.html`),
+		doc: app.NewDesktop(_embed, `file_manager.html`),
 	}
 
 	n.doc.Bind(n)
@@ -75,7 +75,6 @@ func New(app *fbiw.App) *FileManagerWindow {
 	}
 
 	n.activate()
-	app.Show(n.doc)
 	return n
 }
 
@@ -137,7 +136,7 @@ func (n *FileManagerWindow) initView() bool {
 			IsDir:    true,
 		}
 		if !n.enterDirectory(entry) {
-			alert_window.Alert(n.app, `无法进入目录。`, nil, nil)
+			n.alert(`无法进入目录。`)
 			n.doc.Close()
 			return false
 		}
@@ -238,7 +237,7 @@ func (n *FileManagerWindow) openFileMenu(index int) {
 		Name: `上传文件...`,
 		Click: func() {
 			if _, err := helpers.GetIP(); err != nil {
-				alert_window.Error(n.app, err.Error(), nil, nil)
+				n.alert("%s", err.Error())
 				return
 			}
 			dir := n.finalPath(``)
@@ -260,18 +259,18 @@ func (n *FileManagerWindow) openFileMenu(index int) {
 		items = append(items, menu_popup.MenuItem{Name: `粘贴`, Click: n.paste})
 	}
 	if len(items) > 0 {
-		menu_popup.NewMenuPopup(n.app, items, nil, nil)
+		menu_popup.NewMenuPopup(n.app, n.doc, items, nil, nil)
 	}
 }
 
 func (n *FileManagerWindow) confirmDelete(entryPath, name string, index int) {
 	rowIndex := n.scroll.RowIndex()
-	alert_window.Error(n.app,
+	alert_window.Error(n.app, n.doc,
 		fmt.Sprintf(`确定删除“%s”？此操作无法撤销。`, name),
 		func() {
 			// TODO 这里是同步的，可以导致界面死掉。
 			if err := os.RemoveAll(entryPath); err != nil {
-				alert_window.Error(n.app, fmt.Sprintf(`删除失败：%v`, err), nil, nil)
+				n.alert(`删除失败：%v`, err)
 				return
 			}
 			if n.clipboard != nil && n.clipboard.path == entryPath {
@@ -304,7 +303,7 @@ func (n *FileManagerWindow) paste() {
 		err = copyPath(clipboard.path, destination)
 	}
 	if err != nil {
-		alert_window.Error(n.app, fmt.Sprintf(`粘贴失败：%v`, err), nil, nil)
+		n.alert(`粘贴失败：%v`, err)
 		return
 	}
 	if clipboard.move {
@@ -323,7 +322,7 @@ func (n *FileManagerWindow) refreshCurrentDirectory() bool {
 	top := n.stack.Top()
 	entries, err := n.list(n.finalPath(``))
 	if err != nil {
-		alert_window.Error(n.app, fmt.Sprintf(`刷新目录失败：%v`, err), nil, nil)
+		n.alert(`刷新目录失败：%v`, err)
 		return false
 	}
 	top.entries = entries
@@ -366,7 +365,7 @@ func (n *FileManagerWindow) leaveDirectory() {
 		n.setFileList(top.entries, nil)
 		n.selectIndex(n.entryIndex(top.selectedName), top.rowIndex)
 	} else {
-		alert_window.Error(n.app, fmt.Sprintf(`刷新目录失败：%v`, err), nil, nil)
+		n.alert(`刷新目录失败：%v`, err)
 		n.setFileList(top.entries, top.state)
 	}
 	n.setPath(n.finalPath(``))
@@ -378,7 +377,7 @@ func (n *FileManagerWindow) enterDirectory(entry _Entry) bool {
 	// TODO 这里是同步列举的，可能会卡界面
 	list, err := n.list(path)
 	if err != nil {
-		alert_window.Alert(n.app, err.Error(), nil, nil)
+		n.alert("%v", err.Error())
 		return false
 	}
 	if n.stack.Size() > 0 {

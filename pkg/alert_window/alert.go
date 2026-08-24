@@ -9,18 +9,18 @@ import (
 //go:embed *.html
 var _embed embed.FS
 
-func Error(app *fbiw.App, message string, confirm, cancel func()) {
-	alert(app, message, confirm, cancel, func(doc *fbiw.Document) {
+func Error(app *fbiw.App, opener *fbiw.Document, message string, confirm, cancel func()) {
+	alert(app, opener, message, confirm, cancel, func(doc *fbiw.Document) {
 		doc.Root().SetProp(`border-color`, `red`)
 	})
 }
 
-func Alert(app *fbiw.App, message string, confirm, cancel func()) {
-	alert(app, message, confirm, cancel, nil)
+func Alert(app *fbiw.App, opener *fbiw.Document, message string, confirm, cancel func()) {
+	alert(app, opener, message, confirm, cancel, nil)
 }
 
-func alert(app *fbiw.App, message string, confirm, cancel func(), beforeShow func(doc *fbiw.Document)) {
-	doc := app.New(_embed, `alert.html`)
+func alert(app *fbiw.App, opener *fbiw.Document, message string, confirm, cancel func(), beforeShow func(doc *fbiw.Document)) {
+	doc := app.NewPopup(_embed, `alert.html`, opener)
 
 	window := struct {
 		text *fbiw.Text `css:"text"`
@@ -33,8 +33,6 @@ func alert(app *fbiw.App, message string, confirm, cancel func(), beforeShow fun
 	if beforeShow != nil {
 		beforeShow(doc)
 	}
-
-	app.Show(doc)
 
 	doc.Listen(fbiw.StickDownEvent, func(e *fbiw.Event) {
 		switch e.Stick.Name {

@@ -174,7 +174,7 @@ func (n *GamesNavigator) handleEvents(event *fbiw.Event) {
 }
 
 func (n *GamesNavigator) openSearch() {
-	search_window.New(n.window.app)
+	search_window.New(n.window.app, n.window.doc)
 }
 
 func (n *GamesNavigator) backToEmulators() {
@@ -234,7 +234,7 @@ func (n *GamesNavigator) runGame(info RomInfo) {
 		if err := cmd.Run(); err != nil {
 			log.Printf(`运行失败：%s: %s: %s`, launcher, romPath, err.Error())
 			n.window.doc.Async(func() {
-				alert_window.Error(n.window.app, fmt.Sprintf(`启动失败: %v`, err), nil, nil)
+				alert_window.Error(n.window.app, n.window.doc, fmt.Sprintf(`启动失败: %v`, err), nil, nil)
 			})
 		}
 	}()

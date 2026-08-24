@@ -25,11 +25,10 @@ type WebDavWindow struct {
 func New(app *fbiw.App) *WebDavWindow {
 	win := WebDavWindow{
 		app: app,
-		doc: app.New(_embed, `webdav.html`),
+		doc: app.NewDesktop(_embed, `webdav.html`),
 	}
 	win.doc.Bind(&win)
 	win.doc.Listen(fbiw.StickDownEvent, win.handleEvents)
-	app.Show(win.doc)
 	return &win
 }
 

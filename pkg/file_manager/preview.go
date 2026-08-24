@@ -16,11 +16,15 @@ import (
 	"github.com/movsb/fbui/pkg/alert_window"
 )
 
+func (n *FileManagerWindow) alert(format string, args ...any) {
+	alert_window.Alert(n.app, n.doc, fmt.Sprintf(format, args...), nil, nil)
+}
+
 func (n *FileManagerWindow) preview(entry _Entry) {
 	path := n.finalPath(entry.Name())
 	fp, err := os.Open(path)
 	if err != nil {
-		alert_window.Alert(n.app, fmt.Sprintf(`无法打开此文件: %v`, err), nil, nil)
+		n.alert(`无法打开此文件: %v`, err)
 		return
 	}
 	defer fp.Close()
@@ -30,15 +34,15 @@ func (n *FileManagerWindow) preview(entry _Entry) {
 	fp.SetReadDeadline(time.Now().Add(time.Second))
 	if count, err := fp.Read(buf); err != nil {
 		if errors.Is(err, io.EOF) {
-			alert_window.Alert(n.app, `空文件（0字节大小）`, nil, nil)
+			n.alert(`空文件（0字节大小）`)
 			return
 		}
-		alert_window.Alert(n.app, fmt.Sprintf(`无法读取此文件: %v`, err), nil, nil)
+		n.alert(`无法读取此文件: %v`, err)
 		return
 	} else {
 		buf = buf[:count]
 		if _, err := fp.Seek(0, io.SeekStart); err != nil {
-			alert_window.Alert(n.app, fmt.Sprintf(`无法重定位此文件: %v`, err), nil, nil)
+			n.alert(`无法重定位此文件: %v`, err)
 			return
 		}
 	}
@@ -90,7 +94,7 @@ func (n *FileManagerWindow) preview(entry _Entry) {
 		}
 
 		if !viewed {
-			alert_window.Alert(n.app, `暂时不支持查看此文件。`, nil, nil)
+			n.alert(`暂时不支持查看此文件。`)
 			return
 		}
 	}
@@ -102,17 +106,17 @@ func (n *FileManagerWindow) preview(entry _Entry) {
 func (n *FileManagerWindow) previewTextContent(fp *os.File, preprocess func(data []byte)) {
 	info, err := fp.Stat()
 	if err != nil {
-		alert_window.Alert(n.app, fmt.Sprintf(`无法获取基本信息: %v`, err), nil, nil)
+		n.alert(`无法获取基本信息: %v`, err)
 		return
 	}
 	if info.Size() > 10<<20 {
-		alert_window.Alert(n.app, `文件太大，暂时不支持查看。`, nil, nil)
+		n.alert(`文件太大，暂时不支持查看。`)
 		return
 	}
 	fp.SetReadDeadline(time.Now().Add(time.Second * 5))
 	data, err := io.ReadAll(fp)
 	if err != nil {
-		alert_window.Alert(n.app, fmt.Sprintf(`读取文件内容失败: %v`, err), nil, nil)
+		n.alert(`读取文件内容失败: %v`, err)
 		return
 	}
 	// skip bom

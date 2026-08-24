@@ -30,10 +30,10 @@ type _ItemView struct {
 	name *fbiw.Text `css:"text"`
 }
 
-func NewMenuPopup(app *fbiw.App, items []MenuItem, header, footer fbiw.Box) *MenuPopup {
+func NewMenuPopup(app *fbiw.App, opener *fbiw.Document, items []MenuItem, header, footer fbiw.Box) *MenuPopup {
 	win := &MenuPopup{
 		app:   app,
-		doc:   app.New(_embed, `menu_popup.html`),
+		doc:   app.NewPopup(_embed, `menu_popup.html`, opener),
 		items: items,
 	}
 
@@ -59,8 +59,6 @@ func NewMenuPopup(app *fbiw.App, items []MenuItem, header, footer fbiw.Box) *Men
 			item.name.SetText(items[index].Name)
 		},
 	)
-
-	app.Show(win.doc)
 
 	win.scroll.Activate()
 
