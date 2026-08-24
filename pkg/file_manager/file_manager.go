@@ -241,17 +241,7 @@ func (n *FileManagerWindow) openFileMenu(index int) {
 				return
 			}
 			dir := n.finalPath(``)
-			selectedName := ``
-			selectedIndex := n.scroll.DataIndex()
-			selectedRowIndex := n.scroll.RowIndex()
-			if selectedIndex >= 0 && selectedIndex < len(n.stack.Top().entries) {
-				selectedName = n.stack.Top().entries[selectedIndex].Name()
-			}
-			file_upload.New(n.app, dir, func() {
-				if n.refreshCurrentDirectory() {
-					n.selectIndex(n.entryIndex(selectedName), selectedRowIndex)
-				}
-			})
+			file_upload.New(n.app, dir)
 		},
 	})
 

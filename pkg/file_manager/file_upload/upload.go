@@ -11,9 +11,10 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
+	"sync/atomic"
 
 	"github.com/movsb/fbiw"
+	"github.com/movsb/fbui/pkg/alert_window"
 	"github.com/movsb/fbui/pkg/helpers"
 	qrcode "github.com/skip2/go-qrcode"
 )
@@ -28,23 +29,21 @@ type _UploadWindow struct {
 	app *fbiw.App
 	doc *fbiw.Document
 
+	path    *fbiw.Text  `css:"#path"`
 	qrCode  *fbiw.Image `css:"#qr-code"`
 	address *fbiw.Text  `css:"#address"`
 	status  *fbiw.Text  `css:"#status"`
 
-	dir       string
-	server    *http.Server
-	listener  net.Listener
-	onClose   func()
-	closeOnce sync.Once
+	dir    string
+	server *http.Server
+	conns  atomic.Int32
 }
 
-func New(app *fbiw.App, dir string, onClose func()) {
+func New(app *fbiw.App, dir string) {
 	win := &_UploadWindow{
-		app:     app,
-		doc:     app.NewDesktop(_embed, `upload.html`),
-		dir:     dir,
-		onClose: onClose,
+		app: app,
+		doc: app.NewDesktop(_embed, `upload.html`),
+		dir: dir,
 	}
 	win.doc.Bind(win)
 	win.doc.Listen(fbiw.StickDownEvent, win.handleEvents)
@@ -62,10 +61,10 @@ func (win *_UploadWindow) start() {
 		win.showError(err)
 		return
 	}
-	win.listener = listener
 	port := listener.Addr().(*net.TCPAddr).Port
 	address := fmt.Sprintf(`http://%s:%d/`, ip, port)
 
+	win.path.SetTextFormat(`目录: %s`, win.dir)
 	win.address.SetText(address)
 	win.status.SetText(`等待上传…`)
 
@@ -87,6 +86,9 @@ func (win *_UploadWindow) start() {
 }
 
 func (win *_UploadWindow) handleUpload(w http.ResponseWriter, r *http.Request) {
+	win.conns.Add(+1)
+	defer win.conns.Add(-1)
+
 	file, header, err := r.FormFile(`file`)
 	if err != nil {
 		http.Error(w, `没有选择文件`, http.StatusBadRequest)
@@ -145,19 +147,16 @@ func (win *_UploadWindow) handleEvents(event *fbiw.Event) {
 	if event.Stick.Name != fbiw.B {
 		return
 	}
-	win.close()
-	win.doc.Close()
+	if win.conns.Load() > 0 {
+		alert_window.Alert(win.app, win.doc, `当前有上传任务，确定要关闭吗？`, win.close, nil)
+	} else {
+		win.close()
+	}
 }
 
 func (win *_UploadWindow) close() {
-	win.closeOnce.Do(func() {
-		if win.server != nil {
-			win.server.Close()
-		} else if win.listener != nil {
-			win.listener.Close()
-		}
-		if win.onClose != nil {
-			win.onClose()
-		}
-	})
+	if win.server != nil {
+		win.server.Close()
+	}
+	win.doc.Close()
 }
