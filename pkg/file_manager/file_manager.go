@@ -18,6 +18,7 @@ import (
 	"github.com/movsb/fbiw"
 	"github.com/movsb/fbui/pkg/alert_window"
 	"github.com/movsb/fbui/pkg/audio_player"
+	"github.com/movsb/fbui/pkg/file_manager/file_download"
 	"github.com/movsb/fbui/pkg/file_manager/file_upload"
 	"github.com/movsb/fbui/pkg/helpers"
 	"github.com/movsb/fbui/pkg/menu_popup"
@@ -203,12 +204,25 @@ func (n *FileManagerWindow) openFileMenu(index int) {
 				},
 			})
 		} else {
-			items = append(items, menu_popup.MenuItem{
-				Name: `预览`,
-				Click: func() {
-					n.preview(entry)
+			items = append(items,
+				menu_popup.MenuItem{
+					Name: `预览`,
+					Click: func() {
+						n.preview(entry)
+					},
 				},
-			})
+				menu_popup.MenuItem{
+					Name: `下载文件...`,
+					Click: func() {
+						ip, err := helpers.GetIP()
+						if err != nil {
+							n.alert(`%v`, err)
+							return
+						}
+						file_download.New(n.app, n.doc, entryPath, ip)
+					},
+				},
+			)
 		}
 
 		items = append(items,
