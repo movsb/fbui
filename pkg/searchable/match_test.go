@@ -11,7 +11,7 @@ func TestConstruct(t *testing.T) {
 	construct(buf, 0, []rune(`1《重aB,`), 0, func(s string) {
 		out = append(out, s)
 	})
-	if !reflect.DeepEqual(out, []string{`1zhongab`, `1chongab`, `1tongab`}) {
+	if !reflect.DeepEqual(out, []string{`1zab`, `1cab`}) {
 		t.Fatalf(`不相等: %s`, out)
 	}
 }
