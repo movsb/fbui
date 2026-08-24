@@ -15,6 +15,7 @@ import (
 	"github.com/movsb/fbiw"
 	"github.com/movsb/fbui/pkg/alert_window"
 	"github.com/movsb/fbui/pkg/audio_player"
+	"github.com/movsb/fbui/pkg/menu_popup"
 	"github.com/movsb/fbui/pkg/video_player"
 )
 
@@ -162,6 +163,27 @@ func (n *FileManagerWindow) handleEvents(event *fbiw.Event) {
 		}
 		event.StopPropagation()
 		return
+	}
+
+	if name == fbiw.Y {
+		index := n.scroll.DataIndex()
+		if index < 0 {
+			return
+		}
+		entry := n.stack.Top().entries[index]
+		if entry.IsDir {
+			menu_popup.NewMenuPopup(n.app, []menu_popup.MenuItem{
+				{
+					Name: `打开`,
+					Click: func() {
+						alert_window.Error(n.app, `点击了打开`, nil, nil)
+					},
+				},
+			}, nil, nil)
+		} else {
+			n.preview(entry)
+		}
+		event.StopPropagation()
 	}
 }
 
