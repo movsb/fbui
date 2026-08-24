@@ -35,23 +35,13 @@ func NewMenuPopup(app *fbiw.App, opener *fbiw.Document, items []MenuItem, header
 	return _NewMenuPopup(app, opener, items, header, footer)
 }
 
-func NewSwitcher(app *fbiw.App, items []MenuItem) *fbiw.Document {
-	popup := _NewMenuPopup(app, nil, items, nil, nil)
-	popup.content.SetProp(`border-width`, `5`)
-	return popup.doc
-}
-
 func _NewMenuPopup(app *fbiw.App, opener *fbiw.Document, items []MenuItem, header, footer fbiw.Box) *MenuPopup {
 	win := &MenuPopup{
 		app:   app,
 		items: items,
 	}
 
-	if opener != nil {
-		win.doc = app.NewPopup(_embed, `menu_popup.html`, opener)
-	} else {
-		win.doc = app.NewOverlay(_embed, `menu_popup.html`)
-	}
+	win.doc = app.NewPopup(_embed, `menu_popup.html`, opener)
 
 	win.doc.Bind(win)
 
