@@ -9,6 +9,7 @@
 		"kobject",
 		"netlink",
 		"osdd",
+		"qrcode",
 		"sdcard",
 		"TRIMUI",
 		"uevent",

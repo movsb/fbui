@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
+<title>上传文件</title>
+<link rel="stylesheet" href="index.css">
+</head>
+<body>
+<h1>上传文件</h1>
+<form id="upload-form" autocomplete="off">
+	<input type="file" name="file" required>
+	<br>
+	<button type="submit">上传</button>
+	<div id="progress">
+		<div id="progress-track"><div id="progress-bar"></div></div>
+		<span id="progress-text">0%</span>
+	</div>
+</form>
+<script src="index.js"></script>
+</body>
+</html>

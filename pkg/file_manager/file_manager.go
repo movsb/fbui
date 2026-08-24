@@ -18,6 +18,8 @@ import (
 	"github.com/movsb/fbiw"
 	"github.com/movsb/fbui/pkg/alert_window"
 	"github.com/movsb/fbui/pkg/audio_player"
+	"github.com/movsb/fbui/pkg/file_manager/file_upload"
+	"github.com/movsb/fbui/pkg/helpers"
 	"github.com/movsb/fbui/pkg/menu_popup"
 	"github.com/movsb/fbui/pkg/video_player"
 )
@@ -231,6 +233,28 @@ func (n *FileManagerWindow) openFileMenu(index int) {
 			},
 		)
 	}
+
+	items = append(items, menu_popup.MenuItem{
+		Name: `上传文件...`,
+		Click: func() {
+			if _, err := helpers.GetIP(); err != nil {
+				alert_window.Error(n.app, err.Error(), nil, nil)
+				return
+			}
+			dir := n.finalPath(``)
+			selectedName := ``
+			selectedIndex := n.scroll.DataIndex()
+			selectedRowIndex := n.scroll.RowIndex()
+			if selectedIndex >= 0 && selectedIndex < len(n.stack.Top().entries) {
+				selectedName = n.stack.Top().entries[selectedIndex].Name()
+			}
+			file_upload.New(n.app, dir, func() {
+				if n.refreshCurrentDirectory() {
+					n.selectIndex(n.entryIndex(selectedName), selectedRowIndex)
+				}
+			})
+		},
+	})
 
 	if n.clipboard != nil {
 		items = append(items, menu_popup.MenuItem{Name: `粘贴`, Click: n.paste})

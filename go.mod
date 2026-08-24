@@ -6,8 +6,9 @@ require (
 	github.com/creack/pty v1.1.24
 	github.com/fswatcher/fswatcher v0.1.0
 	github.com/mdlayher/kobject v0.0.0-20200520190114-19ca17470d7d
-	github.com/movsb/fbiw v0.0.0-20260818195247-bd0f977f8bb2
+	github.com/movsb/fbiw v0.0.0-dev
 	github.com/rcarmo/go-te v0.1.0
+	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
 	golang.org/x/net v0.58.0
 )
 

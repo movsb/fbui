@@ -1,0 +1,72 @@
+body {
+	font: 16px system-ui, sans-serif;
+	max-width: 40rem;
+	margin: 3rem auto;
+	padding: 0 1rem;
+	color: #f8f8f2;
+	background: #17141a;
+}
+form {
+	padding: 1.25rem;
+	border: 2px solid #ff1493;
+	border-radius: 12px;
+	background: #241d27;
+}
+input[type="file"] {
+	display: block;
+	box-sizing: border-box;
+	width: 100%;
+	padding: .65rem;
+	border: 1px solid #69596f;
+	border-radius: 8px;
+	font: inherit;
+	color: #ddd;
+	background: #151217;
+}
+input[type="file"]::file-selector-button {
+	margin-right: .8rem;
+	padding: .55rem .85rem;
+	border: 0;
+	border-radius: 6px;
+	font: inherit;
+	font-weight: 600;
+	color: white;
+	background: #882b5d;
+	cursor: pointer;
+}
+button[type="submit"] {
+	width: 100%;
+	margin-top: 1rem;
+	padding: .75rem 1.2rem;
+	border: 0;
+	border-radius: 8px;
+	font: inherit;
+	font-weight: 700;
+	color: white;
+	background: #ff1493;
+	box-shadow: 0 4px 14px #ff149344;
+	cursor: pointer;
+}
+#progress {
+	display: none;
+	margin-top: 1rem;
+}
+#progress-track {
+	height: 8px;
+	overflow: hidden;
+	border-radius: 4px;
+	background: #151217;
+}
+#progress-bar {
+	width: 0;
+	height: 100%;
+	background: #ff1493;
+	transition: width .1s linear;
+}
+#progress-text {
+	display: block;
+	margin-top: .4rem;
+	text-align: center;
+	font-size: .875rem;
+	color: #bbb;
+}

@@ -7,16 +7,15 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"runtime"
 	"time"
 
-	"github.com/movsb/fbiw"
+	"github.com/movsb/fbui/pkg/helpers"
 	"golang.org/x/net/webdav"
 )
 
 // callback会在服务器准备好后于线程中调用。
 func _NewWebDAVServer(ctx context.Context, dir string, callback func(string, error)) {
-	lanIP, err := getIP()
+	lanIP, err := helpers.GetIP()
 	if err != nil {
 		callback(``, err)
 		return
@@ -63,38 +62,4 @@ func _NewWebDAVServer(ctx context.Context, dir string, callback func(string, err
 		callback(``, errors.New(`启动超时`))
 		cancel()
 	}()
-}
-
-var errNoIP = errors.New("未获取到IP地址，Wi-Fi启动了吗？")
-
-func getIP() (string, error) {
-	face, err := net.InterfaceByName(fbiw.Iif(runtime.GOOS == `linux`, `wlan0`, `en0`))
-	if err != nil {
-		return ``, err
-	}
-
-	if face.Flags&net.FlagUp == 0 {
-		return ``, errNoIP
-	}
-	if face.Flags&net.FlagRunning == 0 {
-		return ``, errNoIP
-	}
-
-	addrs, err := face.Addrs()
-	if err != nil {
-		return ``, err
-	}
-
-	for _, addr := range addrs {
-		ipnet, ok := addr.(*net.IPNet)
-		if !ok {
-			continue
-		}
-		ip := ipnet.IP.To4()
-		if ip != nil {
-			return ip.String(), nil
-		}
-	}
-
-	return "", errNoIP
 }
