@@ -44,7 +44,9 @@ type SearchWindow struct {
 	allSearchableItems atomic.Value
 }
 
-func New(app *fbiw.App, opener *fbiw.Document) *SearchWindow {
+// initEmu: 初始化模拟器配置，如果没有，表示全部。
+// initDir: 初始化游戏列表，没有表示全部。
+func New(app *fbiw.App, opener *fbiw.Document, initEmu *config.LaunchConfig, initDir string) *SearchWindow {
 	doc := app.NewPopup(_embed, `search.html`, opener)
 	win := &SearchWindow{
 		app:    app,
@@ -56,7 +58,7 @@ func New(app *fbiw.App, opener *fbiw.Document) *SearchWindow {
 	win.searchBox.Listen(fbiw.StickDownEvent, win.handleSearchEvents)
 	win.resultBox.Listen(fbiw.StickDownEvent, win.handleResultEvents)
 	win.searchBox.Activate()
-	go win.asyncInitAllSearchableItems()
+	go win.asyncInitAllSearchableItems(initEmu, initDir)
 	return win
 }
 
@@ -291,43 +293,56 @@ func (w *SearchWindow) asyncSearch(ctx context.Context, search string) {
 }
 
 // 暂时只读游戏列表。
-func (w *SearchWindow) asyncInitAllSearchableItems() {
-	log.Println(`异步加载所有游戏列表中...`)
-	defer log.Println(`异步加载所有游戏列表完成。`)
+func (w *SearchWindow) asyncInitAllSearchableItems(initEmu *config.LaunchConfig, initDir string) {
+	log.Println(`异步加载戏列表中...`)
+	defer log.Println(`异步加载游戏列表完成。`)
+
 	items := []_SearchResultItem{}
-	emus := config.LoadDir(filepath.Join(config.SDCARDRoot, `Emus`))
-	for _, emu := range emus {
-		romDir := emu.RomDir()
-		filepath.WalkDir(romDir, func(path string, d fs.DirEntry, err error) error {
-			if err != nil {
-				log.Println(`搜索遇到错误:`, err)
-				return nil
-			}
-			if strings.HasPrefix(d.Name(), `.`) {
-				if d.IsDir() {
-					return filepath.SkipDir
-				}
-				return nil
-			}
-			if d.IsDir() {
-				return nil
-			}
 
-			filename := d.Name()
-
-			if !d.IsDir() && !emu.IncludesName(filename) {
-				return nil
-			}
-
-			translated := game_names.Translate(filename)
-			displayName := fbiw.Iif(translated != ``, translated, filename)
-			items = append(items, _SearchResultItem{
-				launcher:    emu,
-				displayName: displayName,
-				romPath:     path,
-			})
-			return nil
-		})
+	if initEmu != nil {
+		w.addDir(&items, initEmu, initDir)
+	} else {
+		emus := config.LoadDir(filepath.Join(config.SDCARDRoot, `Emus`))
+		for _, emu := range emus {
+			w.addDir(&items, emu, emu.RomDir())
+		}
 	}
+
 	w.allSearchableItems.Store(items)
+}
+
+func (w *SearchWindow) addDir(out *[]_SearchResultItem, emu *config.LaunchConfig, dir string) {
+	log.Println(`搜索目录:`, dir)
+	items := []_SearchResultItem{}
+	filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			log.Println(`搜索遇到错误:`, err)
+			return nil
+		}
+		if strings.HasPrefix(d.Name(), `.`) {
+			if d.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if d.IsDir() {
+			return nil
+		}
+
+		filename := d.Name()
+
+		if !d.IsDir() && !emu.IncludesName(filename) {
+			return nil
+		}
+
+		translated := game_names.Translate(filename)
+		displayName := fbiw.Iif(translated != ``, translated, filename)
+		items = append(items, _SearchResultItem{
+			launcher:    emu,
+			displayName: displayName,
+			romPath:     path,
+		})
+		return nil
+	})
+	*out = append(*out, items...)
 }

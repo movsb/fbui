@@ -135,7 +135,7 @@ func (n *GamesNavigator) handleEvents(event *fbiw.Event) {
 
 		// 按“Y”搜索
 		if name == fbiw.Y {
-			n.openSearch()
+			n.openSearch(nil, ``)
 			return
 		}
 
@@ -164,7 +164,8 @@ func (n *GamesNavigator) handleEvents(event *fbiw.Event) {
 			if index < 0 {
 				return
 			}
-			info := n.stack.Top().roms[index]
+			dirInfo := n.stack.Top()
+			info := dirInfo.roms[index]
 			if info.isDir {
 				// 选中了目录？
 				n.enterDirectory(info)
@@ -175,11 +176,16 @@ func (n *GamesNavigator) handleEvents(event *fbiw.Event) {
 			event.StopPropagation()
 			return
 		}
+
+		if name == fbiw.Y {
+			n.openSearch(n.currentEmu, n.romFinalPath(n.currentEmu, ``))
+			return
+		}
 	}
 }
 
-func (n *GamesNavigator) openSearch() {
-	search_window.New(n.window.app, n.window.doc)
+func (n *GamesNavigator) openSearch(emu *config.LaunchConfig, dir string) {
+	search_window.New(n.window.app, n.window.doc, emu, dir)
 }
 
 func (n *GamesNavigator) backToEmulators() {
@@ -223,7 +229,7 @@ func (n *GamesNavigator) switchToRoms() {
 }
 
 func (n *GamesNavigator) enterDirectory(info RomInfo) {
-	path := n.romFinalPath(n.currentEmu, info)
+	path := n.romFinalPath(n.currentEmu, info.name)
 	// TODO 这里是同步列举的，可能会卡界面
 	list := n.listRomsInDir(n.currentEmu, path)
 	n.stack.Top().state = n.roms.GetState()
@@ -236,7 +242,7 @@ func (n *GamesNavigator) enterDirectory(info RomInfo) {
 
 func (n *GamesNavigator) runGame(info RomInfo) {
 	launcher := n.currentEmu.LauncherScriptPath()
-	romPath := n.romFinalPath(n.currentEmu, info)
+	romPath := n.romFinalPath(n.currentEmu, info.name)
 	n.window.app.Detach()
 	go func() {
 		defer n.window.app.AttachAsync()
@@ -296,12 +302,15 @@ type RomInfo struct {
 }
 
 // 基于此rom信息，往上回溯父目录，拼出完整路径。
-func (n *GamesNavigator) romFinalPath(launcher *config.LaunchConfig, rom RomInfo) string {
+// name为空时表示当前目录的完整路径。
+func (n *GamesNavigator) romFinalPath(launcher *config.LaunchConfig, name string) string {
 	parts := []string{launcher.RomDir()}
 	for i := 0; i < n.stack.Size(); i++ {
 		parts = append(parts, n.stack.At(i).name)
 	}
-	parts = append(parts, rom.name)
+	if name != `` {
+		parts = append(parts, name)
+	}
 	return filepath.Join(parts...)
 }
 
