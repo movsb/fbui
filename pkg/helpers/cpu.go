@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"runtime"
 	"time"
+
+	"github.com/tklauser/numcpus"
 )
 
 type _CPUStat struct {
@@ -96,14 +97,16 @@ func WatchCPU(ctx context.Context, interval time.Duration, callback func(s strin
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(time.Second * 2):
+		case <-time.After(time.Second * 3):
 			curr, err := readCPUStat()
 			if err != nil {
 				log.Println(`读CPU状态失败:`, err)
 				break
 			}
 			usage := cpuUsage(prev, curr)
-			callback(fmt.Sprintf(`[%d/%d%%]`, int(usage*float64(runtime.NumCPU())*100), runtime.NumCPU()*100))
+			// runtime.NumCPU() 是启动时的值，不是动态变化的。
+			count, _ := numcpus.GetOnline()
+			callback(fmt.Sprintf(`[%d/%d%%]`, int(usage*float64(count)*100), count*100))
 			prev = curr
 		}
 	}
