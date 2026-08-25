@@ -44,11 +44,6 @@ func NewMainWindow(app *fbiw.App) *MainWindow {
 
 	win.statusBarNav.activate()
 
-	app.Listen(fbiw.DocChange, func(e *fbiw.Event) {
-		d := e.DocChange.Doc
-		win.statusBarNav.showCatBar(d == doc)
-	})
-
 	return win
 }
 
@@ -56,6 +51,7 @@ type StatusBarNavigator struct {
 	window       *MainWindow
 	catBar       fbiw.Box `css:"#cat-bar"`
 	catIndex     int
+	pagination   *fbiw.Text `css:"#pagination"`
 	catBoxes     []fbiw.Box `css:"#cat-bar text"`
 	contentBoxes []fbiw.Box `css:"#content > *"`
 }
@@ -72,6 +68,9 @@ func NewStatusBarNavigator(win *MainWindow) *StatusBarNavigator {
 
 func (n *StatusBarNavigator) showCatBar(show bool) {
 	n.catBar.SetProp(`display`, fmt.Sprint(show))
+}
+func (n *StatusBarNavigator) showPagination(show bool) {
+	n.pagination.SetProp(`display`, fmt.Sprint(show))
 }
 
 func (n *StatusBarNavigator) activate() {

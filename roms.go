@@ -65,6 +65,11 @@ func NewGamesNavigator(win *MainWindow) *GamesNavigator {
 	}
 	win.doc.Bind(n)
 	n.container.Listen(fbiw.StickDownEvent, n.handleEvents)
+	n.roms.Listen(fbiw.ScrollSelectionChange, func(e *fbiw.Event) {
+		index := n.roms.DataIndex()
+		text := fbiw.Iif(index == -1, ``, fmt.Sprintf(`%d/%d`, index+1, n.roms.DataCount()))
+		n.window.statusBarNav.pagination.SetText(text)
+	})
 	return n
 }
 
@@ -183,6 +188,8 @@ func (n *GamesNavigator) backToEmulators() {
 	n.noGames.Base().SetProp(`display`, `false`)
 	n.stack.Pop()
 	n.emus.Activate()
+	n.window.statusBarNav.showPagination(false)
+	n.window.statusBarNav.showCatBar(true)
 }
 
 func (n *GamesNavigator) gotoUpperDirectory() {
@@ -205,6 +212,9 @@ func (n *GamesNavigator) switchToRoms() {
 	// 隐藏模拟器，显示游戏列表
 	n.emus.SetProp(`display`, `false`)
 	n.roms.SetProp(`display`, `true`)
+	// 显示分页列表
+	n.window.statusBarNav.showPagination(true)
+	n.window.statusBarNav.showCatBar(false)
 
 	list := n.listRomsInDir(emu, emu.RomDir())
 	n.stack.Push(`.`, list, nil)
