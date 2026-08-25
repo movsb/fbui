@@ -1,7 +1,10 @@
 package main
 
 import (
+	"os/exec"
+
 	"github.com/movsb/fbiw"
+	"github.com/movsb/fbui/pkg/alert_window"
 	"github.com/movsb/fbui/pkg/file_manager"
 	"github.com/movsb/fbui/pkg/ssh"
 	"github.com/movsb/fbui/pkg/webdav_server"
@@ -33,6 +36,17 @@ func NewToolsNavigator(win *MainWindow) *ToolsNavigator {
 				name:  `远程登录（SSH）`,
 				click: func() { ssh.New(win.app) },
 			},
+			{
+				name: `重启系统`,
+				click: func() {
+					alert_window.Alert(
+						win.app, win.doc, `确定要立即重启系统吗？`,
+						func() {
+							exec.Command(`reboot`).Start()
+						}, nil,
+					)
+				},
+			},
 		},
 	}
 	win.doc.Bind(toolsNav)
@@ -40,7 +54,7 @@ func NewToolsNavigator(win *MainWindow) *ToolsNavigator {
 		len(toolsNav.tools),
 		func() (fbiw.Box, *_ToolItemView) {
 			box := fbiw.Unmarshal[_ToolItemView](win.doc, `
-<block padding=30>
+<block padding=10>
 	<inline spacer align=middle>
 		<text></text>
 	</inline>
