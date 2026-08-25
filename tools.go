@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/movsb/fbiw"
 	"github.com/movsb/fbui/pkg/file_manager"
+	"github.com/movsb/fbui/pkg/ssh"
 	"github.com/movsb/fbui/pkg/webdav_server"
 )
 
@@ -27,6 +28,10 @@ func NewToolsNavigator(win *MainWindow) *ToolsNavigator {
 			{
 				name:  `文件管理器`,
 				click: func() { file_manager.New(win.app) },
+			},
+			{
+				name:  `远程登录（SSH）`,
+				click: func() { ssh.New(win.app) },
 			},
 		},
 	}
