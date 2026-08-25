@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/fs"
 	"log"
+	"net/http"
 	"os"
 	"path"
 	"path/filepath"
@@ -19,6 +20,7 @@ import (
 	"github.com/movsb/fbui/pkg/alert_window"
 	"github.com/movsb/fbui/pkg/audio_player"
 	"github.com/movsb/fbui/pkg/file_manager/file_download"
+	"github.com/movsb/fbui/pkg/file_manager/file_edit"
 	"github.com/movsb/fbui/pkg/file_manager/file_upload"
 	"github.com/movsb/fbui/pkg/helpers"
 	"github.com/movsb/fbui/pkg/menu_popup"
@@ -27,6 +29,8 @@ import (
 
 //go:embed *.html
 var _embed embed.FS
+
+const _maxTextFileSize = 1 << 20
 
 type FileManagerWindow struct {
 	app *fbiw.App
@@ -223,6 +227,19 @@ func (n *FileManagerWindow) openFileMenu(index int) {
 					},
 				},
 			)
+			if isTextFile(entryPath) {
+				items = append(items, menu_popup.MenuItem{
+					Name: `编辑文件...`,
+					Click: func() {
+						ip, err := helpers.GetIP()
+						if err != nil {
+							n.alert(`%v`, err)
+							return
+						}
+						file_edit.New(n.app, entryPath, ip)
+					},
+				})
+			}
 		}
 
 		items = append(items,
@@ -265,6 +282,24 @@ func (n *FileManagerWindow) openFileMenu(index int) {
 	if len(items) > 0 {
 		menu_popup.NewMenuPopup(n.app, n.doc, items, nil, nil)
 	}
+}
+
+func isTextFile(filePath string) bool {
+	info, err := os.Lstat(filePath)
+	if err != nil || !info.Mode().IsRegular() || info.Size() > _maxTextFileSize {
+		return false
+	}
+	file, err := os.Open(filePath)
+	if err != nil {
+		return false
+	}
+	defer file.Close()
+	buffer := make([]byte, 512)
+	count, err := file.Read(buffer)
+	if err != nil && !errors.Is(err, io.EOF) {
+		return false
+	}
+	return strings.HasPrefix(http.DetectContentType(buffer[:count]), `text/`)
 }
 
 func (n *FileManagerWindow) confirmDelete(entryPath, name string, index int) {
