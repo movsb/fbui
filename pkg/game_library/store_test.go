@@ -67,7 +67,8 @@ func TestMaterializeRegularAndZIP(t *testing.T) {
 	second, _ := testBlob(2, "second")
 	source := &fakeSource{contents: map[int32][]byte{first.Id: []byte("first"), second.Id: []byte("second")}, requests: map[int32]int{}}
 	store := New(t.TempDir(), source)
-	progress := func(string, float32) {}
+	progressMessages := map[string]bool{}
+	progress := func(message string, _ float32) { progressMessages[message] = true }
 	regular, err := store.Materialize(context.Background(), &pb.Asset{Id: 1, Name: "game.rom", Format: pb.Format_FORMAT_REGULAR, Blob: first}, progress)
 	if err != nil {
 		t.Fatal(err)
@@ -81,6 +82,9 @@ func TestMaterializeRegularAndZIP(t *testing.T) {
 	archivePath, err := store.Materialize(context.Background(), asset, progress)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if !progressMessages["下载文件"] || !progressMessages["重新组装"] || !progressMessages["校验文件"] {
+		t.Fatalf("missing zip phase progress: %#v", progressMessages)
 	}
 	archive, err := zip.OpenReader(archivePath)
 	if err != nil {

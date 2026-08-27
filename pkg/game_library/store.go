@@ -187,6 +187,50 @@ func (s *Store) Materialize(ctx context.Context, asset *pb.Asset, progress func(
 		}) {
 			return final, nil
 		}
+
+		// 第一轮确保所有 Entry 对应的二进制都已经下载并校验到本地。
+		type localEntry struct {
+			name string
+			path string
+		}
+		entries := make([]localEntry, 0, len(asset.GetEntries()))
+		seen := map[string]bool{}
+		var totalSize int64
+		for _, entry := range asset.GetEntries() {
+			entryName, err := safeEntryName(entry.GetName())
+			if err != nil {
+				return "", err
+			}
+			if seen[entryName] {
+				return "", fmt.Errorf("duplicate zip entry: %s", entryName)
+			}
+			seen[entryName] = true
+			totalSize += int64(entry.GetBlob().GetSize())
+		}
+		var completedSize int64
+		for _, entry := range asset.GetEntries() {
+			blobSize := int64(entry.GetBlob().GetSize())
+			report := func(message string, entryProgress float32) {
+				if totalSize <= 0 {
+					progress(message, 100)
+					return
+				}
+				current := float64(completedSize) + float64(blobSize)*float64(entryProgress)/100
+				progress(message, float32(current/float64(totalSize)*100))
+			}
+			blob, err := s.ensureBlob(ctx, entry.GetBlob(),
+				func(p float32) { report(`校验文件`, p) },
+				func(p float32) { report(`下载文件`, p) },
+			)
+			if err != nil {
+				return "", err
+			}
+			entryName, _ := safeEntryName(entry.GetName())
+			entries = append(entries, localEntry{name: entryName, path: blob})
+			completedSize += blobSize
+		}
+
+		// 第二轮只使用本地二进制组装 ZIP，并单独报告组装进度。
 		temporary := final + ".part"
 		os.Remove(temporary)
 		file, err := os.OpenFile(temporary, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
@@ -194,36 +238,26 @@ func (s *Store) Materialize(ctx context.Context, asset *pb.Asset, progress func(
 			return "", err
 		}
 		archive := zip.NewWriter(file)
-		seen := map[string]bool{}
 		fail := func(buildErr error) (string, error) {
 			archive.Close()
 			file.Close()
 			os.Remove(temporary)
 			return "", buildErr
 		}
-		for _, entry := range asset.GetEntries() {
-			entryName, err := safeEntryName(entry.GetName())
-			if err != nil || seen[entryName] {
-				if err == nil {
-					err = fmt.Errorf("duplicate zip entry: %s", entryName)
-				}
-				return fail(err)
-			}
-			seen[entryName] = true
-			blob, err := s.ensureBlob(ctx, entry.GetBlob(),
-				func(p float32) { progress(`校验文件`, p) },
-				func(p float32) { progress(`下载文件`, p) },
-			)
+		assembleProgress := &_ProgressWriter{
+			total: int(totalSize),
+			progress: func(p float32) {
+				progress(`重新组装`, p)
+			},
+		}
+		for _, entry := range entries {
+			input, err := os.Open(entry.path)
 			if err != nil {
 				return fail(err)
 			}
-			input, err := os.Open(blob)
-			if err != nil {
-				return fail(err)
-			}
-			output, err := archive.Create(entryName)
+			output, err := archive.Create(entry.name)
 			if err == nil {
-				_, err = io.Copy(output, input)
+				_, err = io.Copy(io.MultiWriter(output, assembleProgress), input)
 			}
 			closeErr := input.Close()
 			if err != nil {
@@ -233,6 +267,7 @@ func (s *Store) Materialize(ctx context.Context, asset *pb.Asset, progress func(
 				return fail(closeErr)
 			}
 		}
+		progress(`重新组装`, 100)
 		if err := archive.Close(); err != nil {
 			_ = file.Close()
 			_ = os.Remove(temporary)
