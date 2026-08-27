@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/movsb/fbiw"
 	"github.com/movsb/fbui/pkg/alert_window"
@@ -332,13 +333,25 @@ func (n *StoreNavigator) loadAssets(game *proto.Game, release *proto.Release) {
 
 func (n *StoreNavigator) openAsset(game *proto.Game, asset *proto.Asset) {
 	n.busy = true
-	n.window.doc.SetTimeout(500, func() {
-		if n.busy {
-			n.showMessage("下载并校验...")
-		}
-	})
 	go func() {
-		path, err := n.store.Materialize(context.Background(), asset)
+		lastMessage := ""
+		lastTime := time.Time{}
+		path, err := n.store.Materialize(
+			context.Background(), asset,
+			func(message string, progress float32) {
+				if message == lastMessage && (time.Since(lastTime) < time.Millisecond*250 && progress != 100) {
+					return
+				}
+				lastMessage = message
+				lastTime = time.Now()
+				n.window.app.Async(func() {
+					if n.busy {
+						n.showMessage(fmt.Sprintf("%.0f%%\n%s", progress, message))
+					}
+				})
+			},
+		)
+		time.Sleep(time.Millisecond * 100)
 		n.window.app.Async(func() {
 			n.busy = false
 			n.render(n.stack[len(n.stack)-1].state)

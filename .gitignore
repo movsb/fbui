@@ -4,3 +4,5 @@
 /小桃的吹米.zip
 /.vscode/launch.json
 *.sw?
+__debug_*
+

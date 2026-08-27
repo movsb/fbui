@@ -41,7 +41,7 @@ func (s *Store) blobPath(sha string) string {
 // 确保本地存储有此二进制。
 // 如果没有，会从远程下载并存储到本地。
 // 下载后会完整哈希校验。
-func (s *Store) ensureBlob(ctx context.Context, expected *pb.Blob) (string, error) {
+func (s *Store) ensureBlob(ctx context.Context, expected *pb.Blob, local, remote func(p float32)) (string, error) {
 	if expected == nil || expected.GetId() <= 0 || !sha256Pattern.MatchString(expected.GetSha256()) || expected.GetSize() < 0 {
 		return "", errors.New("invalid blob metadata")
 	}
@@ -53,7 +53,7 @@ func (s *Store) ensureBlob(ctx context.Context, expected *pb.Blob) (string, erro
 	final := s.blobPath(expected.GetSha256())
 
 	// 如果本地有此二进制，校验并直接使用。
-	if validBlob(final, expected) {
+	if validBlob(final, expected, local) {
 		return final, nil
 	}
 
@@ -71,18 +71,24 @@ func (s *Store) ensureBlob(ctx context.Context, expected *pb.Blob) (string, erro
 		return "", err
 	}
 
-	hash := sha256.New()
-	closeAndRemove := func(downloadErr error) (string, error) {
-		file.Close()
-		os.Remove(temporary)
-		return "", downloadErr
-	}
+	var (
+		hash           = sha256.New()
+		remoteProgress = &_ProgressWriter{
+			total:    int(expected.GetSize()),
+			progress: remote,
+		}
+		closeAndRemove = func(downloadErr error) (string, error) {
+			file.Close()
+			os.Remove(temporary)
+			return "", downloadErr
+		}
+	)
 
 	reader, err := s.source.Open(ctx, expected.GetId())
 	if err != nil {
 		return closeAndRemove(err)
 	}
-	written, copyErr := io.Copy(io.MultiWriter(file, hash), reader)
+	written, copyErr := io.Copy(io.MultiWriter(file, hash, remoteProgress), reader)
 	closeErr := reader.Close()
 	if copyErr != nil {
 		return closeAndRemove(copyErr)
@@ -107,7 +113,7 @@ func (s *Store) ensureBlob(ctx context.Context, expected *pb.Blob) (string, erro
 	return final, nil
 }
 
-func validBlob(path string, expected *pb.Blob) bool {
+func validBlob(path string, expected *pb.Blob, progress func(p float32)) bool {
 	file, err := os.Open(path)
 	if err != nil {
 		return false
@@ -118,15 +124,19 @@ func validBlob(path string, expected *pb.Blob) bool {
 		return false
 	}
 	hash := sha256.New()
-	if _, err := io.Copy(hash, file); err != nil {
+	pw := &_ProgressWriter{
+		total:    int(expected.GetSize()),
+		progress: progress,
+	}
+	if _, err := io.Copy(io.MultiWriter(hash, pw), file); err != nil {
 		return false
 	}
 	return fmt.Sprintf("%x", hash.Sum(nil)) == expected.GetSha256()
 }
 
 // 从本地读取或者远程下载后并重新组装成所需求的资源文件。
-// 返回资源文件的路径。
-func (s *Store) Materialize(ctx context.Context, asset *pb.Asset) (string, error) {
+// 返回资源文件的本地固定路径。
+func (s *Store) Materialize(ctx context.Context, asset *pb.Asset, progress func(message string, p float32)) (string, error) {
 	if asset == nil || asset.GetId() <= 0 {
 		return "", errors.New("invalid asset")
 	}
@@ -140,13 +150,24 @@ func (s *Store) Materialize(ctx context.Context, asset *pb.Asset) (string, error
 	}
 	switch asset.GetFormat() {
 	case pb.Format_FORMAT_REGULAR:
-		blob, err := s.ensureBlob(ctx, asset.GetBlob())
+		// 有就直接使用。
+		final := filepath.Join(dir, name)
+		if validBlob(final, asset.GetBlob(), func(p float32) {
+			progress(`校验文件`, p)
+		}) {
+			return final, nil
+		}
+		// 如果没有才考虑重新物化/下载。
+		blob, err := s.ensureBlob(ctx, asset.GetBlob(),
+			func(p float32) {
+				progress(`校验文件`, p)
+			},
+			func(p float32) {
+				progress(`下载文件`, p)
+			},
+		)
 		if err != nil {
 			return "", err
-		}
-		final := filepath.Join(dir, name)
-		if validBlob(final, asset.GetBlob()) {
-			return final, nil
 		}
 		os.Remove(final)
 		if err := os.Link(blob, final); err != nil {
@@ -160,6 +181,12 @@ func (s *Store) Materialize(ctx context.Context, asset *pb.Asset) (string, error
 			name += ".zip"
 		}
 		final := filepath.Join(dir, name)
+		shaPath := filepath.Join(dir, "sha.txt")
+		if validZIPCache(final, shaPath, func(p float32) {
+			progress(`校验文件`, p)
+		}) {
+			return final, nil
+		}
 		temporary := final + ".part"
 		os.Remove(temporary)
 		file, err := os.OpenFile(temporary, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
@@ -183,7 +210,10 @@ func (s *Store) Materialize(ctx context.Context, asset *pb.Asset) (string, error
 				return fail(err)
 			}
 			seen[entryName] = true
-			blob, err := s.ensureBlob(ctx, entry.GetBlob())
+			blob, err := s.ensureBlob(ctx, entry.GetBlob(),
+				func(p float32) { progress(`校验文件`, p) },
+				func(p float32) { progress(`下载文件`, p) },
+			)
 			if err != nil {
 				return fail(err)
 			}
@@ -221,10 +251,56 @@ func (s *Store) Materialize(ctx context.Context, asset *pb.Asset) (string, error
 			_ = os.Remove(temporary)
 			return "", err
 		}
+		sha, err := fileSHA256(final, nil)
+		if err != nil {
+			return "", err
+		}
+		if err := writeSHAFile(shaPath, sha); err != nil {
+			return "", err
+		}
 		return final, nil
 	default:
 		return "", fmt.Errorf("unsupported asset format: %s", asset.GetFormat())
 	}
+}
+
+func validZIPCache(zipPath, shaPath string, progress func(float32)) bool {
+	expected, err := os.ReadFile(shaPath)
+	if err != nil {
+		return false
+	}
+	expectedSHA := strings.TrimSpace(string(expected))
+	if !sha256Pattern.MatchString(expectedSHA) {
+		return false
+	}
+	actualSHA, err := fileSHA256(zipPath, progress)
+	return err == nil && actualSHA == expectedSHA
+}
+
+func fileSHA256(path string, progress func(float32)) (string, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+	hash := sha256.New()
+	if progress == nil {
+		_, err = io.Copy(hash, file)
+	} else {
+		info, statErr := file.Stat()
+		if statErr != nil {
+			return "", statErr
+		}
+		_, err = io.Copy(io.MultiWriter(hash, &_ProgressWriter{total: int(info.Size()), progress: progress}), file)
+	}
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%x", hash.Sum(nil)), nil
+}
+
+func writeSHAFile(path, sha string) error {
+	return os.WriteFile(path, []byte(sha+"\n"), 0644)
 }
 
 func safeBaseName(name string) (string, error) {
@@ -263,4 +339,18 @@ func copyFile(source, destination string) error {
 		return closeErr
 	}
 	return nil
+}
+
+type _ProgressWriter struct {
+	count    int
+	total    int
+	progress func(p float32)
+}
+
+func (w *_ProgressWriter) Write(p []byte) (int, error) {
+	w.count += len(p)
+	if w.progress != nil {
+		w.progress(float32(w.count) / float32(w.total) * 100)
+	}
+	return len(p), nil
 }
