@@ -108,9 +108,11 @@ func (n *StatusBarNavigator) handleEvents(event *fbiw.Event) {
 	keyName := event.Stick.Name
 
 	if keyName == fbiw.B {
-		alert_window.Alert(n.window.app, n.window.doc, `确定要退出吗？`, func() {
-			n.window.app.Quit()
-		}, func() {})
+		alert_window.Alert(n.window.doc,
+			`确定要退出吗？`,
+			func() {
+				n.window.app.Quit()
+			}, func() {})
 		return
 	}
 

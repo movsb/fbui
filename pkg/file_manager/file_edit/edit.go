@@ -183,7 +183,7 @@ func (win *_EditWindow) showError(err error) {
 
 func (win *_EditWindow) handleEvents(event *fbiw.Event) {
 	if event.Stick.Name == fbiw.B {
-		alert_window.Alert(win.app, win.doc, `确定要关闭编辑窗口吗？`, win.close, nil)
+		alert_window.Alert(win.doc, `确定要关闭编辑窗口吗？`, win.close, nil)
 	}
 }
 

@@ -304,7 +304,7 @@ func isTextFile(filePath string) bool {
 
 func (n *FileManagerWindow) confirmDelete(entryPath, name string, index int) {
 	rowIndex := n.scroll.RowIndex()
-	alert_window.Error(n.app, n.doc,
+	alert_window.Error(n.doc,
 		fmt.Sprintf(`确定删除“%s”？此操作无法撤销。`, name),
 		func() {
 			// TODO 这里是同步的，可以导致界面死掉。

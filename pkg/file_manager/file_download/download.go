@@ -115,7 +115,7 @@ func (win *_DownloadWindow) handleEvents(event *fbiw.Event) {
 		return
 	}
 	if win.conns.Load() > 0 {
-		alert_window.Alert(win.app, win.doc, `当前有下载任务，确定要关闭吗？`, win.close, nil)
+		alert_window.Alert(win.doc, `当前有下载任务，确定要关闭吗？`, win.close, nil)
 	} else {
 		win.close()
 	}

@@ -17,7 +17,7 @@ import (
 )
 
 func (n *FileManagerWindow) alert(format string, args ...any) {
-	alert_window.Alert(n.app, n.doc, fmt.Sprintf(format, args...), nil, nil)
+	alert_window.Alert(n.doc, fmt.Sprintf(format, args...), nil, nil)
 }
 
 func (n *FileManagerWindow) preview(entry _Entry) {

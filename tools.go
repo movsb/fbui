@@ -40,7 +40,7 @@ func NewToolsNavigator(win *MainWindow) *ToolsNavigator {
 				name: `重启系统`,
 				click: func() {
 					alert_window.Alert(
-						win.app, win.doc, `确定要立即重启系统吗？`,
+						win.doc, `确定要立即重启系统吗？`,
 						func() {
 							exec.Command(`reboot`).Start()
 						}, nil,

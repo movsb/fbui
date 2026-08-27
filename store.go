@@ -218,7 +218,7 @@ func (n *StoreNavigator) async(title string, load func(context.Context) (storePa
 			n.busy = false
 			if err != nil {
 				n.render(n.stack[len(n.stack)-1].state)
-				alert_window.Error(n.window.app, n.window.doc, fmt.Sprintf("%s失败: %v", title, err), nil, nil)
+				alert_window.Error(n.window.doc, fmt.Sprintf("%s失败: %v", title, err), nil, nil)
 				return
 			}
 			n.stack = append(n.stack, page)
@@ -357,7 +357,7 @@ func (n *StoreNavigator) openAsset(game *proto.Game, asset *proto.Asset) {
 			n.render(n.stack[len(n.stack)-1].state)
 			n.list.Activate()
 			if err != nil {
-				alert_window.Error(n.window.app, n.window.doc, fmt.Sprintf("下载失败: %v", err), nil, nil)
+				alert_window.Error(n.window.doc, fmt.Sprintf("下载失败: %v", err), nil, nil)
 				return
 			}
 			switch asset.GetType() {
@@ -368,7 +368,7 @@ func (n *StoreNavigator) openAsset(game *proto.Game, asset *proto.Asset) {
 			case proto.AssetType_ASSET_TYPE_VIDEO:
 				n.showVideo(path)
 			default:
-				alert_window.Alert(n.window.app, n.window.doc, "已下载到: "+path, nil, nil)
+				alert_window.Alert(n.window.doc, "已下载到: "+path, nil, nil)
 			}
 		})
 	}()
@@ -420,7 +420,7 @@ func (n *StoreNavigator) runROM(platformID int32, path string) {
 		}
 	}
 	if wanted == "" || emulator == nil {
-		alert_window.Error(n.window.app, n.window.doc, fmt.Sprintf("资源已下载，但平台 %d 没有可用模拟器映射", platformID), nil, nil)
+		alert_window.Error(n.window.doc, fmt.Sprintf("资源已下载，但平台 %d 没有可用模拟器映射", platformID), nil, nil)
 		return
 	}
 	n.window.app.Detach()
@@ -431,7 +431,13 @@ func (n *StoreNavigator) runROM(platformID int32, path string) {
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		if err := cmd.Run(); err != nil {
-			n.window.doc.Async(func() { alert_window.Error(n.window.app, n.window.doc, fmt.Sprintf("启动失败: %v", err), nil, nil) })
+			// 已经运行，错误码不可靠，直接忽略。
+			if strings.Contains(err.Error(), `exit status`) {
+				return
+			}
+			n.window.doc.Async(func() {
+				alert_window.Error(n.window.doc, fmt.Sprintf("启动失败: %v", err), nil, nil)
+			})
 		}
 	}()
 }
