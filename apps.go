@@ -43,8 +43,8 @@ func (w *MainWindow) asyncInitApps() {
 			},
 			func(item *_AppItem, index int) {
 				app := apps[index]
-				item.image.SetPath(filepath.Join(app.Dir, app.Config.IconTop))
-				item.text.SetText(fbiw.Iif(app.Config.LabelChinese != ``, app.Config.LabelChinese, app.Config.Label))
+				item.image.SetPath(app.IconPath())
+				item.text.SetText(app.Name())
 			},
 		)
 	})

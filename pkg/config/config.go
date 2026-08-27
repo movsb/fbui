@@ -94,7 +94,7 @@ func (c *LaunchConfig) LauncherScriptPath() string {
 	return filepath.Join(c.Dir, c.Config.Launch)
 }
 func (c *LaunchConfig) IconPath() string {
-	return filepath.Join(c.Dir, c.Config.IconTop)
+	return filepath.Join(c.Dir, fbiw.Iif(c.Config.IconTop != ``, c.Config.IconTop, c.Config.Icon))
 }
 func (c *LaunchConfig) Name() string {
 	if name := c.Config.LabelChinese; name != `` {
