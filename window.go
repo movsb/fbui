@@ -20,6 +20,7 @@ type MainWindow struct {
 	portsNav     *LauncherNavigator
 	appsNav      *LauncherNavigator
 	toolsNav     *ToolsNavigator
+	storeNav     *StoreNavigator
 }
 
 func NewMainWindow(app *fbiw.App) *MainWindow {
@@ -37,6 +38,7 @@ func NewMainWindow(app *fbiw.App) *MainWindow {
 	win.portsNav = NewLauncherNavigator(win, `#ports`, `ports`)
 	win.appsNav = NewLauncherNavigator(win, `#apps`, `apps`)
 	win.toolsNav = NewToolsNavigator(win)
+	win.storeNav = NewStoreNavigator(win)
 
 	go win.asyncInitApps()
 	go win.asyncInitEmus()
@@ -91,6 +93,8 @@ func (n *StatusBarNavigator) activateContent() {
 			n.window.appsNav.activate()
 		case `tools`:
 			n.window.toolsNav.activate()
+		case `store`:
+			n.window.storeNav.activate()
 		default:
 			removeActive = false
 		}

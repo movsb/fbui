@@ -48,6 +48,12 @@ document {
 	background-color: #882b5d;
 	bold: true;
 }
+#store .selected {
+	outline-width: 3;
+	outline-color: deeppink;
+	background-color: #882b5d;
+	bold: true;
+}
 </style>
 <title>小桃的吹米</title>
 <stack fill>
@@ -59,6 +65,7 @@ document {
 			<text name="apps">应用</text>
 			<text name="system">终端</text>
 			<text name="tools">工具</text>
+			<text name="store">仓库</text>
 			<spacer></spacer>
 		</inline>
 		<block align="both" padding="10" width="100%">
@@ -85,7 +92,18 @@ document {
 			</block>
 			<scroll class="content-item" id="tools" rows="8" cols="1" gap="10" padding="30">
 			</scroll>
+			<block class="content-item" id="store" fill>
+				<inline padding="10 20" font-size="small"><text id="store-title">仓库</text></inline>
+				<stack fill>
+					<scroll id="store-list" rows="8" cols="1" gap="10" padding="20" spacer></scroll>
+					<block id="store-message" align="both" display="false"><text></text></block>
+				</stack>
+			</block>
 		</stack>
 	</safe-area>
+	<stack id="store-preview" fill background-color="clear" display="false">
+		<img fill="scale-down">
+		<video></video>
+	</stack>
 </stack>
 </document>
