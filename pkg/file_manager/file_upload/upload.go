@@ -89,21 +89,35 @@ func (win *_UploadWindow) handleUpload(w http.ResponseWriter, r *http.Request) {
 	win.conns.Add(+1)
 	defer win.conns.Add(-1)
 
-	file, header, err := r.FormFile(`file`)
+	fileName, err := win.receiveUpload(r)
 	if err != nil {
-		http.Error(w, `没有选择文件`, http.StatusBadRequest)
-		win.setStatus(`上传失败：没有选择文件`, true)
-		return
-	}
-	defer file.Close()
-	if err := win.receiveFile(file, header.Filename); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		win.setStatus(fmt.Sprintf(`上传失败：%v`, err), true)
 		return
 	}
 
 	w.WriteHeader(http.StatusNoContent)
-	win.setStatus(fmt.Sprintf(`已上传“%s”`, header.Filename), false)
+	win.setStatus(fmt.Sprintf(`已上传“%s”`, fileName), false)
+}
+
+func (win *_UploadWindow) receiveUpload(r *http.Request) (string, error) {
+	reader, err := r.MultipartReader()
+	if err != nil {
+		return ``, errors.New(`无效的上传请求`)
+	}
+	part, err := reader.NextPart()
+	if err != nil {
+		return ``, errors.New(`没有选择文件`)
+	}
+	defer part.Close()
+	if part.FormName() != `file` || part.FileName() == `` {
+		return ``, errors.New(`没有选择文件`)
+	}
+	fileName := part.FileName()
+	if err := win.receiveFile(part, fileName); err != nil {
+		return ``, err
+	}
+	return fileName, nil
 }
 
 func (win *_UploadWindow) receiveFile(input io.Reader, fileName string) (err error) {
