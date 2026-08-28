@@ -34,6 +34,8 @@ func alert(opener *fbiw.Document, message string, confirm, cancel func(), before
 		beforeShow(doc)
 	}
 
+	t := window.text
+
 	doc.Listen(fbiw.StickDownEvent, func(e *fbiw.Event) {
 		switch e.Stick.Name {
 		case fbiw.A:
@@ -46,6 +48,10 @@ func alert(opener *fbiw.Document, message string, confirm, cancel func(), before
 			if cancel != nil {
 				cancel()
 			}
+		case fbiw.Up:
+			t.ScrollLineUp()
+		case fbiw.Down:
+			t.ScrollLineDown()
 		}
 	})
 }
