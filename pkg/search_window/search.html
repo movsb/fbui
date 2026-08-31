@@ -5,25 +5,29 @@ document {
 }
 #keyboard {
 	font-size: 25;
+
+	inline {
+		align: both;
+	}
+	button {
+		align: both;
+		width: 55;
+		height: 55;
+		background-color: deeppink;
+		border-width: 2;
+
+		&.selected {
+			outline-width: 1;
+			outline-color: white;
+		}
+	}
 }
-#keyboard inline {
-	align: both;
-}
-#keyboard button {
-	align: both;
-	width: 55;
-	height: 55;
-	background-color: deeppink;
-	border-width: 2;
-}
-#keyboard button.selected {
-	outline-width: 1;
-	outline-color: white;
-}
-#result .selected {
-	outline-width: 3;
-	outline-color: deeppink;
-	background-color: #882b5d;
+#result {
+	.selected {
+		outline-width: 3;
+		outline-color: deeppink;
+		background-color: #882b5d;
+	}
 }
 </style>
 <block background-color="#000000E8" width="640" height="480" border-width="3" border-color="deeppink" padding="20">

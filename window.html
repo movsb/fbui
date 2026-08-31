@@ -9,50 +9,32 @@ document {
 }
 #cat-bar {
 	font-size: small;
+
+	text {
+		padding: 0 5 2 5;
+	}
+	&.active .selected {
+		outline-width: 3;
+		outline-color: deeppink;
+		background-color: #882b5d;
+	}
 }
-#cat-bar text {
-	padding: 0 5 2 5;
+#content {
+	.content-item {
+		display: false;
+
+		&.selected {
+			display: true;
+		}
+	}
 }
-#cat-bar.active .selected {
-	outline-width: 3;
-	outline-color: deeppink;
-	background-color: #882b5d;
-}
-#content .content-item {
-	display: false;
-}
-#content .content-item.selected {
-	display: true;
-}
-#games .selected {
-	outline-width: 3;
-	outline-color: deeppink;
-	background-color: #882b5d;
-	bold: true;
-}
-#ports .selected {
-	outline-width: 3;
-	outline-color: deeppink;
-	background-color: #882b5d;
-	bold: true;
-}
-#apps .selected {
-	outline-width: 3;
-	outline-color: deeppink;
-	background-color: #882b5d;
-	bold: true;
-}
-#tools .selected {
-	outline-width: 3;
-	outline-color: deeppink;
-	background-color: #882b5d;
-	bold: true;
-}
-#store .selected {
-	outline-width: 3;
-	outline-color: deeppink;
-	background-color: #882b5d;
-	bold: true;
+#games, #ports, #apps, #tools, #store {
+	.selected {
+		outline-width: 3;
+		outline-color: deeppink;
+		background-color: #882b5d;
+		bold: true;
+	}
 }
 </style>
 <title>小桃的吹米</title>
