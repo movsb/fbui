@@ -17,7 +17,6 @@ import (
 	"syscall"
 
 	"github.com/movsb/fbiw"
-	"github.com/movsb/fbui/pkg/alert_window"
 	"github.com/movsb/fbui/pkg/audio_player"
 	"github.com/movsb/fbui/pkg/file_manager/file_download"
 	"github.com/movsb/fbui/pkg/file_manager/file_edit"
@@ -304,9 +303,13 @@ func isTextFile(filePath string) bool {
 
 func (n *FileManagerWindow) confirmDelete(entryPath, name string, index int) {
 	rowIndex := n.scroll.RowIndex()
-	alert_window.Error(n.doc,
-		fmt.Sprintf(`确定删除“%s”？此操作无法撤销。`, name),
-		func() {
+	n.app.ShowAlertDialog(n.doc, fbiw.AlertDialogOptions{
+		Title:         `删除文件？`,
+		Description:   fmt.Sprintf(`确定删除“%s”？此操作无法撤销。`, name),
+		ActionText:    `删除`,
+		ActionVariant: fbiw.ButtonDestructive,
+		CancelText:    `取消`,
+		OnAction: func() {
 			// TODO 这里是同步的，可以导致界面死掉。
 			if err := os.RemoveAll(entryPath); err != nil {
 				n.alert(`删除失败：%v`, err)
@@ -319,8 +322,7 @@ func (n *FileManagerWindow) confirmDelete(entryPath, name string, index int) {
 				n.selectAfterDelete(index, rowIndex)
 			}
 		},
-		nil,
-	)
+	})
 }
 
 func (n *FileManagerWindow) paste() {

@@ -13,11 +13,13 @@ import (
 	"time"
 
 	"github.com/movsb/fbiw"
-	"github.com/movsb/fbui/pkg/alert_window"
 )
 
 func (n *FileManagerWindow) alert(format string, args ...any) {
-	alert_window.Alert(n.doc, fmt.Sprintf(format, args...), nil, nil)
+	n.app.ShowAlertDialog(n.doc, fbiw.AlertDialogOptions{
+		Title:       `提示`,
+		Description: fmt.Sprintf(format, args...),
+	})
 }
 
 func (n *FileManagerWindow) preview(entry _Entry) {

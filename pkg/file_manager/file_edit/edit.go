@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/movsb/fbiw"
-	"github.com/movsb/fbui/pkg/alert_window"
 	qrcode "github.com/skip2/go-qrcode"
 )
 
@@ -183,7 +182,13 @@ func (win *_EditWindow) showError(err error) {
 
 func (win *_EditWindow) handleEvents(event *fbiw.Event) {
 	if event.Stick.Name == fbiw.B {
-		alert_window.Alert(win.doc, `确定要关闭编辑窗口吗？`, win.close, nil)
+		win.app.ShowAlertDialog(win.doc, fbiw.AlertDialogOptions{
+			Title:       `关闭编辑窗口？`,
+			Description: `确定要关闭编辑窗口吗？`,
+			ActionText:  `关闭`,
+			CancelText:  `取消`,
+			OnAction:    win.close,
+		})
 	}
 }
 

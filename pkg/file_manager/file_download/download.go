@@ -13,7 +13,6 @@ import (
 	"sync/atomic"
 
 	"github.com/movsb/fbiw"
-	"github.com/movsb/fbui/pkg/alert_window"
 	qrcode "github.com/skip2/go-qrcode"
 )
 
@@ -115,7 +114,13 @@ func (win *_DownloadWindow) handleEvents(event *fbiw.Event) {
 		return
 	}
 	if win.conns.Load() > 0 {
-		alert_window.Alert(win.doc, `当前有下载任务，确定要关闭吗？`, win.close, nil)
+		win.app.ShowAlertDialog(win.doc, fbiw.AlertDialogOptions{
+			Title:       `关闭下载窗口？`,
+			Description: `当前有下载任务，确定要关闭吗？`,
+			ActionText:  `关闭`,
+			CancelText:  `取消`,
+			OnAction:    win.close,
+		})
 	} else {
 		win.close()
 	}

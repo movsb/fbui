@@ -11,12 +11,12 @@ import (
 	"time"
 
 	"github.com/movsb/fbiw"
-	"github.com/movsb/fbui/pkg/alert_window"
 	"github.com/movsb/fbui/pkg/config"
 	"github.com/movsb/fbui/pkg/game_library"
 	"github.com/movsb/fbui/pkg/video_player"
 	"github.com/movsb/gm/protocols/clients"
 	"github.com/movsb/gm/protocols/go/proto"
+	"google.golang.org/grpc/status"
 )
 
 const gmServerHome = "http://192.168.10.124:8888"
@@ -218,7 +218,10 @@ func (n *StoreNavigator) async(title string, load func(context.Context) (storePa
 			n.busy = false
 			if err != nil {
 				n.render(n.stack[len(n.stack)-1].state)
-				alert_window.Error(n.window.doc, fmt.Sprintf("%s失败: %v", title, err), nil, nil)
+				n.window.app.ShowAlertDialog(n.window.doc, fbiw.AlertDialogOptions{
+					Title:       fmt.Sprintf(`%s失败`, title),
+					Description: maybeGrpcError(err),
+				})
 				return
 			}
 			n.stack = append(n.stack, page)
@@ -357,7 +360,12 @@ func (n *StoreNavigator) openAsset(game *proto.Game, asset *proto.Asset) {
 			n.render(n.stack[len(n.stack)-1].state)
 			n.list.Activate()
 			if err != nil {
-				alert_window.Error(n.window.doc, fmt.Sprintf("下载失败: %v", err), nil, nil)
+				n.window.app.ShowAlertDialog(n.window.doc,
+					fbiw.AlertDialogOptions{
+						Title:       `下载失败`,
+						Description: err.Error(),
+					},
+				)
 				return
 			}
 			switch asset.GetType() {
@@ -368,7 +376,12 @@ func (n *StoreNavigator) openAsset(game *proto.Game, asset *proto.Asset) {
 			case proto.AssetType_ASSET_TYPE_VIDEO:
 				n.showVideo(path)
 			default:
-				alert_window.Alert(n.window.doc, "已下载到: "+path, nil, nil)
+				n.window.app.ShowAlertDialog(n.window.doc,
+					fbiw.AlertDialogOptions{
+						Title:       `下载成功`,
+						Description: path,
+					},
+				)
 			}
 		})
 	}()
@@ -420,7 +433,11 @@ func (n *StoreNavigator) runROM(platformID int32, path string) {
 		}
 	}
 	if wanted == "" || emulator == nil {
-		alert_window.Error(n.window.doc, fmt.Sprintf("资源已下载，但平台 %d 没有可用模拟器映射", platformID), nil, nil)
+		n.window.app.ShowAlertDialog(n.window.doc,
+			fbiw.AlertDialogOptions{
+				Title:       `没有模拟器映射`,
+				Description: fmt.Sprintf(`资源已下载，但是不知道如何打开平台: %d`, platformID),
+			})
 		return
 	}
 	n.window.app.Detach()
@@ -436,7 +453,10 @@ func (n *StoreNavigator) runROM(platformID int32, path string) {
 				return
 			}
 			n.window.doc.Async(func() {
-				alert_window.Error(n.window.doc, fmt.Sprintf("启动失败: %v", err), nil, nil)
+				n.window.app.ShowAlertDialog(n.window.doc, fbiw.AlertDialogOptions{
+					Title:       `启动失败`,
+					Description: err.Error(),
+				})
 			})
 		}
 	}()
@@ -487,4 +507,14 @@ func formatSize(size int32) string {
 		return fmt.Sprintf("%.1f KB", float64(size)/1024)
 	}
 	return fmt.Sprintf("%.1f MB", float64(size)/(1024*1024))
+}
+
+func maybeGrpcError(err error) string {
+	if err == nil {
+		return `<nil>`
+	}
+	if st, ok := status.FromError(err); ok {
+		return fmt.Sprintf("%s\n\n%s", st.Code(), st.Message())
+	}
+	return err.Error()
 }

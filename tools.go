@@ -4,7 +4,6 @@ import (
 	"os/exec"
 
 	"github.com/movsb/fbiw"
-	"github.com/movsb/fbui/pkg/alert_window"
 	"github.com/movsb/fbui/pkg/file_manager"
 	"github.com/movsb/fbui/pkg/ssh"
 	"github.com/movsb/fbui/pkg/webdav_server"
@@ -39,12 +38,16 @@ func NewToolsNavigator(win *MainWindow) *ToolsNavigator {
 			{
 				name: `重启系统`,
 				click: func() {
-					alert_window.Alert(
-						win.doc, `确定要立即重启系统吗？`,
-						func() {
+					win.app.ShowAlertDialog(win.doc, fbiw.AlertDialogOptions{
+						Title:         `重启系统？`,
+						Description:   `确定要立即重启系统吗？`,
+						ActionText:    `重启`,
+						ActionVariant: fbiw.ButtonDestructive,
+						CancelText:    `取消`,
+						OnAction: func() {
 							exec.Command(`reboot`).Start()
-						}, nil,
-					)
+						},
+					})
 				},
 			},
 		},

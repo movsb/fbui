@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/movsb/fbiw"
-	"github.com/movsb/fbui/pkg/alert_window"
 )
 
 //go:embed *.html
@@ -108,11 +107,15 @@ func (n *StatusBarNavigator) handleEvents(event *fbiw.Event) {
 	keyName := event.Stick.Name
 
 	if keyName == fbiw.B {
-		alert_window.Alert(n.window.doc,
-			`确定要退出吗？`,
-			func() {
+		n.window.app.ShowAlertDialog(n.window.doc, fbiw.AlertDialogOptions{
+			Title:       `退出？`,
+			Description: `确定要退出吗？`,
+			ActionText:  `退出`,
+			CancelText:  `取消`,
+			OnAction: func() {
 				n.window.app.Quit()
-			}, func() {})
+			},
+		})
 		return
 	}
 
