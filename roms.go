@@ -32,7 +32,7 @@ func (w *MainWindow) asyncInitEmus() {
 			func() (fbiw.Box, *_EmuItem) {
 				item := fbiw.Unmarshal[_EmuItem](w.doc, `
 <block align=center padding=20>
-	<img spacer>
+	<img spacer fill=contain>
 	<text></text>
 </block>
 `)

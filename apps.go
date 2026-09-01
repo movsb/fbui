@@ -35,7 +35,7 @@ func (w *MainWindow) asyncInitApps() {
 			func() (fbiw.Box, *_AppItem) {
 				item := fbiw.Unmarshal[_AppItem](w.doc, `
 <block align=center padding=30>
-	<img spacer>
+	<img spacer fill=contain>
 	<text></text>
 </block>
 `)
@@ -66,7 +66,7 @@ func (w *MainWindow) asyncInitPorts() {
 			func() (fbiw.Box, any) {
 				item := fbiw.Unmarshal[_AppItem](w.doc, `
 <block align=center padding=30>
-	<img spacer>
+	<img spacer fill=contain>
 	<text></text>
 </block>
 `)
