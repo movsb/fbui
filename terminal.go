@@ -62,7 +62,7 @@ func (b *Terminal) SetProp(key, val string) error {
 		if err != nil {
 			return err
 		}
-		b.defaultColor = val.Color
+		b.defaultColor = val
 		// NOTE 暂未支持动态修改
 		return nil
 	default:
@@ -94,7 +94,7 @@ func (b *Terminal) Draw(canvas *fbiw.Canvas) {
 			fgColor := b.defaultColor
 			// TODO 处理颜色查表。
 
-			// 非默认色暂时简单描个反色。
+			// 非默认背景色时暂时简单描个反色。
 			if cell.Attr.Bg.Mode != te.ColorDefault {
 				bgColor := b.defaultColor
 				canvas.FillRect(0, 0, b.cellWidth, b.cellHeight, bgColor)

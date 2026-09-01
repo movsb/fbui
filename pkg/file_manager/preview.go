@@ -144,7 +144,7 @@ func (n *FileManagerWindow) handlePreviewEvent(e *fbiw.Event) {
 		n.previewText.SetText(``)
 		return
 	}
-	if d := n.previewText.GetComputedStyles().Display; d.IsBool() && d.Bool {
+	if n.previewText.GetComputedStyles().Display.Visible() {
 		switch e.Stick.Name {
 		case fbiw.Up:
 			n.previewText.ScrollLineUp()
