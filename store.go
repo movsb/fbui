@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -13,6 +11,7 @@ import (
 	"github.com/movsb/fbiw"
 	"github.com/movsb/fbui/pkg/config"
 	"github.com/movsb/fbui/pkg/game_library"
+	"github.com/movsb/fbui/pkg/launcher"
 	"github.com/movsb/fbui/pkg/video_player"
 	"github.com/movsb/gm/protocols/clients"
 	"github.com/movsb/gm/protocols/go/proto"
@@ -443,11 +442,9 @@ func (n *StoreNavigator) runROM(platformID int32, path string) {
 	n.window.app.Detach()
 	go func() {
 		defer n.window.app.AttachAsync()
-		cmd := exec.Command(emulator.LauncherScriptPath(), path)
-		log.Println("启动仓库 ROM：", cmd.String())
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		if err := cmd.Run(); err != nil {
+		script := emulator.LauncherScriptPath()
+		log.Println("启动仓库 ROM：", script, path)
+		if err := launcher.RunScript(context.Background(), script, path); err != nil {
 			// 已经运行，错误码不可靠，直接忽略。
 			if strings.Contains(err.Error(), `exit status`) {
 				return

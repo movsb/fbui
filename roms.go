@@ -1,10 +1,10 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -12,6 +12,7 @@ import (
 	"github.com/movsb/fbiw"
 	"github.com/movsb/fbui/pkg/config"
 	"github.com/movsb/fbui/pkg/game_names"
+	"github.com/movsb/fbui/pkg/launcher"
 	"github.com/movsb/fbui/pkg/search_window"
 )
 
@@ -240,14 +241,13 @@ func (n *GamesNavigator) enterDirectory(info RomInfo) {
 }
 
 func (n *GamesNavigator) runGame(info RomInfo) {
-	launcher := n.currentEmu.LauncherScriptPath()
+	launcherScript := n.currentEmu.LauncherScriptPath()
 	romPath := n.romFinalPath(n.currentEmu, info.name)
 	n.window.app.Detach()
 	go func() {
 		defer n.window.app.AttachAsync()
-		cmd := exec.Command(launcher, romPath)
-		if err := cmd.Run(); err != nil {
-			log.Printf(`运行失败：%s: %s: %s`, launcher, romPath, err.Error())
+		if err := launcher.RunScript(context.Background(), launcherScript, romPath); err != nil {
+			log.Printf(`运行失败：%s: %s: %s`, launcherScript, romPath, err.Error())
 			n.window.doc.Async(func() {
 				n.window.app.ShowAlertDialog(n.window.doc, fbiw.AlertDialogOptions{
 					Title:       `启动失败`,

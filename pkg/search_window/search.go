@@ -5,7 +5,6 @@ import (
 	"embed"
 	"io/fs"
 	"log"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -16,6 +15,7 @@ import (
 	"github.com/movsb/fbiw"
 	"github.com/movsb/fbui/pkg/config"
 	"github.com/movsb/fbui/pkg/game_names"
+	"github.com/movsb/fbui/pkg/launcher"
 	"github.com/movsb/fbui/pkg/searchable"
 )
 
@@ -193,9 +193,11 @@ func (w *SearchWindow) handleResultEvents(event *fbiw.Event) {
 		w.app.Detach()
 		go func() {
 			defer w.app.AttachAsync()
-			cmd := exec.Command(item.launcher.LauncherScriptPath(), item.romPath)
-			log.Println(`启动进程：`, cmd.String())
-			cmd.Run()
+			script := item.launcher.LauncherScriptPath()
+			log.Println(`解释执行启动脚本：`, script, item.romPath)
+			if err := launcher.RunScript(context.Background(), script, item.romPath); err != nil {
+				log.Println(`启动失败：`, err)
+			}
 		}()
 		return
 	}
