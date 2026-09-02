@@ -1,0 +1,27 @@
+<document>
+<title>虚拟内存/交换空间(Swap)管理</title>
+<style>
+document { color: white; }
+.muted { color: #aaaaaa; }
+.warning { color: #ff6b6b; }
+scroll {
+	.selected {
+		outline-width: 3;
+		outline-color: deeppink;
+		background-color: #882b5d;
+	}
+}
+</style>
+<block>
+	<safe-area>
+		<block fill padding="20 30" background-color="#000000E8">
+			<inline padding="0 10 10 10" font-size="small">
+				<text>文件</text><spacer></spacer><text>状态</text>
+			</inline>
+			<scroll id="swaps" rows="7" cols="1" spacer></scroll>
+			<block id="empty" align="both" spacer display="false"><text><i>当前没有交换空间</i></text></block>
+			<block height="42" align="middle"><text id="status" font-size="small" class="muted"></text></block>
+		</block>
+	</safe-area>
+</block>
+</document>
