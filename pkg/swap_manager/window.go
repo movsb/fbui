@@ -102,6 +102,11 @@ func (w *Window) handleEvents(event *fbiw.Event) {
 	switch event.Stick.Name {
 	case fbiw.B:
 		w.doc.Close()
+	case fbiw.A:
+		index := w.scroll.DataIndex()
+		if index >= 0 && index < len(w.entries) {
+			w.confirmSetActive(w.entries[index])
+		}
 	case fbiw.X:
 		w.openSizeMenu()
 	case fbiw.Y:
@@ -110,6 +115,46 @@ func (w *Window) handleEvents(event *fbiw.Event) {
 			w.confirmDelete(w.entries[index])
 		}
 	}
+}
+
+func (w *Window) confirmSetActive(entry Entry) {
+	active := !entry.Active
+	action := "启用"
+	description := fmt.Sprintf("确定启用“%s”？", entry.Path)
+	variant := fbiw.ButtonPrimary
+	if !active {
+		action = "停用"
+		description = fmt.Sprintf("确定停用“%s”？正在使用的交换数据会被移回内存。", entry.Path)
+		variant = fbiw.ButtonDestructive
+	}
+	w.app.ShowAlertDialog(w.doc, fbiw.AlertDialogOptions{
+		Title:         action + " Swap？",
+		Description:   description,
+		ActionText:    action,
+		ActionVariant: variant,
+		CancelText:    "取消",
+		OnAction:      func() { w.setActive(entry, active) },
+	})
+}
+
+func (w *Window) setActive(entry Entry, active bool) {
+	w.busy = true
+	action := "停用"
+	if active {
+		action = "启用"
+	}
+	w.setStatus("正在"+action+" Swap…", false)
+	go func() {
+		err := w.backend.SetActive(entry, active)
+		w.app.Async(func() {
+			w.busy = false
+			if err != nil {
+				w.setStatus(action+"失败："+err.Error(), true)
+				return
+			}
+			w.refresh(action + "成功，正在刷新…")
+		})
+	}()
 }
 
 func (w *Window) openSizeMenu() {

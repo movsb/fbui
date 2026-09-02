@@ -24,6 +24,7 @@ const (
 
 var Sizes = []int64{256 << 20, 512 << 20, 1 << 30, 2 << 30, 4 << 30}
 var restoreErrors sync.Map
+var inactiveEntries sync.Map
 
 type Entry struct {
 	Path      string
@@ -185,6 +186,7 @@ func (b *Backend) List() ([]Entry, error) {
 	for index := range entries {
 		active[entries[index].Path] = index
 		restoreErrors.Delete(entries[index].Path)
+		inactiveEntries.Delete(entries[index].Path)
 		entries[index].Managed = slices.Contains(managed, entries[index].Path)
 		info, statErr := os.Stat(entries[index].Path)
 		entries[index].Regular = statErr == nil && info.Mode().IsRegular()
@@ -206,6 +208,13 @@ func (b *Backend) List() ([]Entry, error) {
 		}
 		entries = append(entries, entry)
 	}
+	inactiveEntries.Range(func(key, value any) bool {
+		path := key.(string)
+		if _, ok := active[path]; !ok && !slices.Contains(managed, path) {
+			entries = append(entries, value.(Entry))
+		}
+		return true
+	})
 	return entries, manifestErr
 }
 
@@ -337,11 +346,40 @@ func (b *Backend) Delete(entry Entry) error {
 		}
 		return fmt.Errorf("删除 Swap 文件：%w", err)
 	}
+	inactiveEntries.Delete(entry.Path)
 	managed, manifestErr := b.loadManifest()
 	if manifestErr == nil && slices.Contains(managed, entry.Path) {
 		if err := b.saveManifest(slices.DeleteFunc(managed, func(path string) bool { return path == entry.Path })); err != nil {
 			return fmt.Errorf("更新 Swap 清单：%w", err)
 		}
+	}
+	return nil
+}
+
+func (b *Backend) SetActive(entry Entry, active bool) error {
+	if entry.Active == active {
+		return nil
+	}
+	command := "swapon"
+	if !active {
+		command = "swapoff"
+	}
+	if err := b.CheckTools(command); err != nil {
+		return err
+	}
+	if err := b.Runner.Run(command, entry.Path); err != nil {
+		action := "启用"
+		if !active {
+			action = "停用"
+		}
+		return fmt.Errorf("%s Swap：%w", action, err)
+	}
+	if active {
+		inactiveEntries.Delete(entry.Path)
+	} else {
+		entry.Active = false
+		entry.UsedBytes = 0
+		inactiveEntries.Store(entry.Path, entry)
 	}
 	return nil
 }

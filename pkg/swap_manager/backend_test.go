@@ -174,6 +174,34 @@ func TestDeleteMissingManagedEntryOnlyUpdatesManifest(t *testing.T) {
 	}
 }
 
+func TestSetActiveKeepsUnmanagedEntryVisibleWhileDisabled(t *testing.T) {
+	runner := &fakeRunner{fail: map[string]error{}}
+	b := newTestBackend(t, "Filename Type Size Used Priority\n", runner)
+	path := filepath.Join(b.SDRoot, "external-swap")
+	if err := os.WriteFile(path, []byte("swap"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	entry := Entry{Path: path, Type: "file", SizeBytes: 4096, UsedBytes: 1024, Active: true, Regular: true}
+	if err := b.SetActive(entry, false); err != nil {
+		t.Fatal(err)
+	}
+	entries, err := b.List()
+	if err != nil || len(entries) != 1 || entries[0].Active || entries[0].Path != path {
+		t.Fatalf("entries=%#v err=%v", entries, err)
+	}
+	if err := b.SetActive(entries[0], true); err != nil {
+		t.Fatal(err)
+	}
+	entries, err = b.List()
+	if err != nil || len(entries) != 0 {
+		t.Fatalf("entries=%#v err=%v", entries, err)
+	}
+	wantCalls := []string{"swapoff " + path, "swapon " + path}
+	if !reflect.DeepEqual(runner.calls, wantCalls) {
+		t.Fatalf("calls=%v want %v", runner.calls, wantCalls)
+	}
+}
+
 func TestCorruptManifestDoesNotHideActiveSwap(t *testing.T) {
 	b := newTestBackend(t, "Filename Type Size Used Priority\n/dev/zram0 partition 1024 0 1\n", &fakeRunner{})
 	if err := os.MkdirAll(filepath.Dir(b.ManifestPath), 0755); err != nil {
