@@ -128,15 +128,20 @@ func FormatBytes(bytes int64) string {
 		return fmt.Sprintf("%d B", bytes)
 	}
 	if bytes < unit*unit {
-		return fmt.Sprintf("%.1f KiB", float64(bytes)/float64(unit))
+		return fmt.Sprintf("%.f KiB", float64(bytes)/float64(unit))
 	}
 	if bytes < unit*unit*unit {
-		return fmt.Sprintf("%.1f MiB", float64(bytes)/float64(unit*unit))
+		return fmt.Sprintf("%.f MiB", float64(bytes)/float64(unit*unit))
 	}
-	return fmt.Sprintf("%.1f GiB", float64(bytes)/float64(unit*unit*unit))
+	return fmt.Sprintf("%.f GiB", float64(bytes)/float64(unit*unit*unit))
 }
 
-func (b *Backend) loadManifest() ([]string, error) {
+type manifestEntry struct {
+	Path    string `json:"path"`
+	Enabled bool   `json:"enabled"`
+}
+
+func (b *Backend) loadManifest() ([]manifestEntry, error) {
 	data, err := os.ReadFile(b.ManifestPath)
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, nil
@@ -144,19 +149,27 @@ func (b *Backend) loadManifest() ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	var paths []string
-	if err := json.Unmarshal(data, &paths); err != nil {
+	var entries []manifestEntry
+	if err := json.Unmarshal(data, &entries); err == nil {
+		return entries, nil
+	}
+	var legacy []string
+	if err := json.Unmarshal(data, &legacy); err != nil {
 		return nil, fmt.Errorf("Swap 清单损坏：%w", err)
 	}
-	return paths, nil
+	entries = nil
+	for _, path := range legacy {
+		entries = append(entries, manifestEntry{Path: path, Enabled: true})
+	}
+	return entries, nil
 }
 
-func (b *Backend) saveManifest(paths []string) error {
+func (b *Backend) saveManifest(entries []manifestEntry) error {
 	dir := filepath.Dir(b.ManifestPath)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return err
 	}
-	data, err := json.MarshalIndent(paths, "", "  ")
+	data, err := json.MarshalIndent(entries, "", "  ")
 	if err != nil {
 		return err
 	}
@@ -187,11 +200,12 @@ func (b *Backend) List() ([]Entry, error) {
 		active[entries[index].Path] = index
 		restoreErrors.Delete(entries[index].Path)
 		inactiveEntries.Delete(entries[index].Path)
-		entries[index].Managed = slices.Contains(managed, entries[index].Path)
+		entries[index].Managed = slices.ContainsFunc(managed, func(item manifestEntry) bool { return item.Path == entries[index].Path })
 		info, statErr := os.Stat(entries[index].Path)
 		entries[index].Regular = statErr == nil && info.Mode().IsRegular()
 	}
-	for _, path := range managed {
+	for _, item := range managed {
+		path := item.Path
 		if _, ok := active[path]; ok {
 			continue
 		}
@@ -210,7 +224,11 @@ func (b *Backend) List() ([]Entry, error) {
 	}
 	inactiveEntries.Range(func(key, value any) bool {
 		path := key.(string)
-		if _, ok := active[path]; !ok && !slices.Contains(managed, path) {
+		if _, err := os.Stat(path); err != nil {
+			inactiveEntries.Delete(path)
+			return true
+		}
+		if _, ok := active[path]; !ok && !slices.ContainsFunc(managed, func(item manifestEntry) bool { return item.Path == path }) {
 			entries = append(entries, value.(Entry))
 		}
 		return true
@@ -311,8 +329,8 @@ func (b *Backend) Create(size int64, progress func(p float32)) (string, error) {
 	if manifestErr != nil {
 		managed = nil
 	}
-	if !slices.Contains(managed, path) {
-		managed = append(managed, path)
+	if !slices.ContainsFunc(managed, func(item manifestEntry) bool { return item.Path == path }) {
+		managed = append(managed, manifestEntry{Path: path, Enabled: true})
 	}
 	if err := b.saveManifest(managed); err != nil {
 		_ = b.Runner.Run("swapoff", path)
@@ -329,7 +347,7 @@ func (b *Backend) Delete(entry Entry) error {
 		if manifestErr != nil {
 			return manifestErr
 		}
-		return b.saveManifest(slices.DeleteFunc(managed, func(path string) bool { return path == entry.Path }))
+		return b.saveManifest(slices.DeleteFunc(managed, func(item manifestEntry) bool { return item.Path == entry.Path }))
 	}
 	if err != nil {
 		return fmt.Errorf("读取 Swap 文件：%w", err)
@@ -353,8 +371,8 @@ func (b *Backend) Delete(entry Entry) error {
 	}
 	inactiveEntries.Delete(entry.Path)
 	managed, manifestErr := b.loadManifest()
-	if manifestErr == nil && slices.Contains(managed, entry.Path) {
-		if err := b.saveManifest(slices.DeleteFunc(managed, func(path string) bool { return path == entry.Path })); err != nil {
+	if manifestErr == nil && slices.ContainsFunc(managed, func(item manifestEntry) bool { return item.Path == entry.Path }) {
+		if err := b.saveManifest(slices.DeleteFunc(managed, func(item manifestEntry) bool { return item.Path == entry.Path })); err != nil {
 			return fmt.Errorf("更新 Swap 清单：%w", err)
 		}
 	}
@@ -364,6 +382,16 @@ func (b *Backend) Delete(entry Entry) error {
 func (b *Backend) SetActive(entry Entry, active bool) error {
 	if entry.Active == active {
 		return nil
+	}
+	var managed []manifestEntry
+	managedIndex := -1
+	if entry.Managed {
+		var err error
+		managed, err = b.loadManifest()
+		if err != nil {
+			return err
+		}
+		managedIndex = slices.IndexFunc(managed, func(item manifestEntry) bool { return item.Path == entry.Path })
 	}
 	command := "swapon"
 	if !active {
@@ -378,6 +406,17 @@ func (b *Backend) SetActive(entry Entry, active bool) error {
 			action = "停用"
 		}
 		return fmt.Errorf("%s Swap：%w", action, err)
+	}
+	if managedIndex >= 0 {
+		managed[managedIndex].Enabled = active
+		if err := b.saveManifest(managed); err != nil {
+			rollback := "swapoff"
+			if !active {
+				rollback = "swapon"
+			}
+			_ = b.Runner.Run(rollback, entry.Path)
+			return fmt.Errorf("保存 Swap 状态：%w", err)
+		}
 	}
 	if active {
 		inactiveEntries.Delete(entry.Path)
@@ -409,21 +448,21 @@ func (b *Backend) Restore() []error {
 	}
 	kept := managed[:0]
 	var errs []error
-	for _, path := range managed {
-		info, statErr := os.Stat(path)
+	for _, item := range managed {
+		info, statErr := os.Stat(item.Path)
 		if statErr != nil || !info.Mode().IsRegular() {
 			continue
 		}
-		kept = append(kept, path)
-		if active[path] {
+		kept = append(kept, item)
+		if !item.Enabled || active[item.Path] {
 			continue
 		}
-		if err := b.Runner.Run("swapon", path); err != nil {
-			restoreErr := fmt.Errorf("恢复 %s：%w", path, err)
-			restoreErrors.Store(path, "恢复失败："+err.Error())
+		if err := b.Runner.Run("swapon", item.Path); err != nil {
+			restoreErr := fmt.Errorf("恢复 %s：%w", item.Path, err)
+			restoreErrors.Store(item.Path, "恢复失败："+err.Error())
 			errs = append(errs, restoreErr)
 		} else {
-			restoreErrors.Delete(path)
+			restoreErrors.Delete(item.Path)
 		}
 	}
 	if len(kept) != len(managed) {

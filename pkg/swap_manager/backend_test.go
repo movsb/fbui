@@ -40,7 +40,13 @@ func TestParseAndFormat(t *testing.T) {
 	for _, test := range []struct {
 		bytes int64
 		want  string
-	}{{512, "512 B"}, {1536, "1.5 KiB"}, {3 << 20, "3.0 MiB"}, {2 << 30, "2.0 GiB"}} {
+	}{
+		{512, "512 B"},
+		{1536, "1.5 KiB"},
+		{3 << 20, "3.0 MiB"},
+		{2 << 30, "2.0 GiB"},
+		{1073741824, `1.0 GiB`},
+	} {
 		if got := FormatBytes(test.bytes); got != test.want {
 			t.Errorf("FormatBytes(%d)=%q want %q", test.bytes, got, test.want)
 		}
@@ -75,7 +81,7 @@ func TestListMergesActiveAndManaged(t *testing.T) {
 	if err := os.WriteFile(managed, make([]byte, 4096), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if err := b.saveManifest([]string{managed}); err != nil {
+	if err := b.saveManifest([]manifestEntry{{Path: managed, Enabled: true}}); err != nil {
 		t.Fatal(err)
 	}
 	entries, err := b.List()
@@ -102,7 +108,7 @@ func TestCreateAndDelete(t *testing.T) {
 		t.Fatalf("created file: info=%v err=%v", info, err)
 	}
 	managed, err := b.loadManifest()
-	if err != nil || !reflect.DeepEqual(managed, []string{path}) {
+	if err != nil || !reflect.DeepEqual(managed, []manifestEntry{{Path: path, Enabled: true}}) {
 		t.Fatalf("manifest=%v err=%v", managed, err)
 	}
 	if len(runner.calls) < 2 || !strings.HasPrefix(runner.calls[0], "mkswap ") || runner.calls[1] != "swapon "+path {
@@ -142,7 +148,7 @@ func TestRestoreDropsMissingAndReportsFailure(t *testing.T) {
 	if err := os.WriteFile(existing, []byte("swap"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if err := b.saveManifest([]string{existing, missing}); err != nil {
+	if err := b.saveManifest([]manifestEntry{{Path: existing, Enabled: true}, {Path: missing, Enabled: true}}); err != nil {
 		t.Fatal(err)
 	}
 	errs := b.Restore()
@@ -150,7 +156,7 @@ func TestRestoreDropsMissingAndReportsFailure(t *testing.T) {
 		t.Fatalf("errors=%v", errs)
 	}
 	managed, err := b.loadManifest()
-	if err != nil || !reflect.DeepEqual(managed, []string{existing}) {
+	if err != nil || !reflect.DeepEqual(managed, []manifestEntry{{Path: existing, Enabled: true}}) {
 		t.Fatalf("manifest=%v err=%v", managed, err)
 	}
 	entries, err := b.List()
@@ -162,7 +168,7 @@ func TestRestoreDropsMissingAndReportsFailure(t *testing.T) {
 func TestDeleteMissingManagedEntryOnlyUpdatesManifest(t *testing.T) {
 	b := newTestBackend(t, "Filename Type Size Used Priority\n", &fakeRunner{})
 	missing := filepath.Join(b.SDRoot, "gone")
-	if err := b.saveManifest([]string{missing}); err != nil {
+	if err := b.saveManifest([]manifestEntry{{Path: missing, Enabled: true}}); err != nil {
 		t.Fatal(err)
 	}
 	if err := b.Delete(Entry{Path: missing, Managed: true}); err != nil {
@@ -199,6 +205,43 @@ func TestSetActiveKeepsUnmanagedEntryVisibleWhileDisabled(t *testing.T) {
 	wantCalls := []string{"swapoff " + path, "swapon " + path}
 	if !reflect.DeepEqual(runner.calls, wantCalls) {
 		t.Fatalf("calls=%v want %v", runner.calls, wantCalls)
+	}
+}
+
+func TestDisabledManagedEntryStaysDisabledOnRestore(t *testing.T) {
+	runner := &fakeRunner{fail: map[string]error{}}
+	b := newTestBackend(t, "Filename Type Size Used Priority\n", runner)
+	path := filepath.Join(b.SDRoot, "swapfile")
+	if err := os.WriteFile(path, []byte("swap"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.saveManifest([]manifestEntry{{Path: path, Enabled: true}}); err != nil {
+		t.Fatal(err)
+	}
+	entry := Entry{Path: path, Type: "file", Active: true, Managed: true, Regular: true}
+	if err := b.SetActive(entry, false); err != nil {
+		t.Fatal(err)
+	}
+	managed, err := b.loadManifest()
+	if err != nil || len(managed) != 1 || managed[0].Enabled {
+		t.Fatalf("manifest=%#v err=%v", managed, err)
+	}
+	if errs := b.Restore(); len(errs) != 0 {
+		t.Fatalf("restore errors=%v", errs)
+	}
+	if !reflect.DeepEqual(runner.calls, []string{"swapoff " + path}) {
+		t.Fatalf("calls=%v", runner.calls)
+	}
+}
+
+func TestLegacyManifestDefaultsToEnabled(t *testing.T) {
+	b := newTestBackend(t, "Filename Type Size Used Priority\n", &fakeRunner{})
+	if err := os.WriteFile(b.ManifestPath, []byte(`["/old/swapfile"]`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	managed, err := b.loadManifest()
+	if err != nil || !reflect.DeepEqual(managed, []manifestEntry{{Path: "/old/swapfile", Enabled: true}}) {
+		t.Fatalf("manifest=%#v err=%v", managed, err)
 	}
 }
 
