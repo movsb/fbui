@@ -177,7 +177,11 @@ func (w *Window) create(size int64) {
 	w.busy = true
 	w.setStatus("正在创建并启用 Swap，请稍候…", false)
 	go func() {
-		path, err := w.backend.Create(size)
+		path, err := w.backend.Create(size, func(p float32) {
+			w.app.Async(func() {
+				w.setStatus(fmt.Sprintf("正在创建并启用 Swap，请稍候…%d%%", int(p)), false)
+			})
+		})
 		w.app.Async(func() {
 			w.busy = false
 			if err != nil {

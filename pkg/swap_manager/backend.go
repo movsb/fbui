@@ -22,7 +22,7 @@ const (
 	manifestName = "swap.json"
 )
 
-var Sizes = []int64{256 << 20, 512 << 20, 1 << 30, 2 << 30, 4 << 30}
+var Sizes = []int64{512 << 20, 1 << 30, 2 << 30}
 var restoreErrors sync.Map
 var inactiveEntries sync.Map
 
@@ -248,13 +248,17 @@ func availableBytes(path string) (int64, error) {
 	return int64(stat.Bavail) * int64(stat.Bsize), nil
 }
 
-func writeZeros(path string, size int64) error {
+func writeZeros(path string, size int64, progress func(p float32)) error {
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
 	if err != nil {
 		return err
 	}
+	if progress == nil {
+		progress = func(p float32) {}
+	}
 	buffer := make([]byte, 4<<20)
 	remaining := size
+	progress(0)
 	for remaining > 0 {
 		chunk := min(int64(len(buffer)), remaining)
 		if _, err := file.Write(buffer[:chunk]); err != nil {
@@ -262,6 +266,7 @@ func writeZeros(path string, size int64) error {
 			return err
 		}
 		remaining -= chunk
+		progress(float32(size-remaining) / float32(size) * 100)
 	}
 	if err := file.Sync(); err != nil {
 		_ = file.Close()
@@ -270,7 +275,7 @@ func writeZeros(path string, size int64) error {
 	return file.Close()
 }
 
-func (b *Backend) Create(size int64) (string, error) {
+func (b *Backend) Create(size int64, progress func(p float32)) (string, error) {
 	if !slices.Contains(Sizes, size) {
 		return "", fmt.Errorf("不支持的 Swap 大小：%d", size)
 	}
@@ -286,7 +291,7 @@ func (b *Backend) Create(size int64) (string, error) {
 	}
 	path := b.nextPath()
 	tmp := path + ".tmp"
-	if err := writeZeros(tmp, size); err != nil {
+	if err := writeZeros(tmp, size, progress); err != nil {
 		_ = os.Remove(tmp)
 		return "", fmt.Errorf("分配 Swap 文件：%w", err)
 	}

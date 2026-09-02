@@ -93,7 +93,7 @@ func TestCreateAndDelete(t *testing.T) {
 	oldSizes := Sizes
 	Sizes = []int64{1 << 20}
 	t.Cleanup(func() { Sizes = oldSizes })
-	path, err := b.Create(1 << 20)
+	path, err := b.Create(1<<20, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,7 +126,7 @@ func TestCreateFailureCleansTemporaryFile(t *testing.T) {
 	oldSizes := Sizes
 	Sizes = []int64{4096}
 	t.Cleanup(func() { Sizes = oldSizes })
-	if _, err := b.Create(4096); err == nil {
+	if _, err := b.Create(4096, nil); err == nil {
 		t.Fatal("expected error")
 	}
 	if matches, _ := filepath.Glob(filepath.Join(b.SDRoot, "swapfile*")); len(matches) != 0 {
