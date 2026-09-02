@@ -4,6 +4,7 @@ import (
 	"os/exec"
 
 	"github.com/movsb/fbiw"
+	"github.com/movsb/fbui/pkg/battery_info"
 	"github.com/movsb/fbui/pkg/config"
 	"github.com/movsb/fbui/pkg/file_manager"
 	"github.com/movsb/fbui/pkg/ssh"
@@ -25,6 +26,10 @@ func NewToolsNavigator(win *MainWindow) *ToolsNavigator {
 	toolsNav := &ToolsNavigator{
 		window: win,
 		tools: []_ToolItemData{
+			{
+				name:  `电池信息`,
+				click: func() { battery_info.New(win.app, nil) },
+			},
 			{
 				name:  `虚拟内存/交换空间(Swap)管理`,
 				click: func() { swap_manager.New(win.app, swap_manager.NewBackend(config.SDCARDRoot)) },
