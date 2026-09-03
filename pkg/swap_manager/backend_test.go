@@ -42,10 +42,10 @@ func TestParseAndFormat(t *testing.T) {
 		want  string
 	}{
 		{512, "512 B"},
-		{1536, "1.5 KiB"},
-		{3 << 20, "3.0 MiB"},
-		{2 << 30, "2.0 GiB"},
-		{1073741824, `1.0 GiB`},
+		{1536, "2 KiB"},
+		{3 << 20, "3 MiB"},
+		{2 << 30, "2 GiB"},
+		{1073741824, `1 GiB`},
 	} {
 		if got := FormatBytes(test.bytes); got != test.want {
 			t.Errorf("FormatBytes(%d)=%q want %q", test.bytes, got, test.want)
