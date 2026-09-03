@@ -33,13 +33,7 @@ func (w *MainWindow) asyncInitApps() {
 		container.SetData(`apps`, apps)
 		container.SetItems(len(apps),
 			func() (fbiw.Box, *_AppItem) {
-				item := fbiw.Unmarshal[_AppItem](w.doc, `
-<block align=center padding=30>
-	<img spacer fill=contain>
-	<spacer height=10></spacer>
-	<text></text>
-</block>
-`)
+				item := w.doc.Instantiate[_AppItem](`app-item`)
 				return item.root, item
 			},
 			func(item *_AppItem, index int) {
@@ -65,13 +59,7 @@ func (w *MainWindow) asyncInitPorts() {
 		scroll.SetData(`ports`, apps)
 		scroll.SetItems(len(apps),
 			func() (fbiw.Box, any) {
-				item := fbiw.Unmarshal[_AppItem](w.doc, `
-<block align=center padding=30>
-	<img spacer fill=contain>
-	<spacer height=10></spacer>
-	<text></text>
-</block>
-`)
+				item := w.doc.Instantiate[_AppItem](`app-item`)
 				return item.root, item
 			},
 			func(item any, index int) {

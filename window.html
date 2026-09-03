@@ -38,6 +38,41 @@ document {
 }
 </style>
 <title>小桃的吹米</title>
+<template id="app-item">
+	<block align="center" padding="30">
+		<img spacer fill="contain">
+		<spacer height="10"></spacer>
+		<text></text>
+	</block>
+</template>
+<template id="emu-item">
+	<block align="center" padding="20">
+		<img spacer fill="contain">
+		<spacer height="10"></spacer>
+		<text></text>
+	</block>
+</template>
+<template id="rom-item">
+	<block padding="0 10">
+		<inline spacer align="middle">
+			<inline class="icon">
+				<text class="nerd">&#xf07b;</text>
+				<spacer width="10"></spacer>
+			</inline>
+			<text class="name"></text>
+		</inline>
+	</block>
+</template>
+<template id="tool-item">
+	<block padding="10">
+		<inline spacer align="middle"><text></text></inline>
+	</block>
+</template>
+<template id="store-item">
+	<block padding="0 10">
+		<inline spacer align="middle"><text class="name"></text></inline>
+	</block>
+</template>
 <stack fill>
 	<stack>
 		<inline id="cat-bar" padding="10">

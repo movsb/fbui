@@ -115,15 +115,7 @@ func (w *Window) render(supplies []power_supply.Supply) {
 	w.rows = buildRows(supplies)
 	w.summary.SetText(buildSummary(supplies))
 	w.scroll.SetItems(len(w.rows), func() (fbiw.Box, *rowView) {
-		view := fbiw.Unmarshal[rowView](w.doc, `
-<block padding="0 10" align=middle border-width=3>
-	<inline font-size=small>
-		<text class="label"></text>
-		<spacer></spacer>
-		<text class="value mono"></text>
-	</inline>
-</block>
-`)
+		view := w.doc.Instantiate[rowView](`battery-row`)
 		return view.root, view
 	}, func(view *rowView, index int) {
 		item := w.rows[index]

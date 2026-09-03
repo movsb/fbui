@@ -68,11 +68,7 @@ func (w *Window) refresh(message string) {
 
 func (w *Window) render() {
 	w.scroll.SetItems(len(w.entries), func() (fbiw.Box, *entryView) {
-		view := fbiw.Unmarshal[entryView](w.doc, `
-<block padding="0 10" align=middle>
-	<inline align="both"><text class="path" font-size="small"></text><spacer></spacer><text class="state" font-size="x-small"></text></inline>
-	<inline class="mono muted" font-size="x-small"><text class="detail"></text></inline>
-</block>`)
+		view := w.doc.Instantiate[entryView](`swap-entry`)
 		return view.root, view
 	}, func(view *entryView, index int) {
 		entry := w.entries[index]

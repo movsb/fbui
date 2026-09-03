@@ -109,7 +109,7 @@ func (n *StoreNavigator) render(state any) {
 	n.list.SetItems(
 		len(page.items),
 		func() (fbiw.Box, *storeItemView) {
-			view := fbiw.Unmarshal[storeItemView](n.window.doc, `<block padding="0 10"><inline spacer align=middle><text class="name"></text></inline></block>`)
+			view := n.window.doc.Instantiate[storeItemView](`store-item`)
 			return view.root, view
 		},
 		func(view *storeItemView, index int) {

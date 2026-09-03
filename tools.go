@@ -67,12 +67,7 @@ func NewToolsNavigator(win *MainWindow) *ToolsNavigator {
 	toolsNav.scroll.SetItems(
 		len(toolsNav.tools),
 		func() (fbiw.Box, *_ToolItemView) {
-			box := fbiw.Unmarshal[_ToolItemView](win.doc, `
-<block padding=10>
-	<inline spacer align=middle>
-		<text></text>
-	</inline>
-</block>`)
+			box := win.doc.Instantiate[_ToolItemView](`tool-item`)
 			return box.root, box
 		},
 		func(box *_ToolItemView, index int) {

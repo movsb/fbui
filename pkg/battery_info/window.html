@@ -8,6 +8,15 @@ document { color: white; }
 .section { background-color: #33243b; color: #ff9bd2; bold: true; }
 scroll .selected { outline-width: 3; outline-color: deeppink; background-color: #882b5d; }
 </style>
+<template id="battery-row">
+	<block padding="0 10" align="middle" border-width="3">
+		<inline font-size="small">
+			<text class="label"></text>
+			<spacer></spacer>
+			<text class="value mono"></text>
+		</inline>
+	</block>
+</template>
 <block>
 	<safe-area>
 		<block fill padding="16 24" background-color="#000000E8">

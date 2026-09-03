@@ -54,11 +54,7 @@ func _NewMenuPopup(app *fbiw.App, opener *fbiw.Document, items []MenuItem, heade
 
 	win.scroll.SetItems(len(items),
 		func() (fbiw.Box, *_ItemView) {
-			item := fbiw.Unmarshal[_ItemView](win.doc, `
-<block padding="0 10" align=middle>
-	<text></text>
-</block>
-`)
+			item := win.doc.Instantiate[_ItemView](`menu-item`)
 			return item.root, item
 		},
 		func(item *_ItemView, index int) {

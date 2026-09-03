@@ -30,13 +30,7 @@ func (w *MainWindow) asyncInitEmus() {
 		scroll.SetData(`emus`, emus)
 		scroll.SetItems(len(emus),
 			func() (fbiw.Box, *_EmuItem) {
-				item := fbiw.Unmarshal[_EmuItem](w.doc, `
-<block align=center padding=20>
-	<img spacer fill=contain>
-	<spacer height=10></spacer>
-	<text></text>
-</block>
-`)
+				item := w.doc.Instantiate[_EmuItem](`emu-item`)
 				return item.root, item
 			},
 			func(item *_EmuItem, index int) {
@@ -270,17 +264,7 @@ func (n *GamesNavigator) setRomsList(roms []RomInfo, state any) {
 
 	n.roms.SetItems(len(roms),
 		func() (fbiw.Box, *_RomBox) {
-			item := fbiw.Unmarshal[_RomBox](n.window.doc, `
-<block padding="0 10">
-	<inline spacer align=middle>
-		<inline class="icon">
-			<text class="nerd">&#xf07b;</text>
-			<spacer width=10></spacer>
-		</inline>
-		<text class="name"></text>
-	</inline>
-</block>
-`)
+			item := n.window.doc.Instantiate[_RomBox](`rom-item`)
 			return item.root, item
 		},
 		func(item *_RomBox, index int) {
