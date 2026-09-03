@@ -98,7 +98,7 @@ func (win *_DownloadWindow) handleDownload(w http.ResponseWriter, r *http.Reques
 }
 
 func (win *_DownloadWindow) setStatus(message string, isError bool) {
-	win.app.Async(func() {
+	win.doc.Async(func() {
 		win.status.SetText(message)
 		win.status.ClassToggle(`warning`, isError)
 	})

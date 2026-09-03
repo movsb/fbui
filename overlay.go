@@ -91,7 +91,7 @@ func (win *OverlayWindow) initSystemTime() {
 			case <-win.app.Context().Done():
 				return
 			default:
-				win.app.Async(func() {
+				win.doc.Async(func() {
 					now := time.Now().Format(`15:04`)
 					if now == last {
 						return
@@ -135,7 +135,7 @@ func (win *OverlayWindow) watchOsdEvents() {
 			data, _ := os.ReadFile(path)
 			open := !strings.HasPrefix(strings.TrimSpace(string(data)), `0/`)
 			if open != statusVolumeOpen || force {
-				win.app.Async(func() {
+				win.doc.Async(func() {
 					log.Println(`音量状态:`, open)
 					win.txtVolumeOpen.SetText(fbiw.Iif(open, string(rune(0xefcf)), ``))
 				})
@@ -145,7 +145,7 @@ func (win *OverlayWindow) watchOsdEvents() {
 			data, _ := os.ReadFile(path)
 			open := strings.TrimSpace(string(data)) != `0`
 			if open != statusBluetoothOpen || force {
-				win.app.Async(func() {
+				win.doc.Async(func() {
 					log.Println(`蓝牙状态:`, open)
 					win.txtBluetoothOpen.SetText(fbiw.Iif(open, string(rune(0xf00af)), ``))
 				})
@@ -156,7 +156,7 @@ func (win *OverlayWindow) watchOsdEvents() {
 			data, _ := os.ReadFile(path)
 			open := strings.TrimSpace(string(data)) != `0`
 			if open != statusWifiOpen || force {
-				win.app.Async(func() {
+				win.doc.Async(func() {
 					log.Println(`网络状态:`, open)
 					win.txtWifiOpen.SetText(fbiw.Iif(open, string(rune(0xf1eb)), ``))
 				})

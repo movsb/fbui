@@ -213,7 +213,7 @@ func (n *StoreNavigator) async(title string, load func(context.Context) (storePa
 	})
 	go func() {
 		page, err := load(context.Background())
-		n.window.app.Async(func() {
+		n.window.doc.Async(func() {
 			n.busy = false
 			if err != nil {
 				n.render(n.stack[len(n.stack)-1].state)
@@ -346,7 +346,7 @@ func (n *StoreNavigator) openAsset(game *proto.Game, asset *proto.Asset) {
 				}
 				lastMessage = message
 				lastTime = time.Now()
-				n.window.app.Async(func() {
+				n.window.doc.Async(func() {
 					if n.busy {
 						n.showMessage(fmt.Sprintf("%.0f%%\n%s", progress, message))
 					}
@@ -354,7 +354,7 @@ func (n *StoreNavigator) openAsset(game *proto.Game, asset *proto.Asset) {
 			},
 		)
 		time.Sleep(time.Millisecond * 100)
-		n.window.app.Async(func() {
+		n.window.doc.Async(func() {
 			n.busy = false
 			n.render(n.stack[len(n.stack)-1].state)
 			n.list.Activate()

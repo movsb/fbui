@@ -205,7 +205,7 @@ func (w *SearchWindow) handleResultEvents(event *fbiw.Event) {
 
 func (w *SearchWindow) asyncSearch(ctx context.Context, search string) {
 	for w.allSearchableItems.Load() == nil {
-		w.app.Async(func() {
+		w.doc.Async(func() {
 			w.resultStatus.SetText(`游戏列表尚未初始化完成，等待中...`)
 		})
 		select {
@@ -216,7 +216,7 @@ func (w *SearchWindow) asyncSearch(ctx context.Context, search string) {
 		}
 	}
 
-	w.app.Async(func() {
+	w.doc.Async(func() {
 		w.resultStatus.SetText(`搜索中...`)
 	})
 
@@ -252,7 +252,7 @@ func (w *SearchWindow) asyncSearch(ctx context.Context, search string) {
 		return len(a.displayName) - len(b.displayName)
 	})
 
-	w.app.Async(func() {
+	w.doc.Async(func() {
 		select {
 		case <-ctx.Done():
 			return

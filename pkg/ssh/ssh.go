@@ -57,7 +57,7 @@ func (t *SSHWindow) handleEvents(event *fbiw.Event) {
 			t.ctx, t.cancel = context.WithCancel(context.Background())
 			t.status.SetText(`启动中...`)
 			Serve(t.ctx, func(addr string, err error) {
-				t.app.Async(func() {
+				t.doc.Async(func() {
 					if err == nil {
 						t.status.ClassRemove(`warning`)
 						host, port, _ := net.SplitHostPort(addr)

@@ -86,10 +86,10 @@ func (w *Window) refresh() {
 	}
 	w.busy = true
 	w.mu.Unlock()
-	w.app.Async(func() { w.setStatus("正在读取电源信息…", false) })
+	w.doc.Async(func() { w.setStatus("正在读取电源信息…", false) })
 	go func() {
 		supplies, err := w.reader.List()
-		w.app.Async(func() {
+		w.doc.Async(func() {
 			if w.ctx.Err() != nil {
 				return
 			}

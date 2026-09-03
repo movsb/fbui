@@ -62,7 +62,7 @@ func (t *WebDavWindow) handleEvents(event *fbiw.Event) {
 			t.ctx, t.cancel = context.WithCancel(context.Background())
 			t.status.SetText(`启动中...`)
 			_NewWebDAVServer(t.ctx, `/mnt/SDCARD/`, func(ip string, err error) {
-				t.app.Async(func() {
+				t.doc.Async(func() {
 					if err == nil {
 						t.status.ClassRemove(`warning`)
 						t.status.SetTextFormat(`已打开。服务器地址: %s。请在支持的软件中填入此地址，空用户名、空密码。`, ip)

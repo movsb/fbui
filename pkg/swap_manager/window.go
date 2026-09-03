@@ -53,7 +53,7 @@ func (w *Window) refresh(message string) {
 	w.setStatus(message, false)
 	go func() {
 		entries, err := w.backend.List()
-		w.app.Async(func() {
+		w.doc.Async(func() {
 			w.busy = false
 			w.entries = entries
 			w.render()
@@ -142,7 +142,7 @@ func (w *Window) setActive(entry Entry, active bool) {
 	w.setStatus("正在"+action+" Swap…", false)
 	go func() {
 		err := w.backend.SetActive(entry, active)
-		w.app.Async(func() {
+		w.doc.Async(func() {
 			w.busy = false
 			if err != nil {
 				w.setStatus(action+"失败："+err.Error(), true)
@@ -174,11 +174,11 @@ func (w *Window) create(size int64) {
 	w.setStatus("正在创建并启用 Swap，请稍候…", false)
 	go func() {
 		path, err := w.backend.Create(size, func(p float32) {
-			w.app.Async(func() {
+			w.doc.Async(func() {
 				w.setStatus(fmt.Sprintf("正在创建并启用 Swap，请稍候…%d%%", int(p)), false)
 			})
 		})
-		w.app.Async(func() {
+		w.doc.Async(func() {
 			w.busy = false
 			if err != nil {
 				w.setStatus("创建失败："+err.Error(), true)
@@ -210,7 +210,7 @@ func (w *Window) delete(entry Entry) {
 	w.setStatus("正在停用并删除 Swap…", false)
 	go func() {
 		err := w.backend.Delete(entry)
-		w.app.Async(func() {
+		w.doc.Async(func() {
 			w.busy = false
 			if err != nil {
 				w.setStatus("删除失败："+err.Error(), true)

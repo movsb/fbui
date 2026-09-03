@@ -145,7 +145,7 @@ func (win *_UploadWindow) receiveFile(input io.Reader, fileName string) (err err
 }
 
 func (win *_UploadWindow) setStatus(message string, isError bool) {
-	win.app.Async(func() {
+	win.doc.Async(func() {
 		win.status.SetText(message)
 		win.status.ClassToggle(`warning`, isError)
 	})

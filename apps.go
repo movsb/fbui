@@ -28,7 +28,7 @@ func (w *MainWindow) asyncInitApps() {
 	}
 
 	apps := loadApps()
-	w.app.Async(func() {
+	w.doc.Async(func() {
 		container := w.doc.GetBoxByID[*fbiw.Scroll](`apps`)
 		container.SetData(`apps`, apps)
 		container.SetItems(len(apps),
@@ -54,7 +54,7 @@ func (w *MainWindow) asyncInitPorts() {
 
 	apps := config.LoadDir(filepath.Join(config.SDCARDRoot, `Ports`))
 
-	w.app.Async(func() {
+	w.doc.Async(func() {
 		scroll := w.doc.GetBoxByID[*fbiw.Scroll](`ports`)
 		scroll.SetData(`ports`, apps)
 		scroll.SetItems(len(apps),

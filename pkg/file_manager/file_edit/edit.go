@@ -99,7 +99,7 @@ func (win *_EditWindow) handleSave(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 	win.setStatus(`保存成功`, false)
 	time.AfterFunc(time.Second, func() {
-		win.app.Async(win.close)
+		win.doc.Async(win.close)
 	})
 }
 
@@ -169,7 +169,7 @@ func (win *_EditWindow) openFile() (*os.File, os.FileInfo, error) {
 }
 
 func (win *_EditWindow) setStatus(message string, isError bool) {
-	win.app.Async(func() {
+	win.doc.Async(func() {
 		win.status.SetText(message)
 		win.status.ClassToggle(`warning`, isError)
 	})

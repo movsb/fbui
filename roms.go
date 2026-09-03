@@ -25,7 +25,7 @@ func (w *MainWindow) asyncInitEmus() {
 
 	emus := config.LoadDir(filepath.Join(config.SDCARDRoot, `Emus`))
 
-	w.app.Async(func() {
+	w.doc.Async(func() {
 		scroll := w.doc.GetBoxByID[*fbiw.Scroll](`emus`)
 		scroll.SetData(`emus`, emus)
 		scroll.SetItems(len(emus),
