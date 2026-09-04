@@ -7,7 +7,7 @@ require (
 	github.com/fswatcher/fswatcher v0.1.0
 	github.com/gliderlabs/ssh v0.3.8
 	github.com/mdlayher/kobject v0.0.0-20200520190114-19ca17470d7d
-	github.com/movsb/fbiw v0.0.0-20260903065346-42d325a54e4d
+	github.com/movsb/fbiw v0.0.0-20260904112006-1d21d6477601
 	github.com/movsb/gm v0.0.0-dev
 	github.com/pkg/sftp v1.13.11
 	github.com/rcarmo/go-te v0.1.0

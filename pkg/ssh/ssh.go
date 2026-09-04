@@ -16,8 +16,8 @@ type SSHWindow struct {
 	app *fbiw.App
 
 	doc    *fbiw.Document
-	btn    *fbiw.Text `css:".button"`
-	status *fbiw.Text `css:".status-string"`
+	toggle *fbiw.Toggle `css:"#toggle"`
+	status *fbiw.Text   `css:".status-string"`
 
 	open   int // 0关闭，1打开中，2已打开
 	ctx    context.Context
@@ -62,7 +62,7 @@ func (t *SSHWindow) handleEvents(event *fbiw.Event) {
 						t.status.ClassRemove(`warning`)
 						host, port, _ := net.SplitHostPort(addr)
 						t.status.SetTextFormat("已打开。\n\n地址: %s\n端口: %s\n用户: root\n密码: (无)\n\n你可以按“Select”键切换到其它桌面以保持服务器在后台运行。", host, port)
-						t.btn.SetText(string(rune(0xf205)))
+						t.toggle.SetChecked(true)
 						t.open = 2
 					} else {
 						t.status.ClassAdd(`warning`)
@@ -83,6 +83,6 @@ func (t *SSHWindow) close(reason string) {
 		t.cancel = nil
 	}
 	t.open = 0
-	t.btn.SetText(string(rune(0xf204)))
+	t.toggle.SetChecked(false)
 	t.status.SetText(reason)
 }

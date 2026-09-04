@@ -14,8 +14,8 @@ type WebDavWindow struct {
 	app *fbiw.App
 
 	doc    *fbiw.Document
-	btn    *fbiw.Text `css:".button"`
-	status *fbiw.Text `css:".status-string"`
+	toggle *fbiw.Toggle `css:"#toggle"`
+	status *fbiw.Text   `css:".status-string"`
 
 	open   int // 0关闭，1打开中，2已打开
 	ctx    context.Context
@@ -48,7 +48,7 @@ func (t *WebDavWindow) handleEvents(event *fbiw.Event) {
 			t.ctx = nil
 			t.cancel = nil
 			t.open = 0
-			t.btn.SetText(string(rune(0xf204)))
+			t.toggle.SetChecked(false)
 			t.status.SetText(`已关闭`)
 			return
 		}
@@ -66,7 +66,7 @@ func (t *WebDavWindow) handleEvents(event *fbiw.Event) {
 					if err == nil {
 						t.status.ClassRemove(`warning`)
 						t.status.SetTextFormat(`已打开。服务器地址: %s。请在支持的软件中填入此地址，空用户名、空密码。`, ip)
-						t.btn.SetText(string(rune(0xf205)))
+						t.toggle.SetChecked(true)
 						t.open = 2
 					} else {
 						t.status.ClassAdd(`warning`)
@@ -80,7 +80,7 @@ func (t *WebDavWindow) handleEvents(event *fbiw.Event) {
 			t.ctx = nil
 			t.cancel = nil
 			t.open = 0
-			t.btn.SetText(string(rune(0xf204)))
+			t.toggle.SetChecked(false)
 			t.status.SetText(`已关闭`)
 		}
 	}
