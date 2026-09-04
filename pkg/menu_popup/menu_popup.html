@@ -6,8 +6,8 @@ document {
 scroll {
 	.selected {
 		outline-width: 3;
-		outline-color: deeppink;
-		background-color: #882b5d;
+		outline-color: var(--color-focus);
+		background-color: var(--color-selection-background);
 	}
 }
 </style>
@@ -15,7 +15,7 @@ scroll {
 	<block padding="0 10" align="middle"><text></text></block>
 </template>
 <inline align="both">
-	<block id="content" background-color="#000000E8" border-width="3" border-color="deeppink">
+	<block id="content" background-color="#000000E8" border-width="3" border-color="var(--color-border)">
 		<block id="header"></block>
 		<scroll max-rows="10" row-height="50" padding="10"></scroll>
 		<block id="footer"></block>

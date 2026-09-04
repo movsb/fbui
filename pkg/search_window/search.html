@@ -21,15 +21,15 @@ document {
 
 		&.selected {
 			outline-width: 1;
-			outline-color: white;
+			outline-color: var(--color-focus);
 		}
 	}
 }
 #result {
 	.selected {
 		outline-width: 3;
-		outline-color: deeppink;
-		background-color: #882b5d;
+		outline-color: var(--color-focus);
+		background-color: var(--color-selection-background);
 	}
 }
 </style>
@@ -39,12 +39,12 @@ document {
 		<inline><text class="path" font-size="x-small"></text></inline>
 	</block>
 </template>
-<block background-color="#000000E8" width="640" height="480" border-width="3" border-color="deeppink" padding="20">
+<block background-color="#000000E8" width="640" height="480" border-width="3" border-color="var(--color-border)" padding="20">
 	<stack fill>
 		<block id="search">
 			<spacer></spacer>
 			<block align="both">
-				<inline border-width="3" border-color="deeppink" padding="10" width="350">
+				<inline border-width="3" border-color="var(--color-border)" padding="10" width="350">
 					<text id="query"></text>
 				</inline>
 			</block>

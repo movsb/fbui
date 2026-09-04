@@ -25,8 +25,11 @@ func main() {
 
 	fonts.Init(app)
 
+	app.SetThemeAccent(`yellow`)
+
 	NewOverlayWindow(app)
 	NewMainWindow(app)
+
 	go func() {
 		for _, err := range swap_manager.NewBackend(config.SDCARDRoot).Restore() {
 			log.Printf("恢复 Swap 失败：%v", err)
