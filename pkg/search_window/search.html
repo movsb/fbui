@@ -1,8 +1,5 @@
 <document>
 <style>
-document {
-	color: white;
-}
 #keyboard {
 	font-size: 25;
 
@@ -11,11 +8,11 @@ document {
 	}
 	button {
 		padding: 0;
-		color: white;
+		color: var(--color-text);
 		align: both;
 		width: 55;
 		height: 55;
-		background-color: deeppink;
+		background-color: var(--color-primary);
 		border-width: 2;
 		border-color: none;
 
@@ -39,7 +36,7 @@ document {
 		<inline><text class="path" font-size="x-small"></text></inline>
 	</block>
 </template>
-<block background-color="#000000E8" width="640" height="480" border-width="3" border-color="var(--color-border)" padding="20">
+<block width="640" height="480" border-width="3" border-color="var(--color-border)" padding="20">
 	<stack fill>
 		<block id="search">
 			<spacer></spacer>

@@ -1,12 +1,29 @@
 <document>
 <title>电池信息</title>
 <style>
-document { color: white; }
-.mono { font-family: monospace; }
-.muted { color: #aaaaaa; }
-.warning { color: #ff6b6b; }
-.section { background-color: #33243b; color: #ff9bd2; bold: true; }
-scroll .selected { outline-width: 3; outline-color: var(--color-focus); background-color: var(--color-selection-background); }
+.mono {
+	font-family: monospace;
+}
+
+.muted {
+	color: #aaaaaa;
+}
+
+.warning {
+	color: #ff6b6b;
+}
+
+.section {
+	background-color: #33243b;
+	color: #ff9bd2;
+	bold: true;
+}
+
+scroll .selected {
+	outline-width: 3;
+	outline-color: var(--color-focus);
+	background-color: var(--color-selection-background);
+}
 </style>
 <template id="battery-row">
 	<block padding="0 10" align="middle" border-width="3">
@@ -19,7 +36,7 @@ scroll .selected { outline-width: 3; outline-color: var(--color-focus); backgrou
 </template>
 <block>
 	<safe-area>
-		<block fill padding="16 24" background-color="#000000E8">
+		<block padding="16 24">
 			<block padding="8 10 14 10"><text id="summary" font-size="small"></text></block>
 			<scroll id="fields" rows="9" cols="1" spacer></scroll>
 			<block id="empty" align="both" spacer display="false"><text><i>未发现电池或供电设备</i></text></block>

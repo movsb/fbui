@@ -1,8 +1,5 @@
 <document>
 <style>
-document {
-	color: white;
-}
 .nerd {
 	font-family: nerd;
 	bold: false;
@@ -15,7 +12,8 @@ document {
 	}
 }
 </style>
-<block>
+<!-- 特地设置成无色，以避免从主题应用默认的 --color-background 色。 -->
+<block background-color="none">
 	<block id="top" padding="10">
 		<inline align="middle">
 			<text bold id="title">状态栏</text>

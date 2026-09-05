@@ -1,8 +1,5 @@
 <document>
 <style>
-document {
-	color: white;
-}
 scroll {
 	.selected {
 		outline-width: 3;
@@ -14,8 +11,8 @@ scroll {
 <template id="menu-item">
 	<block padding="0 10" align="middle"><text></text></block>
 </template>
-<inline align="both">
-	<block id="content" background-color="#000000E8" border-width="3" border-color="var(--color-border)">
+<inline align="both" background-color="none">
+	<block id="content" border-width="3" border-color="var(--color-border)" background-color="var(--color-background)">
 		<block id="header"></block>
 		<scroll max-rows="10" row-height="50" padding="10"></scroll>
 		<block id="footer"></block>
