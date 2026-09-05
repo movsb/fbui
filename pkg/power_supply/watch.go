@@ -3,6 +3,7 @@ package power_supply
 import (
 	"context"
 	"log"
+	"sync"
 
 	"github.com/mdlayher/kobject"
 )
@@ -12,12 +13,15 @@ func Watch(ctx context.Context, callback func()) error {
 	if err != nil {
 		return err
 	}
+
+	closeClient := sync.OnceFunc(func() { client.Close() })
+
 	go func() {
 		<-ctx.Done()
-		_ = client.Close()
+		closeClient()
 	}()
 	go func() {
-		defer client.Close()
+		defer closeClient()
 		for {
 			event, err := client.Receive()
 			if err != nil {
