@@ -61,6 +61,21 @@ func NewToolsNavigator(win *MainWindow) *ToolsNavigator {
 					})
 				},
 			},
+			{
+				name: `关机`,
+				click: func() {
+					win.app.ShowAlertDialog(win.doc, fbiw.AlertDialogOptions{
+						Title:         `关机？`,
+						Description:   `确定要立即关机吗？`,
+						ActionText:    `关机`,
+						ActionVariant: fbiw.ButtonDestructive,
+						CancelText:    `取消`,
+						OnAction: func() {
+							exec.Command(`poweroff`).Start()
+						},
+					})
+				},
+			},
 		},
 	}
 	win.doc.Bind(toolsNav)

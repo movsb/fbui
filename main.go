@@ -25,7 +25,7 @@ func main() {
 
 	fonts.Init(app)
 
-	app.SetThemeAccent(`yellow`)
+	app.SetThemeAccent(`deepskyblue`)
 
 	NewOverlayWindow(app)
 	NewMainWindow(app)
