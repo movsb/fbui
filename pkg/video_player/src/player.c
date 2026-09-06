@@ -68,14 +68,19 @@ extern int TPlayerSetDisplayRect(
  *
  * TrimUI 官方 mediaplayer 中：
  *
- * sizeof(disp_layer_config) = 184
+ * 最后一个有效字段结束于 180；结构体含有 64 位成员，因此 ARM64 C ABI 下
+ * sizeof(disp_layer_config) 会向 8 字节补齐为 184。
  *
  * offset:
  *   info.alpha_mode  = 5
  *   info.alpha_value = 6
- *   enable           = 0xac
- *   channel          = 0xb0
- *   layer_id         = 0xb4
+ *   enable           = 0xa8
+ *   channel          = 0xac
+ *   layer_id         = 0xb0
+ *
+ * The firmware UI is channel 1 / layer 0.  The old layout appeared to work
+ * because writing "enable = 1" at the wrong offset accidentally selected
+ * channel 1 for DISP_LAYER_GET_CONFIG.
  */
 static int configure_ui_layer(int transparent) {
 	int fd;
@@ -91,11 +96,11 @@ static int configure_ui_layer(int transparent) {
 	memset(cfg, 0, sizeof(cfg));
 
 	/*
-	 * 这三项完全照官方 mediaplayer。
+	 * DISP_LAYER_GET_CONFIG uses channel/layer_id as selectors and fills the
+	 * rest of the structure, including enable.
 	 */
-	*(uint32_t *)(cfg + 0xac) = 1; /* enable */
-	*(uint32_t *)(cfg + 0xb0) = 0; /* channel */
-	*(uint32_t *)(cfg + 0xb4) = 0; /* layer_id */
+	*(uint32_t *)(cfg + 0xac) = 1; /* channel */
+	*(uint32_t *)(cfg + 0xb0) = 0; /* layer_id */
 
 	/*
 	 * kernel ABI:
@@ -357,4 +362,3 @@ fail:
 
 	return 1;
 }
-
