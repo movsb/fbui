@@ -37,7 +37,7 @@ func RunScript(ctx context.Context, scriptPath, romPath string) error {
 				return next(ctx, args)
 			}
 			hc := interp.HandlerCtx(ctx)
-			if runRetroArchCandidates(args, romPath, hc.Env, hc.Dir) {
+			if runRetroArchCandidates(args, scriptPath, hc.Env, hc.Dir) {
 				return nil
 			}
 			return interp.ExitStatus(1)
@@ -65,7 +65,7 @@ func isRetroArchCommand(args []string) bool {
 	return strings.Contains(name, `retroarch`) || strings.HasPrefix(name, `ra64.`) || strings.HasPrefix(name, `ra32.`)
 }
 
-func runRetroArchCandidates(command []string, romPath string, env expand.Environ, dir string) bool {
+func runRetroArchCandidates(command []string, scriptPath string, env expand.Environ, dir string) bool {
 	before, originalCore, after := splitByCore(command[1:])
 	if originalCore == `` {
 		return run(command[0], command[1:], env, dir, `/tmp/retroarch.log`)
@@ -73,7 +73,7 @@ func runRetroArchCandidates(command []string, romPath string, env expand.Environ
 
 	candidates := []string{originalCore}
 	coreDir := filepath.Dir(originalCore)
-	for name := range rangeDirForEmulators(romPath) {
+	for name := range rangeDirForEmulators(scriptPath) {
 		candidate := filepath.Join(coreDir, name)
 		if candidate != originalCore {
 			candidates = append(candidates, candidate)

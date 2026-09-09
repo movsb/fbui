@@ -13,12 +13,9 @@ import (
 	"github.com/movsb/fbui/pkg/game_library"
 	"github.com/movsb/fbui/pkg/launcher"
 	"github.com/movsb/fbui/pkg/video_player"
-	"github.com/movsb/gm/protocols/clients"
-	"github.com/movsb/gm/protocols/go/proto"
-	"google.golang.org/grpc/status"
 )
 
-const gmServerHome = "http://192.168.10.124:8888"
+const gmBlobBaseURL = "http://192.168.10.124:8888"
 
 type storeLevel int
 
@@ -41,7 +38,7 @@ type storePage struct {
 	title string
 	items []storeItem
 	state any
-	game  *proto.Game
+	game  *game_library.Game
 }
 
 type storeItemView struct {
@@ -61,7 +58,8 @@ type StoreNavigator struct {
 	video   *video_player.VideoPlayer `css:"#store-preview video"`
 
 	// 游戏商店元数据来源。
-	metadata *clients.ProtoClient
+	metadata    *game_library.Library
+	metadataErr error
 	// 游戏本地二进制存储。
 	store *game_library.Store
 	// 当前目录浏览栈。
@@ -70,14 +68,15 @@ type StoreNavigator struct {
 }
 
 func NewStoreNavigator(win *MainWindow) *StoreNavigator {
-	metadata := clients.NewFromHome(gmServerHome, "")
-	blobs := clients.NewFromHome(gmServerHome, "")
+	root := filepath.Join(config.SDCARDRoot, ".fbui", "gm")
+	metadata, metadataErr := game_library.OpenLibrary(filepath.Join(root, "gm.db"))
 	n := &StoreNavigator{
-		window:   win,
-		metadata: metadata,
+		window:      win,
+		metadata:    metadata,
+		metadataErr: metadataErr,
 		store: game_library.New(
-			filepath.Join(config.SDCARDRoot, ".fbui", "gm"),
-			game_library.GRPCSource{Client: blobs.BlobService},
+			root,
+			game_library.NewHTTPBlobSource(gmBlobBaseURL),
 		),
 	}
 	win.doc.Bind(n)
@@ -189,17 +188,17 @@ func (n *StoreNavigator) handleEvents(event *fbiw.Event) {
 	case storeRoot:
 		n.loadKinds(item.value.(storeLevel))
 	case storePlatforms:
-		platform := item.value.(*proto.Platform)
-		n.loadGames(platform.GetId(), 0, displayNames(platform.GetNames()))
+		platform := item.value.(*game_library.Platform)
+		n.loadGames(platform.ID, 0, displayNames(platform.Names))
 	case storeSeries:
-		series := item.value.(*proto.Series)
-		n.loadGames(0, series.GetId(), displayNames(series.GetNames()))
+		series := item.value.(*game_library.Series)
+		n.loadGames(0, series.ID, displayNames(series.Names))
 	case storeGames:
-		n.loadReleases(item.value.(*proto.Game))
+		n.loadReleases(item.value.(*game_library.Game))
 	case storeReleases:
-		n.loadAssets(page.game, item.value.(*proto.Release))
+		n.loadAssets(page.game, item.value.(*game_library.Release))
 	case storeAssets:
-		n.openAsset(page.game, item.value.(*proto.Asset))
+		n.openAsset(page.game, item.value.(*game_library.Asset))
 	}
 	event.StopPropagation()
 }
@@ -219,7 +218,7 @@ func (n *StoreNavigator) async(title string, load func(context.Context) (storePa
 				n.render(n.stack[len(n.stack)-1].state)
 				n.window.app.ShowAlertDialog(n.window.doc, fbiw.AlertDialogOptions{
 					Title:       fmt.Sprintf(`%s失败`, title),
-					Description: maybeGrpcError(err),
+					Description: err.Error(),
 				})
 				return
 			}
@@ -234,24 +233,27 @@ func (n *StoreNavigator) async(title string, load func(context.Context) (storePa
 func (n *StoreNavigator) loadKinds(level storeLevel) {
 	n.async("加载", func(ctx context.Context) (storePage, error) {
 		page := storePage{level: level}
+		if n.metadataErr != nil {
+			return page, n.metadataErr
+		}
 		switch level {
 		case storePlatforms:
-			response, err := n.metadata.GameManager.ListPlatforms(ctx, &proto.ListPlatformsRequest{})
+			response, err := n.metadata.ListPlatforms(ctx)
 			if err != nil {
 				return page, err
 			}
 			page.title = "平台"
-			for _, item := range response.GetPlatforms() {
-				page.items = append(page.items, storeItem{name: displayNames(item.GetNames()), value: item})
+			for _, item := range response {
+				page.items = append(page.items, storeItem{name: displayNames(item.Names), value: item})
 			}
 		case storeSeries:
-			response, err := n.metadata.GameManager.ListSeries(ctx, &proto.ListSeriesRequest{})
+			response, err := n.metadata.ListSeries(ctx)
 			if err != nil {
 				return page, err
 			}
 			page.title = "系列"
-			for _, item := range response.GetSeries() {
-				page.items = append(page.items, storeItem{name: displayNames(item.GetNames()), value: item})
+			for _, item := range response {
+				page.items = append(page.items, storeItem{name: displayNames(item.Names), value: item})
 			}
 		}
 		return page, nil
@@ -260,12 +262,7 @@ func (n *StoreNavigator) loadKinds(level storeLevel) {
 
 func (n *StoreNavigator) loadGames(platformID, seriesID int32, parent string) {
 	n.async("加载游戏", func(ctx context.Context) (storePage, error) {
-		response, err := n.metadata.GameManager.ListGames(ctx,
-			&proto.ListGamesRequest{
-				PlatformId: platformID,
-				SeriesId:   seriesID,
-			},
-		)
+		response, err := n.metadata.ListGames(ctx, platformID, seriesID)
 		page := storePage{
 			level: storeGames,
 			title: parent,
@@ -273,9 +270,9 @@ func (n *StoreNavigator) loadGames(platformID, seriesID int32, parent string) {
 		if err != nil {
 			return page, err
 		}
-		for _, item := range response.GetGames() {
+		for _, item := range response {
 			page.items = append(page.items, storeItem{
-				name:  displayNames(item.GetNames()),
+				name:  displayNames(item.Names),
 				value: item,
 			})
 		}
@@ -283,22 +280,20 @@ func (n *StoreNavigator) loadGames(platformID, seriesID int32, parent string) {
 	})
 }
 
-func (n *StoreNavigator) loadReleases(game *proto.Game) {
+func (n *StoreNavigator) loadReleases(game *game_library.Game) {
 	n.async("加载发行版", func(ctx context.Context) (storePage, error) {
-		response, err := n.metadata.GameManager.ListReleases(ctx,
-			&proto.ListReleasesRequest{GameId: game.GetId()},
-		)
+		response, err := n.metadata.ListReleases(ctx, game.ID)
 		page := storePage{
 			level: storeReleases,
-			title: displayNames(game.GetNames()),
+			title: displayNames(game.Names),
 			game:  game,
 		}
 		if err != nil {
 			return page, err
 		}
-		for _, item := range response.GetReleases() {
+		for _, item := range response {
 			page.items = append(page.items, storeItem{
-				name:  displayNames(item.GetNames()),
+				name:  displayNames(item.Names),
 				value: item,
 			})
 		}
@@ -306,26 +301,20 @@ func (n *StoreNavigator) loadReleases(game *proto.Game) {
 	})
 }
 
-func (n *StoreNavigator) loadAssets(game *proto.Game, release *proto.Release) {
+func (n *StoreNavigator) loadAssets(game *game_library.Game, release *game_library.Release) {
 	n.async("加载资源", func(ctx context.Context) (storePage, error) {
-		response, err := n.metadata.GameManager.ListAssets(ctx,
-			&proto.ListAssetsRequest{
-				Kind:      proto.Kind_KIND_RELEASE,
-				KindId:    release.GetId(),
-				WithBlobs: true,
-			},
-		)
+		response, err := n.metadata.ListAssets(ctx, release.ID)
 		page := storePage{
 			level: storeAssets,
-			title: displayNames(release.GetNames()),
+			title: displayNames(release.Names),
 			game:  game,
 		}
 		if err != nil {
 			return page, err
 		}
-		for _, item := range response.GetAssets() {
+		for _, item := range response {
 			page.items = append(page.items, storeItem{
-				name:  fmt.Sprintf("%s  ·  %s  ·  %s", item.GetName(), assetTypeName(item.GetType()), formatSize(item.GetSize())),
+				name:  fmt.Sprintf("%s  ·  %s  ·  %s", item.Name, assetTypeName(item.Type), formatSize(item.Size)),
 				value: item,
 			})
 		}
@@ -333,7 +322,7 @@ func (n *StoreNavigator) loadAssets(game *proto.Game, release *proto.Release) {
 	})
 }
 
-func (n *StoreNavigator) openAsset(game *proto.Game, asset *proto.Asset) {
+func (n *StoreNavigator) openAsset(game *game_library.Game, asset *game_library.Asset) {
 	n.busy = true
 	go func() {
 		lastMessage := ""
@@ -367,12 +356,12 @@ func (n *StoreNavigator) openAsset(game *proto.Game, asset *proto.Asset) {
 				)
 				return
 			}
-			switch asset.GetType() {
-			case proto.AssetType_ASSET_TYPE_ROM:
-				n.runROM(game.GetPlatformId(), path)
-			case proto.AssetType_ASSET_TYPE_COVER, proto.AssetType_ASSET_TYPE_SCREENSHOT, proto.AssetType_ASSET_TYPE_LOGO:
+			switch asset.Type {
+			case game_library.AssetTypeROM:
+				n.runROM(game.PlatformID, path)
+			case game_library.AssetTypeCover, game_library.AssetTypeScreenshot, game_library.AssetTypeLogo:
 				n.showImage(path)
-			case proto.AssetType_ASSET_TYPE_VIDEO:
+			case game_library.AssetTypeVideo:
 				n.showVideo(path)
 			default:
 				n.window.app.ShowAlertDialog(n.window.doc,
@@ -459,36 +448,36 @@ func (n *StoreNavigator) runROM(platformID int32, path string) {
 	}()
 }
 
-func displayNames(names []*proto.Name) string {
-	for _, language := range []proto.Language{
-		proto.Language_LANGUAGE_CHINESE,
-		proto.Language_LANGUAGE_ENGLISH,
-		proto.Language_LANGUAGE_JAPANESE,
+func displayNames(names []game_library.Name) string {
+	for _, language := range []game_library.Language{
+		game_library.LanguageChinese,
+		game_library.LanguageEnglish,
+		game_library.LanguageJapanese,
 	} {
 		for _, name := range names {
-			if name.GetLanguage() == language && name.GetName() != "" {
-				return name.GetName()
+			if name.Language == language && name.Name != "" {
+				return name.Name
 			}
 		}
 	}
 	for _, name := range names {
-		if name.GetName() != "" {
-			return name.GetName()
+		if name.Name != "" {
+			return name.Name
 		}
 	}
 	return "未命名"
 }
 
-func assetTypeName(kind proto.AssetType) string {
-	name := map[proto.AssetType]string{
-		proto.AssetType_ASSET_TYPE_ROM:        "ROM",
-		proto.AssetType_ASSET_TYPE_COVER:      "封面",
-		proto.AssetType_ASSET_TYPE_SCREENSHOT: "截图",
-		proto.AssetType_ASSET_TYPE_VIDEO:      "视频",
-		proto.AssetType_ASSET_TYPE_LOGO:       "Logo",
-		proto.AssetType_ASSET_TYPE_MANUAL:     "说明书",
-		proto.AssetType_ASSET_TYPE_SYSTEM:     "系统",
-		proto.AssetType_ASSET_TYPE_OTHER:      "其它",
+func assetTypeName(kind game_library.AssetType) string {
+	name := map[game_library.AssetType]string{
+		game_library.AssetTypeROM:        "ROM",
+		game_library.AssetTypeCover:      "封面",
+		game_library.AssetTypeScreenshot: "截图",
+		game_library.AssetTypeVideo:      "视频",
+		game_library.AssetTypeLogo:       "Logo",
+		game_library.AssetTypeManual:     "说明书",
+		game_library.AssetTypeSystem:     "系统",
+		game_library.AssetTypeOther:      "其它",
 	}[kind]
 	if name == "" {
 		return "未指定"
@@ -496,7 +485,7 @@ func assetTypeName(kind proto.AssetType) string {
 	return name
 }
 
-func formatSize(size int32) string {
+func formatSize(size int64) string {
 	if size < 1024 {
 		return fmt.Sprintf("%d B", size)
 	}
@@ -504,14 +493,4 @@ func formatSize(size int32) string {
 		return fmt.Sprintf("%.1f KB", float64(size)/1024)
 	}
 	return fmt.Sprintf("%.1f MB", float64(size)/(1024*1024))
-}
-
-func maybeGrpcError(err error) string {
-	if err == nil {
-		return `<nil>`
-	}
-	if st, ok := status.FromError(err); ok {
-		return fmt.Sprintf("%s\n\n%s", st.Code(), st.Message())
-	}
-	return err.Error()
 }

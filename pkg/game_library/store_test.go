@@ -10,33 +10,49 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-
-	pb "github.com/movsb/gm/protocols/go/proto"
 )
 
 type fakeSource struct {
-	contents map[int32][]byte
-	requests map[int32]int
+	contents map[string][]byte
+	requests map[string]int
 }
 
-func (s *fakeSource) Open(_ context.Context, blobID int32) (io.ReadCloser, error) {
-	s.requests[blobID]++
-	content, ok := s.contents[blobID]
+type failingReader struct{ read bool }
+
+func (r *failingReader) Read(buffer []byte) (int, error) {
+	if !r.read {
+		r.read = true
+		return copy(buffer, "part"), nil
+	}
+	return 0, io.ErrUnexpectedEOF
+}
+
+func (*failingReader) Close() error { return nil }
+
+type failingSource struct{}
+
+func (failingSource) Open(context.Context, string) (io.ReadCloser, error) {
+	return &failingReader{}, nil
+}
+
+func (s *fakeSource) Open(_ context.Context, sha string) (io.ReadCloser, error) {
+	s.requests[sha]++
+	content, ok := s.contents[sha]
 	if !ok {
 		return nil, os.ErrNotExist
 	}
 	return io.NopCloser(bytes.NewReader(content)), nil
 }
 
-func testBlob(id int32, content string) (*pb.Blob, string) {
+func testBlob(id int32, content string) (*Blob, string) {
 	data := []byte(content)
 	sha := fmt.Sprintf("%x", sha256.Sum256(data))
-	return &pb.Blob{Id: id, Sha256: sha, Size: int32(len(data))}, sha
+	return &Blob{ID: id, SHA256: sha, Size: int64(len(data))}, sha
 }
 
 func TestEnsureBlobVerifiesAndReusesCAS(t *testing.T) {
 	blob, sha := testBlob(1, "verified content")
-	source := &fakeSource{contents: map[int32][]byte{blob.Id: []byte("verified content")}, requests: map[int32]int{}}
+	source := &fakeSource{contents: map[string][]byte{blob.SHA256: []byte("verified content")}, requests: map[string]int{}}
 	store := New(t.TempDir(), source)
 	path, err := store.ensureBlob(context.Background(), blob, nil, nil)
 	if err != nil {
@@ -48,8 +64,8 @@ func TestEnsureBlobVerifiesAndReusesCAS(t *testing.T) {
 	if _, err := store.ensureBlob(context.Background(), blob, nil, nil); err != nil {
 		t.Fatal(err)
 	}
-	if source.requests[blob.Id] != 1 {
-		t.Fatalf("blob downloaded %d times", source.requests[blob.Id])
+	if source.requests[blob.SHA256] != 1 {
+		t.Fatalf("blob downloaded %d times", source.requests[blob.SHA256])
 	}
 	if err := os.WriteFile(path, []byte("corrupt"), 0644); err != nil {
 		t.Fatal(err)
@@ -57,26 +73,52 @@ func TestEnsureBlobVerifiesAndReusesCAS(t *testing.T) {
 	if _, err := store.ensureBlob(context.Background(), blob, nil, nil); err != nil {
 		t.Fatal(err)
 	}
-	if source.requests[blob.Id] != 2 {
+	if source.requests[blob.SHA256] != 2 {
 		t.Fatal("corrupt cached blob was not downloaded again")
+	}
+}
+
+func TestEnsureBlobRemovesFailedDownload(t *testing.T) {
+	blob, sha := testBlob(1, "expected")
+	source := &fakeSource{contents: map[string][]byte{sha: []byte("wrong")}, requests: map[string]int{}}
+	store := New(t.TempDir(), source)
+	if _, err := store.ensureBlob(context.Background(), blob, nil, nil); err == nil {
+		t.Fatal("expected verification error")
+	}
+	if _, err := os.Stat(store.blobPath(sha)); !os.IsNotExist(err) {
+		t.Fatalf("invalid final blob remains: %v", err)
+	}
+	if _, err := os.Stat(store.blobPath(sha) + ".part"); !os.IsNotExist(err) {
+		t.Fatalf("partial blob remains: %v", err)
+	}
+}
+
+func TestEnsureBlobRemovesInterruptedDownload(t *testing.T) {
+	blob, sha := testBlob(1, "expected")
+	store := New(t.TempDir(), failingSource{})
+	if _, err := store.ensureBlob(context.Background(), blob, nil, nil); err == nil {
+		t.Fatal("expected transfer error")
+	}
+	if _, err := os.Stat(store.blobPath(sha) + ".part"); !os.IsNotExist(err) {
+		t.Fatalf("partial blob remains: %v", err)
 	}
 }
 
 func TestMaterializeRegularAndZIP(t *testing.T) {
 	first, _ := testBlob(1, "first")
 	second, _ := testBlob(2, "second")
-	source := &fakeSource{contents: map[int32][]byte{first.Id: []byte("first"), second.Id: []byte("second")}, requests: map[int32]int{}}
+	source := &fakeSource{contents: map[string][]byte{first.SHA256: []byte("first"), second.SHA256: []byte("second")}, requests: map[string]int{}}
 	store := New(t.TempDir(), source)
 	progressMessages := map[string]bool{}
 	progress := func(message string, _ float32) { progressMessages[message] = true }
-	regular, err := store.Materialize(context.Background(), &pb.Asset{Id: 1, Name: "game.rom", Format: pb.Format_FORMAT_REGULAR, Blob: first}, progress)
+	regular, err := store.Materialize(context.Background(), &Asset{ID: 1, Name: "game.rom", Format: FormatRegular, Blob: first}, progress)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if content, _ := os.ReadFile(regular); string(content) != "first" {
 		t.Fatalf("unexpected regular content: %q", content)
 	}
-	asset := &pb.Asset{Id: 2, Name: "bundle", Format: pb.Format_FORMAT_ZIP, Entries: []*pb.Entry{
+	asset := &Asset{ID: 2, Name: "bundle", Format: FormatZIP, Entries: []*Entry{
 		{Name: "folder/a.rom", Blob: first}, {Name: "b.rom", Blob: second},
 	}}
 	archivePath, err := store.Materialize(context.Background(), asset, progress)
@@ -141,13 +183,13 @@ func TestMaterializeRegularAndZIP(t *testing.T) {
 
 func TestMaterializeRejectsUnsafeAndDuplicateZIPEntries(t *testing.T) {
 	blob, _ := testBlob(1, "data")
-	source := &fakeSource{contents: map[int32][]byte{blob.Id: []byte("data")}, requests: map[int32]int{}}
+	source := &fakeSource{contents: map[string][]byte{blob.SHA256: []byte("data")}, requests: map[string]int{}}
 	store := New(t.TempDir(), source)
-	for _, entries := range [][]*pb.Entry{
+	for _, entries := range [][]*Entry{
 		{{Name: "../escape", Blob: blob}},
 		{{Name: "same", Blob: blob}, {Name: "same", Blob: blob}},
 	} {
-		if _, err := store.Materialize(context.Background(), &pb.Asset{Id: 3, Name: "bad.zip", Format: pb.Format_FORMAT_ZIP, Entries: entries}, func(string, float32) {}); err == nil {
+		if _, err := store.Materialize(context.Background(), &Asset{ID: 3, Name: "bad.zip", Format: FormatZIP, Entries: entries}, func(string, float32) {}); err == nil {
 			t.Fatal("expected unsafe zip entries to fail")
 		}
 	}

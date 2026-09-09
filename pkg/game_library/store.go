@@ -12,16 +12,14 @@ import (
 	"regexp"
 	"strings"
 	"sync"
-
-	pb "github.com/movsb/gm/protocols/go/proto"
 )
 
 var sha256Pattern = regexp.MustCompile(`^[0-9a-f]{64}$`)
 
 // 远程二进制存储。
 type BlobSource interface {
-	// 通过 Blob ID 下载二进制。
-	Open(context.Context, int32) (io.ReadCloser, error)
+	// 通过内容哈希下载二进制。
+	Open(context.Context, string) (io.ReadCloser, error)
 }
 
 type Store struct {
@@ -41,8 +39,8 @@ func (s *Store) blobPath(sha string) string {
 // 确保本地存储有此二进制。
 // 如果没有，会从远程下载并存储到本地。
 // 下载后会完整哈希校验。
-func (s *Store) ensureBlob(ctx context.Context, expected *pb.Blob, local, remote func(p float32)) (string, error) {
-	if expected == nil || expected.GetId() <= 0 || !sha256Pattern.MatchString(expected.GetSha256()) || expected.GetSize() < 0 {
+func (s *Store) ensureBlob(ctx context.Context, expected *Blob, local, remote func(p float32)) (string, error) {
+	if expected == nil || expected.ID <= 0 || !sha256Pattern.MatchString(expected.SHA256) || expected.Size < 0 {
 		return "", errors.New("invalid blob metadata")
 	}
 	// Store downloads are deliberately serialized in v1. The mutex also prevents
@@ -50,7 +48,7 @@ func (s *Store) ensureBlob(ctx context.Context, expected *pb.Blob, local, remote
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	final := s.blobPath(expected.GetSha256())
+	final := s.blobPath(expected.SHA256)
 
 	// 如果本地有此二进制，校验并直接使用。
 	if validBlob(final, expected, local) {
@@ -74,7 +72,7 @@ func (s *Store) ensureBlob(ctx context.Context, expected *pb.Blob, local, remote
 	var (
 		hash           = sha256.New()
 		remoteProgress = &_ProgressWriter{
-			total:    int(expected.GetSize()),
+			total:    expected.Size,
 			progress: remote,
 		}
 		closeAndRemove = func(downloadErr error) (string, error) {
@@ -84,7 +82,7 @@ func (s *Store) ensureBlob(ctx context.Context, expected *pb.Blob, local, remote
 		}
 	)
 
-	reader, err := s.source.Open(ctx, expected.GetId())
+	reader, err := s.source.Open(ctx, expected.SHA256)
 	if err != nil {
 		return closeAndRemove(err)
 	}
@@ -96,7 +94,7 @@ func (s *Store) ensureBlob(ctx context.Context, expected *pb.Blob, local, remote
 	if closeErr != nil {
 		return closeAndRemove(closeErr)
 	}
-	if written != int64(expected.GetSize()) || fmt.Sprintf("%x", hash.Sum(nil)) != expected.GetSha256() {
+	if written != expected.Size || fmt.Sprintf("%x", hash.Sum(nil)) != expected.SHA256 {
 		return closeAndRemove(errors.New("downloaded blob failed size or sha256 verification"))
 	}
 	if err := file.Sync(); err != nil {
@@ -113,52 +111,55 @@ func (s *Store) ensureBlob(ctx context.Context, expected *pb.Blob, local, remote
 	return final, nil
 }
 
-func validBlob(path string, expected *pb.Blob, progress func(p float32)) bool {
+func validBlob(path string, expected *Blob, progress func(p float32)) bool {
+	if expected == nil {
+		return false
+	}
 	file, err := os.Open(path)
 	if err != nil {
 		return false
 	}
 	defer file.Close()
 	info, err := file.Stat()
-	if err != nil || info.Size() != int64(expected.GetSize()) {
+	if err != nil || info.Size() != expected.Size {
 		return false
 	}
 	hash := sha256.New()
 	pw := &_ProgressWriter{
-		total:    int(expected.GetSize()),
+		total:    expected.Size,
 		progress: progress,
 	}
 	if _, err := io.Copy(io.MultiWriter(hash, pw), file); err != nil {
 		return false
 	}
-	return fmt.Sprintf("%x", hash.Sum(nil)) == expected.GetSha256()
+	return fmt.Sprintf("%x", hash.Sum(nil)) == expected.SHA256
 }
 
 // 从本地读取或者远程下载后并重新组装成所需求的资源文件。
 // 返回资源文件的本地固定路径。
-func (s *Store) Materialize(ctx context.Context, asset *pb.Asset, progress func(message string, p float32)) (string, error) {
-	if asset == nil || asset.GetId() <= 0 {
+func (s *Store) Materialize(ctx context.Context, asset *Asset, progress func(message string, p float32)) (string, error) {
+	if asset == nil || asset.ID <= 0 {
 		return "", errors.New("invalid asset")
 	}
-	dir := filepath.Join(s.root, "assets", fmt.Sprint(asset.GetId()))
+	dir := filepath.Join(s.root, "assets", fmt.Sprint(asset.ID))
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return "", err
 	}
-	name, err := safeBaseName(asset.GetName())
+	name, err := safeBaseName(asset.Name)
 	if err != nil {
 		return "", err
 	}
-	switch asset.GetFormat() {
-	case pb.Format_FORMAT_REGULAR:
+	switch asset.Format {
+	case FormatRegular:
 		// 有就直接使用。
 		final := filepath.Join(dir, name)
-		if validBlob(final, asset.GetBlob(), func(p float32) {
+		if validBlob(final, asset.Blob, func(p float32) {
 			progress(`校验文件`, p)
 		}) {
 			return final, nil
 		}
 		// 如果没有才考虑重新物化/下载。
-		blob, err := s.ensureBlob(ctx, asset.GetBlob(),
+		blob, err := s.ensureBlob(ctx, asset.Blob,
 			func(p float32) {
 				progress(`校验文件`, p)
 			},
@@ -176,7 +177,7 @@ func (s *Store) Materialize(ctx context.Context, asset *pb.Asset, progress func(
 			}
 		}
 		return final, nil
-	case pb.Format_FORMAT_ZIP:
+	case FormatZIP:
 		if !strings.HasSuffix(strings.ToLower(name), ".zip") {
 			name += ".zip"
 		}
@@ -193,11 +194,11 @@ func (s *Store) Materialize(ctx context.Context, asset *pb.Asset, progress func(
 			name string
 			path string
 		}
-		entries := make([]localEntry, 0, len(asset.GetEntries()))
+		entries := make([]localEntry, 0, len(asset.Entries))
 		seen := map[string]bool{}
 		var totalSize int64
-		for _, entry := range asset.GetEntries() {
-			entryName, err := safeEntryName(entry.GetName())
+		for _, entry := range asset.Entries {
+			entryName, err := safeEntryName(entry.Name)
 			if err != nil {
 				return "", err
 			}
@@ -205,11 +206,14 @@ func (s *Store) Materialize(ctx context.Context, asset *pb.Asset, progress func(
 				return "", fmt.Errorf("duplicate zip entry: %s", entryName)
 			}
 			seen[entryName] = true
-			totalSize += int64(entry.GetBlob().GetSize())
+			if entry.Blob == nil {
+				return "", errors.New("invalid entry blob metadata")
+			}
+			totalSize += entry.Blob.Size
 		}
 		var completedSize int64
-		for _, entry := range asset.GetEntries() {
-			blobSize := int64(entry.GetBlob().GetSize())
+		for _, entry := range asset.Entries {
+			blobSize := entry.Blob.Size
 			report := func(message string, entryProgress float32) {
 				if totalSize <= 0 {
 					progress(message, 100)
@@ -218,14 +222,14 @@ func (s *Store) Materialize(ctx context.Context, asset *pb.Asset, progress func(
 				current := float64(completedSize) + float64(blobSize)*float64(entryProgress)/100
 				progress(message, float32(current/float64(totalSize)*100))
 			}
-			blob, err := s.ensureBlob(ctx, entry.GetBlob(),
+			blob, err := s.ensureBlob(ctx, entry.Blob,
 				func(p float32) { report(`校验文件`, p) },
 				func(p float32) { report(`下载文件`, p) },
 			)
 			if err != nil {
 				return "", err
 			}
-			entryName, _ := safeEntryName(entry.GetName())
+			entryName, _ := safeEntryName(entry.Name)
 			entries = append(entries, localEntry{name: entryName, path: blob})
 			completedSize += blobSize
 		}
@@ -245,7 +249,7 @@ func (s *Store) Materialize(ctx context.Context, asset *pb.Asset, progress func(
 			return "", buildErr
 		}
 		assembleProgress := &_ProgressWriter{
-			total: int(totalSize),
+			total: totalSize,
 			progress: func(p float32) {
 				progress(`重新组装`, p)
 			},
@@ -295,7 +299,7 @@ func (s *Store) Materialize(ctx context.Context, asset *pb.Asset, progress func(
 		}
 		return final, nil
 	default:
-		return "", fmt.Errorf("unsupported asset format: %s", asset.GetFormat())
+		return "", fmt.Errorf("unsupported asset format: %d", asset.Format)
 	}
 }
 
@@ -326,7 +330,7 @@ func fileSHA256(path string, progress func(float32)) (string, error) {
 		if statErr != nil {
 			return "", statErr
 		}
-		_, err = io.Copy(io.MultiWriter(hash, &_ProgressWriter{total: int(info.Size()), progress: progress}), file)
+		_, err = io.Copy(io.MultiWriter(hash, &_ProgressWriter{total: info.Size(), progress: progress}), file)
 	}
 	if err != nil {
 		return "", err
@@ -377,15 +381,19 @@ func copyFile(source, destination string) error {
 }
 
 type _ProgressWriter struct {
-	count    int
-	total    int
+	count    int64
+	total    int64
 	progress func(p float32)
 }
 
 func (w *_ProgressWriter) Write(p []byte) (int, error) {
-	w.count += len(p)
+	w.count += int64(len(p))
 	if w.progress != nil {
-		w.progress(float32(w.count) / float32(w.total) * 100)
+		if w.total <= 0 {
+			w.progress(100)
+		} else {
+			w.progress(float32(w.count) / float32(w.total) * 100)
+		}
 	}
 	return len(p), nil
 }
