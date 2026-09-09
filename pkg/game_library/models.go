@@ -41,19 +41,29 @@ const (
 )
 
 type Name struct {
+	ID       int32
+	Kind     Kind
+	KindID   int32
 	Language Language
 	Name     string
+	Source   string
 }
+
+func (Name) TableName() string { return `names` }
 
 type Platform struct {
 	ID    int32
 	Names []Name
 }
 
+func (Platform) TableName() string { return `platforms` }
+
 type Series struct {
 	ID    int32
 	Names []Name
 }
+
+func (Series) TableName() string { return `series` }
 
 type Game struct {
 	ID         int32
@@ -62,11 +72,15 @@ type Game struct {
 	Names      []Name
 }
 
+func (Game) TableName() string { return `games` }
+
 type Release struct {
 	ID     int32
 	GameID int32
 	Names  []Name
 }
+
+func (Release) TableName() string { return `releases` }
 
 type Blob struct {
 	ID     int32

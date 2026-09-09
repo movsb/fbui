@@ -7,13 +7,15 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/movsb/taorm"
 	_ "github.com/ncruces/go-sqlite3/driver"
 )
 
-const supportedDatabaseVersion = 8
+const supportedDatabaseVersion = 9
 
 type Library struct {
-	db *sql.DB
+	db  *sql.DB
+	tdb *taorm.DB
 }
 
 func OpenLibrary(path string) (*Library, error) {
@@ -30,7 +32,7 @@ func OpenLibrary(path string) (*Library, error) {
 		return nil, fmt.Errorf("open game library: %w", err)
 	}
 	db.SetMaxOpenConns(1)
-	library := &Library{db: db}
+	library := &Library{db: db, tdb: taorm.NewDB(db)}
 	if err := library.validate(context.Background()); err != nil {
 		db.Close()
 		return nil, err
@@ -59,116 +61,93 @@ func (l *Library) validate(ctx context.Context) error {
 }
 
 func (l *Library) ListPlatforms(ctx context.Context) ([]*Platform, error) {
-	rows, err := l.db.QueryContext(ctx, `SELECT p.id,n.language,n.name FROM platforms p LEFT JOIN names n ON n.kind=? AND n.kind_id=p.id ORDER BY p.id,n.id`, KindPlatform)
-	if err != nil {
+	var items []*Platform
+	if err := l.tdb.Select(`id`).From(Platform{}).OrderBy(`id`).Find(&items); err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	items := []*Platform{}
 	byID := map[int32]*Platform{}
-	for rows.Next() {
-		var id int32
-		var language sql.NullInt32
-		var name sql.NullString
-		if err := rows.Scan(&id, &language, &name); err != nil {
-			return nil, err
-		}
-		item := byID[id]
-		if item == nil {
-			item = &Platform{ID: id}
-			byID[id] = item
-			items = append(items, item)
-		}
-		if name.Valid {
-			item.Names = append(item.Names, Name{Language: Language(language.Int32), Name: name.String})
-		}
+	for _, item := range items {
+		byID[item.ID] = item
 	}
-	return items, rows.Err()
+	if err := l.attachNames(KindPlatform, func(name Name) {
+		if item := byID[name.KindID]; item != nil {
+			item.Names = append(item.Names, name)
+		}
+	}); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 func (l *Library) ListSeries(ctx context.Context) ([]*Series, error) {
-	rows, err := l.db.QueryContext(ctx, `SELECT s.id,n.language,n.name FROM series s LEFT JOIN names n ON n.kind=? AND n.kind_id=s.id ORDER BY s.id,n.id`, KindSeries)
-	if err != nil {
+	var items []*Series
+	if err := l.tdb.Select(`id`).From(Series{}).OrderBy(`id`).Find(&items); err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	items := []*Series{}
 	byID := map[int32]*Series{}
-	for rows.Next() {
-		var id int32
-		var language sql.NullInt32
-		var name sql.NullString
-		if err := rows.Scan(&id, &language, &name); err != nil {
-			return nil, err
-		}
-		item := byID[id]
-		if item == nil {
-			item = &Series{ID: id}
-			byID[id] = item
-			items = append(items, item)
-		}
-		if name.Valid {
-			item.Names = append(item.Names, Name{Language: Language(language.Int32), Name: name.String})
-		}
+	for _, item := range items {
+		byID[item.ID] = item
 	}
-	return items, rows.Err()
+	if err := l.attachNames(KindSeries, func(name Name) {
+		if item := byID[name.KindID]; item != nil {
+			item.Names = append(item.Names, name)
+		}
+	}); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 func (l *Library) ListGames(ctx context.Context, platformID, seriesID int32) ([]*Game, error) {
-	query := `SELECT g.id,g.platform_id,g.series_id,n.language,n.name FROM games g LEFT JOIN names n ON n.kind=? AND n.kind_id=g.id WHERE (?=0 OR g.platform_id=?) AND (?=0 OR g.series_id=?) ORDER BY g.id,n.id`
-	rows, err := l.db.QueryContext(ctx, query, KindGame, platformID, platformID, seriesID, seriesID)
-	if err != nil {
+	var items []*Game
+	if err := l.tdb.Select(`id,platform_id,series_id`).From(Game{}).
+		WhereIf(platformID != 0, `platform_id=?`, platformID).
+		WhereIf(seriesID != 0, `series_id=?`, seriesID).
+		OrderBy(`id`).Find(&items); err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	items := []*Game{}
 	byID := map[int32]*Game{}
-	for rows.Next() {
-		var id, platform, series int32
-		var language sql.NullInt32
-		var name sql.NullString
-		if err := rows.Scan(&id, &platform, &series, &language, &name); err != nil {
-			return nil, err
-		}
-		item := byID[id]
-		if item == nil {
-			item = &Game{ID: id, PlatformID: platform, SeriesID: series}
-			byID[id] = item
-			items = append(items, item)
-		}
-		if name.Valid {
-			item.Names = append(item.Names, Name{Language: Language(language.Int32), Name: name.String})
-		}
+	for _, item := range items {
+		byID[item.ID] = item
 	}
-	return items, rows.Err()
+	if err := l.attachNames(KindGame, func(name Name) {
+		if item := byID[name.KindID]; item != nil {
+			item.Names = append(item.Names, name)
+		}
+	}); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 func (l *Library) ListReleases(ctx context.Context, gameID int32) ([]*Release, error) {
-	rows, err := l.db.QueryContext(ctx, `SELECT r.id,r.game_id,n.language,n.name FROM releases r LEFT JOIN names n ON n.kind=? AND n.kind_id=r.id WHERE r.game_id=? ORDER BY r.id,n.id`, KindRelease, gameID)
-	if err != nil {
+	var items []*Release
+	if err := l.tdb.Select(`id,game_id`).From(Release{}).Where(`game_id=?`, gameID).OrderBy(`id`).Find(&items); err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	items := []*Release{}
 	byID := map[int32]*Release{}
-	for rows.Next() {
-		var id, game int32
-		var language sql.NullInt32
-		var name sql.NullString
-		if err := rows.Scan(&id, &game, &language, &name); err != nil {
-			return nil, err
-		}
-		item := byID[id]
-		if item == nil {
-			item = &Release{ID: id, GameID: game}
-			byID[id] = item
-			items = append(items, item)
-		}
-		if name.Valid {
-			item.Names = append(item.Names, Name{Language: Language(language.Int32), Name: name.String})
-		}
+	for _, item := range items {
+		byID[item.ID] = item
 	}
-	return items, rows.Err()
+	if err := l.attachNames(KindRelease, func(name Name) {
+		if item := byID[name.KindID]; item != nil {
+			item.Names = append(item.Names, name)
+		}
+	}); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+func (l *Library) attachNames(kind Kind, attach func(Name)) error {
+	var names []Name
+	if err := l.tdb.Where(`kind=?`, kind).OrderBy(`id`).Find(&names); err != nil {
+		return err
+	}
+	for _, name := range names {
+		attach(name)
+	}
+	return nil
 }
 
 func (l *Library) ListAssets(ctx context.Context, releaseID int32) ([]*Asset, error) {
@@ -192,6 +171,10 @@ func (l *Library) ListAssets(ctx context.Context, releaseID int32) ([]*Asset, er
 		}
 		byID[item.ID] = &item
 		items = append(items, &item)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return nil, err
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err
