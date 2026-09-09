@@ -88,12 +88,18 @@ type Blob struct {
 	SHA256 string
 }
 
+func (Blob) TableName() string { return `blobs` }
+
 type Entry struct {
 	ID      int32
 	AssetID int32
 	Name    string
+	Size    int64
+	BlobID  int32
 	Blob    *Blob
 }
+
+func (Entry) TableName() string { return `entries` }
 
 type Asset struct {
 	ID      int32
@@ -101,6 +107,9 @@ type Asset struct {
 	Name    string
 	Format  Format
 	Size    int64
+	BlobID  int32
 	Blob    *Blob
 	Entries []*Entry
 }
+
+func (Asset) TableName() string { return `assets` }

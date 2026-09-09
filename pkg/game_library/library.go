@@ -11,7 +11,7 @@ import (
 	_ "github.com/ncruces/go-sqlite3/driver"
 )
 
-const supportedDatabaseVersion = 9
+const supportedDatabaseVersion = 11
 
 type Library struct {
 	db  *sql.DB
@@ -147,11 +147,11 @@ func (l *Library) ListReleases(ctx context.Context, gameID int32) ([]*Release, e
 	return items, nil
 }
 
-const maxNameQueryIDs = 900
+const maxQueryIDs = 900
 
 func (l *Library) attachNames(kind Kind, ownerIDs []int32, attach func(Name)) error {
-	for begin := 0; begin < len(ownerIDs); begin += maxNameQueryIDs {
-		end := min(begin+maxNameQueryIDs, len(ownerIDs))
+	for begin := 0; begin < len(ownerIDs); begin += maxQueryIDs {
+		end := min(begin+maxQueryIDs, len(ownerIDs))
 		var names []Name
 		if err := l.tdb.Where(`kind=? AND kind_id IN (?)`, kind, ownerIDs[begin:end]).OrderBy(`id`).Find(&names); err != nil {
 			return err
@@ -164,50 +164,69 @@ func (l *Library) attachNames(kind Kind, ownerIDs []int32, attach func(Name)) er
 }
 
 func (l *Library) ListAssets(ctx context.Context, releaseID int32) ([]*Asset, error) {
-	rows, err := l.db.QueryContext(ctx, `SELECT a.id,a.type,a.name,a.format,a.size,b.id,b.size,b.sha256 FROM assets a LEFT JOIN blobs b ON b.id=a.blob_id WHERE a.kind=? AND a.kind_id=? ORDER BY a.id`, KindRelease, releaseID)
-	if err != nil {
-		return nil, err
-	}
-	items := []*Asset{}
-	byID := map[int32]*Asset{}
-	for rows.Next() {
-		var item Asset
-		var blobID sql.NullInt32
-		var blobSize sql.NullInt64
-		var blobSHA sql.NullString
-		if err := rows.Scan(&item.ID, &item.Type, &item.Name, &item.Format, &item.Size, &blobID, &blobSize, &blobSHA); err != nil {
-			rows.Close()
-			return nil, err
-		}
-		if blobID.Valid {
-			item.Blob = &Blob{ID: blobID.Int32, Size: blobSize.Int64, SHA256: blobSHA.String}
-		}
-		byID[item.ID] = &item
-		items = append(items, &item)
-	}
-	if err := rows.Err(); err != nil {
-		rows.Close()
-		return nil, err
-	}
-	if err := rows.Close(); err != nil {
+	var items []*Asset
+	if err := l.tdb.Select(`id,type,name,format,size,blob_id`).From(Asset{}).
+		Where(`kind=? AND kind_id=?`, KindRelease, releaseID).OrderBy(`id`).Find(&items); err != nil {
 		return nil, err
 	}
 	if len(items) == 0 {
 		return items, nil
 	}
-	entryRows, err := l.db.QueryContext(ctx, `SELECT e.id,e.asset_id,e.name,b.id,b.size,b.sha256 FROM entries e JOIN assets a ON a.id=e.asset_id JOIN blobs b ON b.id=e.blob_id WHERE a.kind=? AND a.kind_id=? ORDER BY e.id`, KindRelease, releaseID)
-	if err != nil {
-		return nil, err
+
+	assetIDs := make([]int32, 0, len(items))
+	assetsByID := make(map[int32]*Asset, len(items))
+	for _, asset := range items {
+		assetIDs = append(assetIDs, asset.ID)
+		assetsByID[asset.ID] = asset
 	}
-	defer entryRows.Close()
-	for entryRows.Next() {
-		entry := &Entry{Blob: &Blob{}}
-		if err := entryRows.Scan(&entry.ID, &entry.AssetID, &entry.Name, &entry.Blob.ID, &entry.Blob.Size, &entry.Blob.SHA256); err != nil {
+	var entries []*Entry
+	for begin := 0; begin < len(assetIDs); begin += maxQueryIDs {
+		end := min(begin+maxQueryIDs, len(assetIDs))
+		var batch []*Entry
+		if err := l.tdb.Select(`id,asset_id,name,size,blob_id`).From(Entry{}).
+			Where(`asset_id IN (?)`, assetIDs[begin:end]).OrderBy(`id`).Find(&batch); err != nil {
 			return nil, err
 		}
-		if asset := byID[entry.AssetID]; asset != nil {
+		entries = append(entries, batch...)
+	}
+
+	blobIDSet := map[int32]bool{}
+	for _, asset := range items {
+		if asset.BlobID != 0 {
+			blobIDSet[asset.BlobID] = true
+		}
+	}
+	for _, entry := range entries {
+		if entry.BlobID != 0 {
+			blobIDSet[entry.BlobID] = true
+		}
+	}
+	blobIDs := make([]int32, 0, len(blobIDSet))
+	for id := range blobIDSet {
+		blobIDs = append(blobIDs, id)
+	}
+	var blobs []*Blob
+	for begin := 0; begin < len(blobIDs); begin += maxQueryIDs {
+		end := min(begin+maxQueryIDs, len(blobIDs))
+		var batch []*Blob
+		if err := l.tdb.Select(`id,size,sha256`).From(Blob{}).
+			Where(`id IN (?)`, blobIDs[begin:end]).Find(&batch); err != nil {
+			return nil, err
+		}
+		blobs = append(blobs, batch...)
+	}
+	blobsByID := make(map[int32]*Blob, len(blobs))
+	for _, blob := range blobs {
+		blobsByID[blob.ID] = blob
+	}
+	for _, asset := range items {
+		asset.Blob = blobsByID[asset.BlobID]
+	}
+	for _, entry := range entries {
+		entry.Blob = blobsByID[entry.BlobID]
+		if asset := assetsByID[entry.AssetID]; asset != nil {
 			asset.Entries = append(asset.Entries, entry)
 		}
 	}
-	return items, entryRows.Err()
+	return items, nil
 }
