@@ -183,6 +183,15 @@ func (s *Store) Materialize(ctx context.Context, asset *Asset, progress func(mes
 		}
 		final := filepath.Join(dir, name)
 		shaPath := filepath.Join(dir, "sha.txt")
+		// MAME uses the ZIP basename as its driver name, so the materialized name
+		// must follow the catalog exactly. A catalog-only case correction (for
+		// example, 005.ZIP -> 005.zip) can otherwise leave an old cache entry that
+		// fails lookup but still collides with the replacement on VFAT. Rename the
+		// existing case-insensitive match through a neutral name before validation;
+		// a two-step rename also forces VFAT to persist the new spelling.
+		if err := normalizeMaterializedNameCase(dir, name); err != nil {
+			return "", err
+		}
 		if validZIPCache(final, shaPath, func(p float32) {
 			progress(`校验文件`, p)
 		}) {
@@ -304,6 +313,54 @@ func (s *Store) Materialize(ctx context.Context, asset *Asset, progress func(mes
 	default:
 		return "", fmt.Errorf("unsupported asset format: %d", asset.Format)
 	}
+}
+
+func normalizeMaterializedNameCase(dir, wanted string) error {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return err
+	}
+	var actual string
+	for _, entry := range entries {
+		if entry.Name() == wanted {
+			return nil
+		}
+		if strings.EqualFold(entry.Name(), wanted) {
+			if actual != "" {
+				return fmt.Errorf("multiple materialized files match %q ignoring case", wanted)
+			}
+			actual = entry.Name()
+		}
+	}
+	if actual == "" {
+		return nil
+	}
+
+	placeholder, err := os.CreateTemp(dir, ".case-rename-*")
+	if err != nil {
+		return err
+	}
+	temporary := placeholder.Name()
+	if err := placeholder.Close(); err != nil {
+		_ = os.Remove(temporary)
+		return err
+	}
+	if err := os.Remove(temporary); err != nil {
+		return err
+	}
+
+	oldPath := filepath.Join(dir, actual)
+	newPath := filepath.Join(dir, wanted)
+	if err := os.Rename(oldPath, temporary); err != nil {
+		return err
+	}
+	if err := os.Rename(temporary, newPath); err != nil {
+		// Preserve the usable cache under its original name when the second half
+		// of the case-only migration fails.
+		_ = os.Rename(temporary, oldPath)
+		return err
+	}
+	return nil
 }
 
 func validZIPCache(zipPath, shaPath string, progress func(float32)) bool {

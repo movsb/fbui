@@ -181,6 +181,52 @@ func TestMaterializeRegularAndZIP(t *testing.T) {
 	}
 }
 
+func TestMaterializeZIPNormalizesCachedNameCase(t *testing.T) {
+	blob, _ := testBlob(1, "data")
+	source := &fakeSource{contents: map[string][]byte{blob.SHA256: []byte("data")}, requests: map[string]int{}}
+	store := New(t.TempDir(), source)
+	progress := func(string, float32) {}
+	upper := &Asset{ID: 3, Name: "005.ZIP", Format: FormatZIP, Entries: []*Entry{{Name: "rom.bin", Blob: blob}}}
+
+	upperPath, err := store.Materialize(context.Background(), upper, progress)
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, err := os.Stat(upperPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	requests := source.requests[blob.SHA256]
+
+	lower := &Asset{ID: 3, Name: "005.zip", Format: FormatZIP, Entries: upper.Entries}
+	lowerPath, err := store.Materialize(context.Background(), lower, progress)
+	if err != nil {
+		t.Fatal(err)
+	}
+	after, err := os.Stat(lowerPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if filepath.Base(lowerPath) != "005.zip" {
+		t.Fatalf("materialized name was not normalized: %s", lowerPath)
+	}
+	directoryEntries, err := os.ReadDir(filepath.Dir(lowerPath))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range directoryEntries {
+		if entry.Name() == "005.ZIP" {
+			t.Fatal("old uppercase cache name still exists")
+		}
+	}
+	if !os.SameFile(before, after) {
+		t.Fatal("valid ZIP cache was rebuilt during case normalization")
+	}
+	if source.requests[blob.SHA256] != requests {
+		t.Fatal("blob was fetched again during case normalization")
+	}
+}
+
 func TestMaterializeRejectsUnsafeAndDuplicateZIPEntries(t *testing.T) {
 	blob, _ := testBlob(1, "data")
 	source := &fakeSource{contents: map[string][]byte{blob.SHA256: []byte("data")}, requests: map[string]int{}}
