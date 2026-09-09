@@ -66,10 +66,12 @@ func (l *Library) ListPlatforms(ctx context.Context) ([]*Platform, error) {
 		return nil, err
 	}
 	byID := map[int32]*Platform{}
+	ids := make([]int32, 0, len(items))
 	for _, item := range items {
 		byID[item.ID] = item
+		ids = append(ids, item.ID)
 	}
-	if err := l.attachNames(KindPlatform, func(name Name) {
+	if err := l.attachNames(KindPlatform, ids, func(name Name) {
 		if item := byID[name.KindID]; item != nil {
 			item.Names = append(item.Names, name)
 		}
@@ -85,10 +87,12 @@ func (l *Library) ListSeries(ctx context.Context) ([]*Series, error) {
 		return nil, err
 	}
 	byID := map[int32]*Series{}
+	ids := make([]int32, 0, len(items))
 	for _, item := range items {
 		byID[item.ID] = item
+		ids = append(ids, item.ID)
 	}
-	if err := l.attachNames(KindSeries, func(name Name) {
+	if err := l.attachNames(KindSeries, ids, func(name Name) {
 		if item := byID[name.KindID]; item != nil {
 			item.Names = append(item.Names, name)
 		}
@@ -107,10 +111,12 @@ func (l *Library) ListGames(ctx context.Context, platformID, seriesID int32) ([]
 		return nil, err
 	}
 	byID := map[int32]*Game{}
+	ids := make([]int32, 0, len(items))
 	for _, item := range items {
 		byID[item.ID] = item
+		ids = append(ids, item.ID)
 	}
-	if err := l.attachNames(KindGame, func(name Name) {
+	if err := l.attachNames(KindGame, ids, func(name Name) {
 		if item := byID[name.KindID]; item != nil {
 			item.Names = append(item.Names, name)
 		}
@@ -126,10 +132,12 @@ func (l *Library) ListReleases(ctx context.Context, gameID int32) ([]*Release, e
 		return nil, err
 	}
 	byID := map[int32]*Release{}
+	ids := make([]int32, 0, len(items))
 	for _, item := range items {
 		byID[item.ID] = item
+		ids = append(ids, item.ID)
 	}
-	if err := l.attachNames(KindRelease, func(name Name) {
+	if err := l.attachNames(KindRelease, ids, func(name Name) {
 		if item := byID[name.KindID]; item != nil {
 			item.Names = append(item.Names, name)
 		}
@@ -139,13 +147,18 @@ func (l *Library) ListReleases(ctx context.Context, gameID int32) ([]*Release, e
 	return items, nil
 }
 
-func (l *Library) attachNames(kind Kind, attach func(Name)) error {
-	var names []Name
-	if err := l.tdb.Where(`kind=?`, kind).OrderBy(`id`).Find(&names); err != nil {
-		return err
-	}
-	for _, name := range names {
-		attach(name)
+const maxNameQueryIDs = 900
+
+func (l *Library) attachNames(kind Kind, ownerIDs []int32, attach func(Name)) error {
+	for begin := 0; begin < len(ownerIDs); begin += maxNameQueryIDs {
+		end := min(begin+maxNameQueryIDs, len(ownerIDs))
+		var names []Name
+		if err := l.tdb.Where(`kind=? AND kind_id IN (?)`, kind, ownerIDs[begin:end]).OrderBy(`id`).Find(&names); err != nil {
+			return err
+		}
+		for _, name := range names {
+			attach(name)
+		}
 	}
 	return nil
 }
