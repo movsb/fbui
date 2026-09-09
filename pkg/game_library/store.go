@@ -259,7 +259,10 @@ func (s *Store) Materialize(ctx context.Context, asset *Asset, progress func(mes
 			if err != nil {
 				return fail(err)
 			}
-			output, err := archive.Create(entry.name)
+			output, err := archive.CreateHeader(&zip.FileHeader{
+				Name:   entry.name,
+				Method: 0,
+			})
 			if err == nil {
 				_, err = io.Copy(io.MultiWriter(output, assembleProgress), input)
 			}

@@ -205,11 +205,7 @@ func (n *StoreNavigator) handleEvents(event *fbiw.Event) {
 
 func (n *StoreNavigator) async(title string, load func(context.Context) (storePage, error)) {
 	n.busy = true
-	n.window.doc.SetTimeout(500, func() {
-		if n.busy {
-			n.showMessage(title + "...")
-		}
-	})
+	n.showMessage(title + "...")
 	go func() {
 		page, err := load(context.Background())
 		n.window.doc.Async(func() {
