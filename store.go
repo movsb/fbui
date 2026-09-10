@@ -6,6 +6,7 @@ import (
 	"log"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/movsb/fbiw"
@@ -63,8 +64,9 @@ type StoreNavigator struct {
 	// 游戏本地二进制存储。
 	store *game_library.Store
 	// 当前目录浏览栈。
-	stack []storePage
-	busy  bool
+	stack      []storePage
+	busy       bool
+	remoteBusy atomic.Bool
 }
 
 func NewStoreNavigator(win *MainWindow) *StoreNavigator {
@@ -371,6 +373,43 @@ func (n *StoreNavigator) openAsset(game *game_library.Game, asset *game_library.
 	}()
 }
 
+func (n *StoreNavigator) OpenAssetByID(ctx context.Context, id int32) error {
+	if n.metadataErr != nil {
+		return n.metadataErr
+	}
+	launchable, err := n.metadata.GetLaunchableAsset(ctx, id)
+	if err != nil {
+		return err
+	}
+	if !n.remoteBusy.CompareAndSwap(false, true) {
+		return errStoreOpenBusy
+	}
+	go func() {
+		path, err := n.store.Materialize(context.Background(), launchable.Asset, func(message string, progress float32) {
+			log.Printf("远程打开资源 %d：%s %.0f%%", id, message, progress)
+		})
+		if err != nil {
+			n.remoteBusy.Store(false)
+			n.showRemoteOpenError(id, err)
+			return
+		}
+		n.window.doc.Async(func() {
+			n.runROM(launchable.PlatformID, path, func() { n.remoteBusy.Store(false) })
+		})
+	}()
+	return nil
+}
+
+func (n *StoreNavigator) showRemoteOpenError(id int32, err error) {
+	log.Printf("远程打开资源 %d 失败：%v", id, err)
+	n.window.doc.Async(func() {
+		n.window.app.ShowAlertDialog(n.window.doc, fbiw.AlertDialogOptions{
+			Title:       `远程启动失败`,
+			Description: err.Error(),
+		})
+	})
+}
+
 func (n *StoreNavigator) showImage(path string) {
 	n.video.SetProp("display", "false")
 	n.image.SetPath(path)
@@ -407,7 +446,12 @@ var platformEmulators = map[int32]string{
 	8: "ATARI2600",
 }
 
-func (n *StoreNavigator) runROM(platformID int32, path string) {
+func (n *StoreNavigator) runROM(platformID int32, path string, done ...func()) {
+	finish := func() {
+		if len(done) > 0 && done[0] != nil {
+			done[0]()
+		}
+	}
 	wanted := platformEmulators[platformID]
 	var emulator *config.LaunchConfig
 	for _, candidate := range config.LoadDir(filepath.Join(config.SDCARDRoot, "Emus")) {
@@ -417,6 +461,8 @@ func (n *StoreNavigator) runROM(platformID int32, path string) {
 		}
 	}
 	if wanted == "" || emulator == nil {
+		finish()
+		log.Printf("无法打开仓库 ROM：平台 %d 没有模拟器映射", platformID)
 		n.window.app.ShowAlertDialog(n.window.doc,
 			fbiw.AlertDialogOptions{
 				Title:       `没有模拟器映射`,
@@ -426,6 +472,7 @@ func (n *StoreNavigator) runROM(platformID int32, path string) {
 	}
 	n.window.app.Detach()
 	go func() {
+		defer finish()
 		defer n.window.app.AttachAsync()
 		script := emulator.LauncherScriptPath()
 		log.Println("启动仓库 ROM：", script, path)
@@ -434,6 +481,7 @@ func (n *StoreNavigator) runROM(platformID int32, path string) {
 			if strings.Contains(err.Error(), `exit status`) {
 				return
 			}
+			log.Printf("启动仓库 ROM 失败：%v", err)
 			n.window.doc.Async(func() {
 				n.window.app.ShowAlertDialog(n.window.doc, fbiw.AlertDialogOptions{
 					Title:       `启动失败`,

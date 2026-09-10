@@ -12,13 +12,6 @@ import (
 	"github.com/movsb/fbui/pkg/swap_manager"
 )
 
-// pprof 性能测试用。
-//
-// go tool pprof -web  http://localhost:8888/debug/pprof/profile?seconds=30
-func init() {
-	go http.ListenAndServe(`0.0.0.0:8888`, nil)
-}
-
 func main() {
 	app := fbiw.NewApp()
 	defer app.Close()
@@ -28,7 +21,14 @@ func main() {
 	app.SetThemeAccent(`deepskyblue`)
 
 	NewOverlayWindow(app)
-	NewMainWindow(app)
+	window := NewMainWindow(app)
+	http.Handle(`/api/store/assets/`, storeOpenAssetHandler(window.storeNav))
+	// pprof 性能测试：go tool pprof -web http://localhost:8888/debug/pprof/profile?seconds=30
+	go func() {
+		if err := http.ListenAndServe(`0.0.0.0:8888`, nil); err != nil {
+			log.Printf("HTTP 服务失败：%v", err)
+		}
+	}()
 
 	go func() {
 		for _, err := range swap_manager.NewBackend(config.SDCARDRoot).Restore() {

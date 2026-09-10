@@ -3,6 +3,7 @@ package game_library
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -24,8 +25,11 @@ func createTestLibrary(t *testing.T, version int) string {
 		`CREATE TABLE platforms (id INTEGER PRIMARY KEY, description TEXT)`,
 		`CREATE TABLE series (id INTEGER PRIMARY KEY, description TEXT)`,
 		`CREATE TABLE games (id INTEGER PRIMARY KEY, platform_id INTEGER, series_id INTEGER, description TEXT)`,
+		`CREATE INDEX games_platform_id ON games (platform_id)`,
 		`CREATE TABLE names (id INTEGER PRIMARY KEY, kind INTEGER, kind_id INTEGER, language INTEGER, name TEXT, source TEXT NOT NULL DEFAULT '')`,
+		`CREATE INDEX names_kind_kind_id ON names (kind, kind_id)`,
 		`CREATE TABLE releases (id INTEGER PRIMARY KEY, game_id INTEGER, description TEXT, release_date INTEGER)`,
+		`CREATE INDEX releases_game_id ON releases (game_id)`,
 		`CREATE TABLE assets (id INTEGER PRIMARY KEY, kind INTEGER, kind_id INTEGER, type INTEGER, name TEXT, description TEXT, debug TEXT, format INTEGER, size INTEGER, blob_id INTEGER)`,
 		`CREATE INDEX assets_kind_kind_id ON assets (kind, kind_id)`,
 		`CREATE TABLE entries (id INTEGER PRIMARY KEY, asset_id INTEGER, name TEXT, size INTEGER, blob_id INTEGER)`,
@@ -97,6 +101,14 @@ func TestLibraryQueriesCatalogAndBlobs(t *testing.T) {
 	if assets[0].Blob == nil || assets[0].Blob.Size != 4 || len(assets[1].Entries) != 1 || assets[1].Entries[0].Blob.Size != 3 {
 		t.Fatalf("blob metadata was not attached: %#v", assets)
 	}
+	regular, err := library.GetLaunchableAsset(ctx, 7)
+	if err != nil || regular.PlatformID != 1 || regular.Asset.Blob == nil || regular.Asset.Blob.Size != 4 {
+		t.Fatalf("regular launchable=%#v err=%v", regular, err)
+	}
+	launchable, err := library.GetLaunchableAsset(ctx, 8)
+	if err != nil || launchable.PlatformID != 1 || launchable.Asset.ID != 8 || len(launchable.Asset.Entries) != 1 {
+		t.Fatalf("launchable=%#v err=%v", launchable, err)
+	}
 	if err := library.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -106,6 +118,35 @@ func TestLibraryQueriesCatalogAndBlobs(t *testing.T) {
 	}
 	if before.ModTime() != after.ModTime() || before.Size() != after.Size() {
 		t.Fatal("read-only library changed the database file")
+	}
+}
+
+func TestGetLaunchableAssetRejectsInvalidAssets(t *testing.T) {
+	path := createTestLibrary(t, supportedDatabaseVersion)
+	db, err := sql.Open("sqlite3", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`INSERT INTO assets VALUES (10,3,4,2,'cover.png','','',1,4,5),(11,2,3,1,'game.rom','','',1,4,5)`); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	library, err := OpenLibrary(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer library.Close()
+
+	tests := []struct {
+		id   int32
+		want error
+	}{{999, ErrAssetNotFound}, {10, ErrAssetNotROM}, {11, ErrAssetNotRelease}}
+	for _, test := range tests {
+		if _, err := library.GetLaunchableAsset(context.Background(), test.id); !errors.Is(err, test.want) {
+			t.Errorf("asset %d: got %v, want %v", test.id, err, test.want)
+		}
 	}
 }
 

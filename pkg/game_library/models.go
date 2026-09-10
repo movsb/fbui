@@ -103,6 +103,8 @@ func (Entry) TableName() string { return `entries` }
 
 type Asset struct {
 	ID      int32
+	Kind    Kind
+	KindID  int32
 	Type    AssetType
 	Name    string
 	Format  Format

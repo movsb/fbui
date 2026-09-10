@@ -3,6 +3,7 @@ package game_library
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,7 +12,18 @@ import (
 	_ "github.com/ncruces/go-sqlite3/driver"
 )
 
-const supportedDatabaseVersion = 11
+var (
+	ErrAssetNotFound   = errors.New("asset not found")
+	ErrAssetNotROM     = errors.New("asset is not a ROM")
+	ErrAssetNotRelease = errors.New("asset does not belong to a release")
+)
+
+type LaunchableAsset struct {
+	Asset      *Asset
+	PlatformID int32
+}
+
+const supportedDatabaseVersion = 12
 
 type Library struct {
 	db  *sql.DB
@@ -165,7 +177,7 @@ func (l *Library) attachNames(kind Kind, ownerIDs []int32, attach func(Name)) er
 
 func (l *Library) ListAssets(ctx context.Context, releaseID int32) ([]*Asset, error) {
 	var items []*Asset
-	if err := l.tdb.Select(`id,type,name,format,size,blob_id`).From(Asset{}).
+	if err := l.tdb.Select(`id,kind,kind_id,type,name,format,size,blob_id`).From(Asset{}).
 		Where(`kind=? AND kind_id=?`, KindRelease, releaseID).OrderBy(`id`).Find(&items); err != nil {
 		return nil, err
 	}
@@ -229,4 +241,48 @@ func (l *Library) ListAssets(ctx context.Context, releaseID int32) ([]*Asset, er
 		}
 	}
 	return items, nil
+}
+
+func (l *Library) GetLaunchableAsset(ctx context.Context, assetID int32) (*LaunchableAsset, error) {
+	var assets []*Asset
+	if err := l.tdb.Select(`id,kind,kind_id,type,name,format,size,blob_id`).From(Asset{}).
+		Where(`id=?`, assetID).Find(&assets); err != nil {
+		return nil, err
+	}
+	if len(assets) == 0 {
+		return nil, ErrAssetNotFound
+	}
+	asset := assets[0]
+	if asset.Type != AssetTypeROM {
+		return nil, ErrAssetNotROM
+	}
+	if asset.Kind != KindRelease {
+		return nil, ErrAssetNotRelease
+	}
+
+	var releases []*Release
+	if err := l.tdb.Select(`id,game_id`).From(Release{}).Where(`id=?`, asset.KindID).Find(&releases); err != nil {
+		return nil, err
+	}
+	if len(releases) == 0 {
+		return nil, ErrAssetNotRelease
+	}
+	var games []*Game
+	if err := l.tdb.Select(`id,platform_id`).From(Game{}).Where(`id=?`, releases[0].GameID).Find(&games); err != nil {
+		return nil, err
+	}
+	if len(games) == 0 {
+		return nil, ErrAssetNotRelease
+	}
+
+	items, err := l.ListAssets(ctx, asset.KindID)
+	if err != nil {
+		return nil, err
+	}
+	for _, item := range items {
+		if item.ID == assetID {
+			return &LaunchableAsset{Asset: item, PlatformID: games[0].PlatformID}, nil
+		}
+	}
+	return nil, ErrAssetNotFound
 }
