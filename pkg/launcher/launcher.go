@@ -213,12 +213,12 @@ func exportedEnvironment(env expand.Environ) []string {
 var emuMaps = map[string][]string{
 	`arcade`: {
 		`fbneo`,
-		`fbalpha2012_neogeo`,
-		`fbalpha`,
-		`fbalpha2012`,
 		`mamearcade`,
 		`mame2010`,
 		`mame2003_plus`,
+		`fbalpha2012_neogeo`,
+		`fbalpha`,
+		`fbalpha2012`,
 		`fbalpha2012_cps1`,
 		`fbalpha2012_cps2`,
 		`fbalpha2012_cps3`,
