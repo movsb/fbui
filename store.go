@@ -48,6 +48,13 @@ type storeItemView struct {
 	name *fbiw.Text `css:".name"`
 }
 
+// ScrollSelectionChanged implements [fbiw.ScrollSelectionAware].
+func (view *storeItemView) ScrollSelectionChanged(selected bool) {
+	view.name.SetMarqueeRunning(selected)
+}
+
+var _ fbiw.ScrollSelectionAware = (*storeItemView)(nil)
+
 type StoreNavigator struct {
 	window  *MainWindow
 	root    fbiw.Box                  `css:"#store"`

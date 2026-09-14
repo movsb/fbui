@@ -253,14 +253,21 @@ func (n *GamesNavigator) runGame(info RomInfo) {
 	}()
 }
 
+type _RomBox struct {
+	root fbiw.Box
+	icon fbiw.Box   `css:".icon"`
+	name *fbiw.Text `css:".name"`
+}
+
+// ScrollSelectionChanged implements [fbiw.ScrollSelectionAware].
+func (view *_RomBox) ScrollSelectionChanged(selected bool) {
+	view.name.SetMarqueeRunning(selected)
+}
+
+var _ fbiw.ScrollSelectionAware = (*_RomBox)(nil)
+
 func (n *GamesNavigator) setRomsList(roms []RomInfo, state any) {
 	n.noGames.Base().SetProp(`display`, fmt.Sprint(len(roms) == 0))
-
-	type _RomBox struct {
-		root fbiw.Box
-		icon fbiw.Box   `css:".icon"`
-		name *fbiw.Text `css:".name"`
-	}
 
 	n.roms.SetItems(len(roms),
 		func() (fbiw.Box, *_RomBox) {
