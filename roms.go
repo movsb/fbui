@@ -16,13 +16,20 @@ import (
 	"github.com/movsb/fbui/pkg/search_window"
 )
 
-func (w *MainWindow) asyncInitEmus() {
-	type _EmuItem struct {
-		root  fbiw.Box
-		image *fbiw.Image `css:"img"`
-		text  *fbiw.Text  `css:"text"`
-	}
+type _EmuItem struct {
+	root  fbiw.Box
+	image *fbiw.Image `css:"img"`
+	text  *fbiw.Text  `css:"text"`
+}
 
+// ScrollSelectionChanged implements [fbiw.ScrollSelectionAware].
+func (view *_EmuItem) ScrollSelectionChanged(selected bool) {
+	view.text.SetMarqueeRunning(selected)
+}
+
+var _ fbiw.ScrollSelectionAware = (*_EmuItem)(nil)
+
+func (w *MainWindow) asyncInitEmus() {
 	emus := config.LoadDir(filepath.Join(config.SDCARDRoot, `Emus`))
 
 	w.doc.Async(func() {

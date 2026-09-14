@@ -20,13 +20,20 @@ func loadApps() []*config.LaunchConfig {
 	return launchConfigs
 }
 
-func (w *MainWindow) asyncInitApps() {
-	type _AppItem struct {
-		root  fbiw.Box
-		image *fbiw.Image `css:"img"`
-		text  *fbiw.Text  `css:"text"`
-	}
+type _AppItem struct {
+	root  fbiw.Box
+	image *fbiw.Image `css:"img"`
+	text  *fbiw.Text  `css:"text"`
+}
 
+// ScrollSelectionChanged implements [fbiw.ScrollSelectionAware].
+func (view *_AppItem) ScrollSelectionChanged(selected bool) {
+	view.text.SetMarqueeRunning(selected)
+}
+
+var _ fbiw.ScrollSelectionAware = (*_AppItem)(nil)
+
+func (w *MainWindow) asyncInitApps() {
 	apps := loadApps()
 	w.doc.Async(func() {
 		container := w.doc.GetBoxByID[*fbiw.Scroll](`apps`)
@@ -46,12 +53,6 @@ func (w *MainWindow) asyncInitApps() {
 }
 
 func (w *MainWindow) asyncInitPorts() {
-	type _AppItem struct {
-		root  fbiw.Box
-		image *fbiw.Image `css:"img"`
-		text  *fbiw.Text  `css:"text"`
-	}
-
 	apps := config.LoadDir(filepath.Join(config.SDCARDRoot, `Ports`))
 
 	w.doc.Async(func() {
