@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -34,6 +35,7 @@ func TestStoreOpenAssetHandler(t *testing.T) {
 		{"missing", http.MethodPost, "/api/store/assets/42:open", game_library.ErrAssetNotFound, http.StatusNotFound},
 		{"not rom", http.MethodPost, "/api/store/assets/42:open", game_library.ErrAssetNotROM, http.StatusUnsupportedMediaType},
 		{"wrong owner", http.MethodPost, "/api/store/assets/42:open", game_library.ErrAssetNotRelease, http.StatusUnsupportedMediaType},
+		{"unsupported MAME version", http.MethodPost, "/api/store/assets/42:open", fmt.Errorf("%w: too new", game_library.ErrUnsupportedMAMEVersion), http.StatusUnsupportedMediaType},
 		{"busy", http.MethodPost, "/api/store/assets/42:open", errStoreOpenBusy, http.StatusConflict},
 		{"internal", http.MethodPost, "/api/store/assets/42:open", errors.New("broken"), http.StatusInternalServerError},
 		{"options", http.MethodOptions, "/api/store/assets/42:open", nil, http.StatusNoContent},

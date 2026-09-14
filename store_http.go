@@ -48,7 +48,7 @@ func storeOpenAssetHandler(opener assetIDOpener) http.Handler {
 			switch {
 			case errors.Is(err, game_library.ErrAssetNotFound):
 				writeStoreJSONError(w, http.StatusNotFound, err.Error())
-			case errors.Is(err, game_library.ErrAssetNotROM), errors.Is(err, game_library.ErrAssetNotRelease):
+			case errors.Is(err, game_library.ErrAssetNotROM), errors.Is(err, game_library.ErrAssetNotRelease), errors.Is(err, game_library.ErrUnsupportedMAMEVersion):
 				writeStoreJSONError(w, http.StatusUnsupportedMediaType, err.Error())
 			case errors.Is(err, errStoreOpenBusy):
 				writeStoreJSONError(w, http.StatusConflict, err.Error())

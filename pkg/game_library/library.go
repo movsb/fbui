@@ -7,16 +7,32 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 
 	"github.com/movsb/taorm"
 	_ "github.com/ncruces/go-sqlite3/driver"
 )
 
 var (
-	ErrAssetNotFound   = errors.New("asset not found")
-	ErrAssetNotROM     = errors.New("asset is not a ROM")
-	ErrAssetNotRelease = errors.New("asset does not belong to a release")
+	ErrAssetNotFound          = errors.New("asset not found")
+	ErrAssetNotROM            = errors.New("asset is not a ROM")
+	ErrAssetNotRelease        = errors.New("asset does not belong to a release")
+	ErrUnsupportedMAMEVersion = errors.New("unsupported MAME ROM set version")
 )
+
+const supportedMAMEVersion = "0.259"
+
+type unsupportedMAMEVersionError struct {
+	required  string
+	supported string
+}
+
+func (e unsupportedMAMEVersionError) Error() string {
+	return fmt.Sprintf("此 ROM Set 需要 MAME %s，当前设备最高支持 MAME %s。", e.required, e.supported)
+}
+
+func (unsupportedMAMEVersionError) Unwrap() error { return ErrUnsupportedMAMEVersion }
 
 type LaunchableAsset struct {
 	Asset      *Asset
@@ -259,7 +275,6 @@ func (l *Library) GetLaunchableAsset(ctx context.Context, assetID int32) (*Launc
 	if asset.Kind != KindRelease {
 		return nil, ErrAssetNotRelease
 	}
-
 	var releases []*Release
 	if err := l.tdb.Select(`id,game_id`).From(Release{}).Where(`id=?`, asset.KindID).Find(&releases); err != nil {
 		return nil, err
@@ -274,6 +289,9 @@ func (l *Library) GetLaunchableAsset(ctx context.Context, assetID int32) (*Launc
 	if len(games) == 0 {
 		return nil, ErrAssetNotRelease
 	}
+	if err := l.validateMAMEVersion(ctx, assetID); err != nil {
+		return nil, err
+	}
 
 	items, err := l.ListAssets(ctx, asset.KindID)
 	if err != nil {
@@ -285,4 +303,73 @@ func (l *Library) GetLaunchableAsset(ctx context.Context, assetID int32) (*Launc
 		}
 	}
 	return nil, ErrAssetNotFound
+}
+
+func (l *Library) validateMAMEVersion(ctx context.Context, assetID int32) error {
+	rows, err := l.db.QueryContext(ctx, `SELECT DISTINCT version FROM rom_sets WHERE asset_id=? AND emulator='mame'`, assetID)
+	if err != nil {
+		return fmt.Errorf("query MAME ROM set version: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var version string
+		if err := rows.Scan(&version); err != nil {
+			return fmt.Errorf("read MAME ROM set version: %w", err)
+		}
+		comparison, err := compareDottedVersions(version, supportedMAMEVersion)
+		if err != nil {
+			return fmt.Errorf("invalid MAME ROM set version %q: %w", version, err)
+		}
+		if comparison > 0 {
+			return unsupportedMAMEVersionError{required: version, supported: supportedMAMEVersion}
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("query MAME ROM set version: %w", err)
+	}
+	return nil
+}
+
+func compareDottedVersions(left, right string) (int, error) {
+	parse := func(version string) ([]int64, error) {
+		parts := strings.Split(version, ".")
+		values := make([]int64, len(parts))
+		for i, part := range parts {
+			if part == "" {
+				return nil, fmt.Errorf("empty version component")
+			}
+			value, err := strconv.ParseInt(part, 10, 64)
+			if err != nil || value < 0 {
+				return nil, fmt.Errorf("invalid version component %q", part)
+			}
+			values[i] = value
+		}
+		return values, nil
+	}
+
+	leftParts, err := parse(left)
+	if err != nil {
+		return 0, err
+	}
+	rightParts, err := parse(right)
+	if err != nil {
+		return 0, err
+	}
+	for i := range max(len(leftParts), len(rightParts)) {
+		var leftPart, rightPart int64
+		if i < len(leftParts) {
+			leftPart = leftParts[i]
+		}
+		if i < len(rightParts) {
+			rightPart = rightParts[i]
+		}
+		if leftPart < rightPart {
+			return -1, nil
+		}
+		if leftPart > rightPart {
+			return 1, nil
+		}
+	}
+	return 0, nil
 }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"path/filepath"
@@ -16,7 +17,7 @@ import (
 	"github.com/movsb/fbui/pkg/video_player"
 )
 
-const gmBlobBaseURL = "http://192.168.10.124:8888"
+const gmBlobBaseURL = "http://192.168.10.10:8888"
 
 type storeLevel int
 
@@ -321,6 +322,21 @@ func (n *StoreNavigator) loadAssets(game *game_library.Game, release *game_libra
 }
 
 func (n *StoreNavigator) openAsset(game *game_library.Game, asset *game_library.Asset) {
+	if asset.Type == game_library.AssetTypeROM {
+		launchable, err := n.metadata.GetLaunchableAsset(context.Background(), asset.ID)
+		if err != nil {
+			title := `无法打开 ROM`
+			if errors.Is(err, game_library.ErrUnsupportedMAMEVersion) {
+				title = `ROM 不受支持`
+			}
+			n.window.app.ShowAlertDialog(n.window.doc, fbiw.AlertDialogOptions{
+				Title:       title,
+				Description: err.Error(),
+			})
+			return
+		}
+		asset = launchable.Asset
+	}
 	n.busy = true
 	go func() {
 		lastMessage := ""

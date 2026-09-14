@@ -151,6 +151,78 @@ func TestGetLaunchableAssetRejectsInvalidAssets(t *testing.T) {
 	}
 }
 
+func TestGetLaunchableAssetValidatesMAMEVersion(t *testing.T) {
+	tests := []struct {
+		name        string
+		emulator    string
+		version     string
+		wantError   bool
+		unsupported bool
+	}{
+		{name: "newer", emulator: "mame", version: "0.289", wantError: true, unsupported: true},
+		{name: "supported", emulator: "mame", version: "0.259"},
+		{name: "older", emulator: "mame", version: "0.78"},
+		{name: "different emulator", emulator: "fbneo", version: "999"},
+		{name: "invalid", emulator: "mame", version: "not-a-version", wantError: true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			path := createTestLibrary(t, supportedDatabaseVersion)
+			db, err := sql.Open("sqlite3", path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := db.Exec(`INSERT INTO rom_sets(emulator,version,short_name,asset_id) VALUES(?,?,?,?)`, test.emulator, test.version, "game", 7); err != nil {
+				t.Fatal(err)
+			}
+			if err := db.Close(); err != nil {
+				t.Fatal(err)
+			}
+
+			library, err := OpenLibrary(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer library.Close()
+			_, err = library.GetLaunchableAsset(context.Background(), 7)
+			if (err != nil) != test.wantError {
+				t.Fatalf("error=%v, wantError=%v", err, test.wantError)
+			}
+			if errors.Is(err, ErrUnsupportedMAMEVersion) != test.unsupported {
+				t.Fatalf("error=%v, unsupported=%v", err, test.unsupported)
+			}
+			if test.unsupported && (!strings.Contains(err.Error(), "0.289") || !strings.Contains(err.Error(), supportedMAMEVersion)) {
+				t.Fatalf("error does not include both versions: %v", err)
+			}
+		})
+	}
+}
+
+func TestCompareDottedVersions(t *testing.T) {
+	tests := []struct {
+		left, right string
+		want        int
+	}{
+		{"0.289", "0.259", 1},
+		{"0.259", "0.259", 0},
+		{"0.78", "0.259", -1},
+		{"0.259.1", "0.259", 1},
+		{"0.259.0", "0.259", 0},
+		{"1.2", "1.10", -1},
+	}
+	for _, test := range tests {
+		got, err := compareDottedVersions(test.left, test.right)
+		if err != nil || got != test.want {
+			t.Errorf("compareDottedVersions(%q, %q)=%d, %v; want %d", test.left, test.right, got, err, test.want)
+		}
+	}
+	for _, version := range []string{"", "0.", ".259", "v0.259", "0.-1"} {
+		if _, err := compareDottedVersions(version, supportedMAMEVersion); err == nil {
+			t.Errorf("compareDottedVersions(%q, %q) unexpectedly succeeded", version, supportedMAMEVersion)
+		}
+	}
+}
+
 func TestOpenLibraryRejectsMissingAndWrongVersion(t *testing.T) {
 	if _, err := OpenLibrary(filepath.Join(t.TempDir(), "missing.db")); err == nil {
 		t.Fatal("expected missing database error")
