@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net/http"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
@@ -14,6 +15,8 @@ import (
 	"github.com/movsb/fbui/pkg/config"
 	"github.com/movsb/fbui/pkg/game_library"
 	"github.com/movsb/fbui/pkg/launcher"
+	"github.com/movsb/fbui/pkg/menu_popup"
+	"github.com/movsb/fbui/pkg/progress_popup"
 	"github.com/movsb/fbui/pkg/video_player"
 )
 
@@ -57,7 +60,7 @@ var _ fbiw.ScrollSelectionAware = (*storeItemView)(nil)
 
 type StoreNavigator struct {
 	window  *MainWindow
-	root    fbiw.Box                  `css:"#store"`
+	shadow  fbiw.Box                  `css:"#store"`
 	title   *fbiw.Text                `css:"#store-title"`
 	list    *fbiw.Scroll              `css:"#store-list"`
 	message fbiw.Box                  `css:"#store-message"`
@@ -90,7 +93,7 @@ func NewStoreNavigator(win *MainWindow) *StoreNavigator {
 		),
 	}
 	win.doc.Bind(n)
-	n.root.Listen(fbiw.StickDownEvent, n.handleEvents)
+	n.shadow.Listen(fbiw.StickDownEvent, n.handleEvents)
 	n.preview.Listen(fbiw.StickDownEvent, n.handlePreviewEvents)
 	n.list.Listen(fbiw.ScrollSelectionChange, func(*fbiw.Event) { n.updatePagination() })
 	n.stack = []storePage{{
@@ -166,6 +169,11 @@ func (n *StoreNavigator) handleEvents(event *fbiw.Event) {
 		return
 	}
 	name := event.Stick.Name
+	if name == fbiw.Menu {
+		n.showMenu()
+		event.StopPropagation()
+		return
+	}
 	if name == fbiw.B {
 		if len(n.stack) == 1 {
 			n.list.Deselect()
@@ -211,6 +219,84 @@ func (n *StoreNavigator) handleEvents(event *fbiw.Event) {
 		n.openAsset(page.game, item.value.(*game_library.Asset))
 	}
 	event.StopPropagation()
+}
+
+func (n *StoreNavigator) showMenu() {
+	menu_popup.NewMenuPopup(n.window.app, n.window.doc, []menu_popup.MenuItem{
+		{
+			Name: "更新仓库数据库...",
+			Click: func() {
+				n.window.app.ShowAlertDialog(n.window.doc, fbiw.AlertDialogOptions{
+					Title:       "更新仓库数据库？",
+					Description: "将从 GM 下载最新数据库并替换当前仓库数据库。",
+					ActionText:  "更新",
+					CancelText:  "取消",
+					OnAction:    n.updateDatabase,
+				})
+			},
+		},
+	}, nil, nil)
+}
+
+func (n *StoreNavigator) updateDatabase() {
+	if n.busy {
+		return
+	}
+	n.busy = true
+	popup := progress_popup.New(n.window.app, n.window.doc, "正在检查数据库版本")
+	target := filepath.Join(config.SDCARDRoot, ".fbui", "gm", "gm.db")
+	go func() {
+		lastUpdate := time.Time{}
+		newLibrary, err := downloadLibrarySnapshot(context.Background(), http.DefaultClient, gmBlobBaseURL, target,
+			func(received, total int64) {
+				if total == 0 {
+					n.window.doc.Async(func() { popup.SetIndeterminate("正在生成数据库快照") })
+					return
+				}
+				now := time.Now()
+				if received != total && now.Sub(lastUpdate) < 100*time.Millisecond {
+					return
+				}
+				lastUpdate = now
+				n.window.doc.Async(func() {
+					if received == total {
+						popup.SetIndeterminate("正在校验并启用数据库")
+					} else {
+						popup.SetProgress(received, total)
+					}
+				})
+			})
+		n.window.doc.Async(func() {
+			n.busy = false
+			popup.Close()
+			if err != nil {
+				n.list.Activate()
+				n.window.app.ShowAlertDialog(n.window.doc, fbiw.AlertDialogOptions{
+					Title:       "更新仓库数据库失败",
+					Description: err.Error(),
+				})
+				return
+			}
+			oldLibrary := n.metadata
+			n.metadata = newLibrary
+			n.metadataErr = nil
+			if oldLibrary != nil {
+				_ = oldLibrary.Close()
+			}
+			n.stack = []storePage{{
+				level: storeRoot,
+				title: "仓库",
+				items: []storeItem{{name: "平台", value: storePlatforms}, {name: "系列", value: storeSeries}},
+			}}
+			n.render(nil)
+			n.list.SetIndex(0, 0, 0)
+			n.list.Activate()
+			n.window.app.ShowAlertDialog(n.window.doc, fbiw.AlertDialogOptions{
+				Title:       "仓库数据库已更新",
+				Description: "最新数据库快照已启用。",
+			})
+		})
+	}()
 }
 
 func (n *StoreNavigator) async(title string, load func(context.Context) (storePage, error)) {

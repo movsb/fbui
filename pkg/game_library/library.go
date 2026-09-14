@@ -39,7 +39,7 @@ type LaunchableAsset struct {
 	PlatformID int32
 }
 
-const supportedDatabaseVersion = 14
+const SupportedDatabaseVersion = 14
 
 type Library struct {
 	db  *sql.DB
@@ -75,8 +75,8 @@ func (l *Library) validate(ctx context.Context) error {
 	if err := l.db.QueryRowContext(ctx, `SELECT value FROM options WHERE name='db_ver'`).Scan(&version); err != nil {
 		return fmt.Errorf("invalid game library database: %w", err)
 	}
-	if version != supportedDatabaseVersion {
-		return fmt.Errorf("unsupported game library database version: got %d, want %d", version, supportedDatabaseVersion)
+	if version != SupportedDatabaseVersion {
+		return fmt.Errorf("unsupported game library database version: got %d, want %d", version, SupportedDatabaseVersion)
 	}
 	for _, table := range []string{"platforms", "series", "games", "names", "releases", "assets", "entries", "blobs", "rom_sets"} {
 		var found string

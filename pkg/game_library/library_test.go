@@ -59,7 +59,7 @@ func createTestLibrary(t *testing.T, version int) string {
 }
 
 func TestLibraryQueriesCatalogAndBlobs(t *testing.T) {
-	path := createTestLibrary(t, supportedDatabaseVersion)
+	path := createTestLibrary(t, SupportedDatabaseVersion)
 	before, err := os.Stat(path)
 	if err != nil {
 		t.Fatal(err)
@@ -123,7 +123,7 @@ func TestLibraryQueriesCatalogAndBlobs(t *testing.T) {
 }
 
 func TestGetLaunchableAssetRejectsInvalidAssets(t *testing.T) {
-	path := createTestLibrary(t, supportedDatabaseVersion)
+	path := createTestLibrary(t, SupportedDatabaseVersion)
 	db, err := sql.Open("sqlite3", path)
 	if err != nil {
 		t.Fatal(err)
@@ -167,7 +167,7 @@ func TestGetLaunchableAssetValidatesMAMEVersion(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			path := createTestLibrary(t, supportedDatabaseVersion)
+			path := createTestLibrary(t, SupportedDatabaseVersion)
 			db, err := sql.Open("sqlite3", path)
 			if err != nil {
 				t.Fatal(err)
@@ -227,14 +227,14 @@ func TestOpenLibraryRejectsMissingAndWrongVersion(t *testing.T) {
 	if _, err := OpenLibrary(filepath.Join(t.TempDir(), "missing.db")); err == nil {
 		t.Fatal("expected missing database error")
 	}
-	path := createTestLibrary(t, supportedDatabaseVersion-1)
+	path := createTestLibrary(t, SupportedDatabaseVersion-1)
 	if _, err := OpenLibrary(path); err == nil || !strings.Contains(err.Error(), "unsupported") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
 func TestOpenLibraryRejectsMissingTable(t *testing.T) {
-	path := createTestLibrary(t, supportedDatabaseVersion)
+	path := createTestLibrary(t, SupportedDatabaseVersion)
 	db, err := sql.Open("sqlite3", path)
 	if err != nil {
 		t.Fatal(err)
