@@ -483,6 +483,9 @@ func (n *StoreNavigator) openAsset(game *game_library.Game, asset *game_library.
 }
 
 func (n *StoreNavigator) OpenAssetByID(ctx context.Context, id int32) error {
+	if n.window.app.Detached() {
+		return fmt.Errorf(`启动器当前不在前台，不能启动游戏。`)
+	}
 	if n.metadataErr != nil {
 		return n.metadataErr
 	}
