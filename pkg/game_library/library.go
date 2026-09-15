@@ -312,6 +312,9 @@ func (l *Library) validateMAMEVersion(ctx context.Context, assetID int32) error 
 	}
 	defer rows.Close()
 
+	var compatible bool
+	var required string
+	var invalidVersion error
 	for rows.Next() {
 		var version string
 		if err := rows.Scan(&version); err != nil {
@@ -319,14 +322,29 @@ func (l *Library) validateMAMEVersion(ctx context.Context, assetID int32) error 
 		}
 		comparison, err := compareDottedVersions(version, supportedMAMEVersion)
 		if err != nil {
-			return fmt.Errorf("invalid MAME ROM set version %q: %w", version, err)
+			invalidVersion = fmt.Errorf("invalid MAME ROM set version %q: %w", version, err)
+			continue
 		}
-		if comparison > 0 {
-			return unsupportedMAMEVersionError{required: version, supported: supportedMAMEVersion}
+		if comparison <= 0 {
+			compatible = true
+		} else if required == "" {
+			required = version
+		} else if comparison, _ := compareDottedVersions(version, required); comparison < 0 {
+			required = version
 		}
 	}
 	if err := rows.Err(); err != nil {
 		return fmt.Errorf("query MAME ROM set version: %w", err)
+	}
+	// A shared asset only needs one known-compatible ROM set reference.
+	if compatible {
+		return nil
+	}
+	if invalidVersion != nil {
+		return invalidVersion
+	}
+	if required != "" {
+		return unsupportedMAMEVersionError{required: required, supported: supportedMAMEVersion}
 	}
 	return nil
 }

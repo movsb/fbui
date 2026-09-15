@@ -153,17 +153,23 @@ func TestGetLaunchableAssetRejectsInvalidAssets(t *testing.T) {
 
 func TestGetLaunchableAssetValidatesMAMEVersion(t *testing.T) {
 	tests := []struct {
-		name        string
-		emulator    string
-		version     string
-		wantError   bool
-		unsupported bool
+		name          string
+		emulator      string
+		version       string
+		extraVersions []string
+		wantError     bool
+		unsupported   bool
 	}{
 		{name: "newer", emulator: "mame", version: "0.289", wantError: true, unsupported: true},
 		{name: "supported", emulator: "mame", version: "0.259"},
 		{name: "older", emulator: "mame", version: "0.78"},
 		{name: "different emulator", emulator: "fbneo", version: "999"},
 		{name: "invalid", emulator: "mame", version: "not-a-version", wantError: true},
+		{name: "compatible before newer", emulator: "mame", version: "0.259", extraVersions: []string{"0.289"}},
+		{name: "compatible after newer", emulator: "mame", version: "0.289", extraVersions: []string{"0.259"}},
+		{name: "all newer", emulator: "mame", version: "0.289", extraVersions: []string{"0.290"}, wantError: true, unsupported: true},
+		{name: "compatible after invalid", emulator: "mame", version: "not-a-version", extraVersions: []string{"0.259"}},
+		{name: "compatible before invalid", emulator: "mame", version: "0.259", extraVersions: []string{"not-a-version"}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -174,6 +180,11 @@ func TestGetLaunchableAssetValidatesMAMEVersion(t *testing.T) {
 			}
 			if _, err := db.Exec(`INSERT INTO rom_sets(emulator,version,short_name,asset_id) VALUES(?,?,?,?)`, test.emulator, test.version, "game", 7); err != nil {
 				t.Fatal(err)
+			}
+			for _, version := range test.extraVersions {
+				if _, err := db.Exec(`INSERT INTO rom_sets(emulator,version,short_name,asset_id) VALUES(?,?,?,?)`, test.emulator, version, "game", 7); err != nil {
+					t.Fatal(err)
+				}
 			}
 			if err := db.Close(); err != nil {
 				t.Fatal(err)
