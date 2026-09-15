@@ -13,6 +13,9 @@ import (
 )
 
 func main() {
+	stopAutoUpdate := startExecutableAutoUpdate()
+	defer stopAutoUpdate()
+
 	app := fbiw.NewApp()
 	defer app.Close()
 
