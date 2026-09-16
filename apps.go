@@ -26,17 +26,17 @@ type _AppItem struct {
 	text  *fbiw.Text  `css:"text"`
 }
 
-// ScrollSelectionChanged implements [fbiw.ScrollSelectionAware].
-func (view *_AppItem) ScrollSelectionChanged(selected bool) {
+// ScrollSelectionChanged implements [fbiw.ListSelectionAware].
+func (view *_AppItem) ListSelectionChanged(selected bool) {
 	view.text.SetMarqueeRunning(selected)
 }
 
-var _ fbiw.ScrollSelectionAware = (*_AppItem)(nil)
+var _ fbiw.ListSelectionAware = (*_AppItem)(nil)
 
 func (w *MainWindow) asyncInitApps() {
 	apps := loadApps()
 	w.doc.Async(func() {
-		container := w.doc.GetBoxByID[*fbiw.Scroll](`apps`)
+		container := w.doc.GetBoxByID[*fbiw.List](`apps`)
 		container.SetData(`apps`, apps)
 		container.SetItems(len(apps),
 			func() (fbiw.Box, *_AppItem) {
@@ -56,7 +56,7 @@ func (w *MainWindow) asyncInitPorts() {
 	apps := config.LoadDir(filepath.Join(config.SDCARDRoot, `Ports`))
 
 	w.doc.Async(func() {
-		scroll := w.doc.GetBoxByID[*fbiw.Scroll](`ports`)
+		scroll := w.doc.GetBoxByID[*fbiw.List](`ports`)
 		scroll.SetData(`ports`, apps)
 		scroll.SetItems(len(apps),
 			func() (fbiw.Box, any) {
@@ -76,14 +76,14 @@ func (w *MainWindow) asyncInitPorts() {
 type LauncherNavigator struct {
 	window  *MainWindow
 	dataKey string
-	scroll  *fbiw.Scroll
+	scroll  *fbiw.List
 }
 
 func NewLauncherNavigator(win *MainWindow, selector string, dataKey string) *LauncherNavigator {
 	n := LauncherNavigator{
 		window:  win,
 		dataKey: dataKey,
-		scroll:  win.doc.QuerySelector[*fbiw.Scroll](selector),
+		scroll:  win.doc.QuerySelector[*fbiw.List](selector),
 	}
 	n.scroll.Listen(fbiw.StickDownEvent, n.handleKeyDown)
 	return &n

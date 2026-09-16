@@ -95,7 +95,7 @@ func NewToolsNavigator(win *MainWindow) *ToolsNavigator {
 
 type ToolsNavigator struct {
 	window *MainWindow
-	scroll *fbiw.Scroll `css:"#tools"`
+	scroll *fbiw.List `css:"#tools"`
 	tools  []_ToolItemData
 }
 

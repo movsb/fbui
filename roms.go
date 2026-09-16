@@ -22,18 +22,18 @@ type _EmuItem struct {
 	text  *fbiw.Text  `css:"text"`
 }
 
-// ScrollSelectionChanged implements [fbiw.ScrollSelectionAware].
-func (view *_EmuItem) ScrollSelectionChanged(selected bool) {
+// ScrollSelectionChanged implements [fbiw.ListSelectionAware].
+func (view *_EmuItem) ListSelectionChanged(selected bool) {
 	view.text.SetMarqueeRunning(selected)
 }
 
-var _ fbiw.ScrollSelectionAware = (*_EmuItem)(nil)
+var _ fbiw.ListSelectionAware = (*_EmuItem)(nil)
 
 func (w *MainWindow) asyncInitEmus() {
 	emus := config.LoadDir(filepath.Join(config.SDCARDRoot, `Emus`))
 
 	w.doc.Async(func() {
-		scroll := w.doc.GetBoxByID[*fbiw.Scroll](`emus`)
+		scroll := w.doc.GetBoxByID[*fbiw.List](`emus`)
 		scroll.SetData(`emus`, emus)
 		scroll.SetItems(len(emus),
 			func() (fbiw.Box, *_EmuItem) {
@@ -51,10 +51,10 @@ func (w *MainWindow) asyncInitEmus() {
 
 type GamesNavigator struct {
 	window     *MainWindow
-	container  *fbiw.Stack  `css:"#games"`
-	emus       *fbiw.Scroll `css:"#emus"`
-	roms       *fbiw.Scroll `css:"#roms"`
-	noGames    fbiw.Box     `css:"#nogames"`
+	container  *fbiw.Stack `css:"#games"`
+	emus       *fbiw.List  `css:"#emus"`
+	roms       *fbiw.List  `css:"#roms"`
+	noGames    fbiw.Box    `css:"#nogames"`
 	currentEmu *config.LaunchConfig
 
 	// 当前的目录浏览栈。
@@ -67,7 +67,7 @@ func NewGamesNavigator(win *MainWindow) *GamesNavigator {
 	}
 	win.doc.Bind(n)
 	n.container.Listen(fbiw.StickDownEvent, n.handleEvents)
-	n.roms.Listen(fbiw.ScrollSelectionChange, func(e *fbiw.Event) {
+	n.roms.Listen(fbiw.ListSelectionChange, func(e *fbiw.Event) {
 		index := n.roms.DataIndex()
 		text := fbiw.Iif(index == -1, ``, fmt.Sprintf(`%d/%d`, index+1, n.roms.DataCount()))
 		n.window.statusBarNav.pagination.SetText(text)
@@ -266,12 +266,12 @@ type _RomBox struct {
 	name *fbiw.Text `css:".name"`
 }
 
-// ScrollSelectionChanged implements [fbiw.ScrollSelectionAware].
-func (view *_RomBox) ScrollSelectionChanged(selected bool) {
+// ScrollSelectionChanged implements [fbiw.ListSelectionAware].
+func (view *_RomBox) ListSelectionChanged(selected bool) {
 	view.name.SetMarqueeRunning(selected)
 }
 
-var _ fbiw.ScrollSelectionAware = (*_RomBox)(nil)
+var _ fbiw.ListSelectionAware = (*_RomBox)(nil)
 
 func (n *GamesNavigator) setRomsList(roms []RomInfo, state any) {
 	n.noGames.Base().SetProp(`display`, fmt.Sprint(len(roms) == 0))

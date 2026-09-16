@@ -83,7 +83,7 @@ func (n *StatusBarNavigator) activateContent() {
 	if n.catIndex >= 0 && n.catIndex <= len(n.contentBoxes)-1 {
 		content := n.contentBoxes[n.catIndex]
 		removeActive := true
-		switch content.Base().ID {
+		switch content.GetID() {
 		case `games`:
 			n.window.gamesNav.activate()
 		case `ports`:

@@ -51,18 +51,18 @@ type storeItemView struct {
 	name *fbiw.Text `css:".name"`
 }
 
-// ScrollSelectionChanged implements [fbiw.ScrollSelectionAware].
-func (view *storeItemView) ScrollSelectionChanged(selected bool) {
+// ScrollSelectionChanged implements [fbiw.ListSelectionAware].
+func (view *storeItemView) ListSelectionChanged(selected bool) {
 	view.name.SetMarqueeRunning(selected)
 }
 
-var _ fbiw.ScrollSelectionAware = (*storeItemView)(nil)
+var _ fbiw.ListSelectionAware = (*storeItemView)(nil)
 
 type StoreNavigator struct {
 	window  *MainWindow
 	shadow  fbiw.Box                  `css:"#store"`
 	title   *fbiw.Text                `css:"#store-title"`
-	list    *fbiw.Scroll              `css:"#store-list"`
+	list    *fbiw.List                `css:"#store-list"`
 	message fbiw.Box                  `css:"#store-message"`
 	msgText *fbiw.Text                `css:"#store-message text"`
 	preview *fbiw.Stack               `css:"#store-preview"`
@@ -95,7 +95,7 @@ func NewStoreNavigator(win *MainWindow) *StoreNavigator {
 	win.doc.Bind(n)
 	n.shadow.Listen(fbiw.StickDownEvent, n.handleEvents)
 	n.preview.Listen(fbiw.StickDownEvent, n.handlePreviewEvents)
-	n.list.Listen(fbiw.ScrollSelectionChange, func(*fbiw.Event) { n.updatePagination() })
+	n.list.Listen(fbiw.ListSelectionChange, func(*fbiw.Event) { n.updatePagination() })
 	n.stack = []storePage{{
 		level: storeRoot,
 		title: "仓库",
