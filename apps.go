@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/movsb/fbiw"
+	"github.com/movsb/fbiw/input/sticks"
 	"github.com/movsb/fbui/pkg/config"
 )
 
@@ -85,7 +86,7 @@ func NewLauncherNavigator(win *MainWindow, selector string, dataKey string) *Lau
 		dataKey: dataKey,
 		scroll:  win.doc.QuerySelector[*fbiw.List](selector),
 	}
-	n.scroll.Listen(fbiw.StickDownEvent, n.handleKeyDown)
+	n.scroll.Listen(fbiw.InputDownEvent, n.handleKeyDown)
 	return &n
 }
 
@@ -95,12 +96,12 @@ func (n *LauncherNavigator) activate() {
 }
 
 func (n *LauncherNavigator) handleKeyDown(event *fbiw.Event) {
-	if event.Stick.Name == fbiw.A && n.scroll.DataIndex() != -1 {
+	if event.Input.Name == sticks.A && n.scroll.DataIndex() != -1 {
 		n.openApp()
 		event.StopPropagation()
 		return
 	}
-	if event.Stick.Name == fbiw.B || (event.Stick.Name == fbiw.Up && n.scroll.DataRowIndex() <= 0) {
+	if event.Input.Name == sticks.B || (event.Input.Name == sticks.Up && n.scroll.DataRowIndex() <= 0) {
 		n.scroll.Deselect()
 		n.window.statusBarNav.activate()
 		event.StopPropagation()

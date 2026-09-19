@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/movsb/fbiw"
+	"github.com/movsb/fbiw/input/sticks"
 )
 
 //go:embed *.html
@@ -63,7 +64,7 @@ func NewStatusBarNavigator(win *MainWindow) *StatusBarNavigator {
 		catIndex: 0,
 	}
 	win.doc.Bind(&n)
-	n.catBar.Listen(fbiw.StickDownEvent, n.handleEvents)
+	n.catBar.Listen(fbiw.InputDownEvent, n.handleEvents)
 	return &n
 }
 
@@ -104,9 +105,9 @@ func (n *StatusBarNavigator) activateContent() {
 }
 
 func (n *StatusBarNavigator) handleEvents(event *fbiw.Event) {
-	keyName := event.Stick.Name
+	keyName := event.Input.Name
 
-	if keyName == fbiw.B {
+	if keyName == sticks.B {
 		n.window.app.ShowAlertDialog(n.window.doc, fbiw.AlertDialogOptions{
 			Title:       `退出？`,
 			Description: `确定要退出吗？`,
@@ -119,14 +120,14 @@ func (n *StatusBarNavigator) handleEvents(event *fbiw.Event) {
 		return
 	}
 
-	if n.catIndex <= 0 && keyName == fbiw.Left {
+	if n.catIndex <= 0 && keyName == sticks.Left {
 		return
 	}
-	if n.catIndex >= len(n.catBoxes)-1 && keyName == fbiw.Right {
+	if n.catIndex >= len(n.catBoxes)-1 && keyName == sticks.Right {
 		return
 	}
 
-	if keyName == fbiw.Left || keyName == fbiw.Right {
+	if keyName == sticks.Left || keyName == sticks.Right {
 		// 原来的去掉选中
 		if n.catIndex >= 0 && n.catIndex < len(n.catBoxes) {
 			t := n.catBoxes[n.catIndex].(*fbiw.Text)
@@ -136,9 +137,9 @@ func (n *StatusBarNavigator) handleEvents(event *fbiw.Event) {
 		}
 
 		switch keyName {
-		case fbiw.Left:
+		case sticks.Left:
 			n.catIndex--
-		case fbiw.Right:
+		case sticks.Right:
 			n.catIndex++
 		}
 
@@ -151,7 +152,7 @@ func (n *StatusBarNavigator) handleEvents(event *fbiw.Event) {
 		return
 	}
 
-	if keyName == fbiw.Down {
+	if keyName == sticks.Down {
 		n.activateContent()
 		event.StopPropagation()
 	}

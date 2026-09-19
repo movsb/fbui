@@ -91,27 +91,27 @@
 	<safe-area>
 		<stack id="content" spacer fill>
 			<stack class="content-item selected" id="games" fill>
-				<scroll id="emus" rows="2" cols="3" gap="30" padding="20">
-				</scroll>
-				<scroll id="roms" rows="8" cols="1" gap="10" display="false" padding="20">
-				</scroll>
+				<list id="emus" rows="2" cols="3" gap="30" padding="20">
+				</list>
+				<list id="roms" rows="8" cols="1" gap="10" display="false" padding="20">
+				</list>
 				<inline id="nogames" align="both" display="false">
 					<text>没有游戏</text>
 				</inline>
 			</stack>
-			<scroll class="content-item" id="ports" rows="2" cols="3" gap="30" padding="20">
-			</scroll>
-			<scroll class="content-item" id="apps" rows="2" cols="3" gap="30" padding="20">
-			</scroll>
+			<list class="content-item" id="ports" rows="2" cols="3" gap="30" padding="20">
+			</list>
+			<list class="content-item" id="apps" rows="2" cols="3" gap="30" padding="20">
+			</list>
 			<block class="content-item" id="system" background-color="yellow" padding="10">
 				<terminal spacer font-size="18" font-family="monospace"></terminal>
 			</block>
-			<scroll class="content-item" id="tools" rows="8" cols="1" gap="10" padding="30">
-			</scroll>
+			<list class="content-item" id="tools" rows="8" cols="1" gap="10" padding="30">
+			</list>
 			<block class="content-item" id="store" fill>
 				<inline padding="10 20" font-size="small"><text id="store-title">仓库</text></inline>
 				<stack fill>
-					<scroll id="store-list" rows="8" cols="1" gap="10" padding="20" spacer></scroll>
+					<list id="store-list" rows="8" cols="1" gap="10" padding="20" spacer></list>
 					<block id="store-message" align="both" display="false"><text align="center"></text></block>
 				</stack>
 			</block>

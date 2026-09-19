@@ -7,7 +7,7 @@
 .mono {
 	font-family: monospace;
 }
-scroll {
+list {
 	.selected {
 		outline-width: 3;
 		outline-color: var(--color-focus);
@@ -32,7 +32,7 @@ scroll {
 		<stack padding="10 20" fill>
 			<block id="here">
 				<inline padding="10 0" font-size="small"><text id="path"></text></inline>
-				<scroll id="scroll" rows="8" cols="1" spacer></scroll>
+				<list id="scroll" rows="8" cols="1" spacer></list>
 				<stack id="stat" padding="10 0" font-size="small" class="mono">
 					<inline align="both">
 						<text class="time"></text>

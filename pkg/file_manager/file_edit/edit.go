@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/movsb/fbiw"
+	"github.com/movsb/fbiw/input/sticks"
 	qrcode "github.com/skip2/go-qrcode"
 )
 
@@ -44,7 +45,7 @@ func New(app *fbiw.App, filePath, ip string) {
 		filePath: filePath,
 	}
 	win.doc.Bind(win)
-	win.doc.Listen(fbiw.StickDownEvent, win.handleEvents)
+	win.doc.Listen(fbiw.InputDownEvent, win.handleEvents)
 	win.start(ip)
 }
 
@@ -181,7 +182,7 @@ func (win *_EditWindow) showError(err error) {
 }
 
 func (win *_EditWindow) handleEvents(event *fbiw.Event) {
-	if event.Stick.Name == fbiw.B {
+	if event.Input.Name == sticks.B {
 		win.app.ShowAlertDialog(win.doc, fbiw.AlertDialogOptions{
 			Title:       `关闭编辑窗口？`,
 			Description: `确定要关闭编辑窗口吗？`,

@@ -7,6 +7,7 @@ import (
 	"net"
 
 	"github.com/movsb/fbiw"
+	"github.com/movsb/fbiw/input/sticks"
 )
 
 //go:embed *.html
@@ -30,14 +31,14 @@ func New(app *fbiw.App) *SSHWindow {
 		doc: app.NewDesktop(_embed, `ssh.html`),
 	}
 	win.doc.Bind(&win)
-	win.doc.Listen(fbiw.StickDownEvent, win.handleEvents)
+	win.doc.Listen(fbiw.InputDownEvent, win.handleEvents)
 	return &win
 }
 
 func (t *SSHWindow) handleEvents(event *fbiw.Event) {
-	name := event.Stick.Name
+	name := event.Input.Name
 
-	if name == fbiw.B {
+	if name == sticks.B {
 		switch t.open {
 		case 0:
 			t.doc.Close()
@@ -50,7 +51,7 @@ func (t *SSHWindow) handleEvents(event *fbiw.Event) {
 		return
 	}
 
-	if name == fbiw.A {
+	if name == sticks.A {
 		switch t.open {
 		case 0:
 			t.open = 1

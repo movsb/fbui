@@ -13,6 +13,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/movsb/fbiw"
+	"github.com/movsb/fbiw/input/sticks"
 	"github.com/movsb/fbui/pkg/config"
 	"github.com/movsb/fbui/pkg/game_names"
 	"github.com/movsb/fbui/pkg/launcher"
@@ -26,9 +27,9 @@ type SearchWindow struct {
 	app *fbiw.App
 	doc *fbiw.Document
 
-	searchBox  fbiw.Box     `css:"#search"`
-	resultBox  fbiw.Box     `css:"#result"`
-	resultList *fbiw.Scroll `css:"#result-list"`
+	searchBox  fbiw.Box   `css:"#search"`
+	resultBox  fbiw.Box   `css:"#result"`
+	resultList *fbiw.List `css:"#result-list"`
 
 	resultStatus        *fbiw.Text `css:"#result-status"`
 	resultStatusWrapper fbiw.Box   `css:"#result-status-wrapper"`
@@ -55,8 +56,8 @@ func New(app *fbiw.App, opener *fbiw.Document, initEmu *config.LaunchConfig, ini
 		keyCol: -1,
 	}
 	doc.Bind(win)
-	win.searchBox.Listen(fbiw.StickDownEvent, win.handleSearchEvents)
-	win.resultBox.Listen(fbiw.StickDownEvent, win.handleResultEvents)
+	win.searchBox.Listen(fbiw.InputDownEvent, win.handleSearchEvents)
+	win.resultBox.Listen(fbiw.InputDownEvent, win.handleResultEvents)
 	win.searchBox.Activate()
 	go win.asyncInitAllSearchableItems(initEmu, initDir)
 	return win
@@ -64,12 +65,12 @@ func New(app *fbiw.App, opener *fbiw.Document, initEmu *config.LaunchConfig, ini
 
 func (w *SearchWindow) handleSearchEvents(event *fbiw.Event) {
 	// 按“Y”直接关闭窗口。
-	if event.Stick.Name == fbiw.Y {
+	if event.Input.Name == sticks.Y {
 		w.doc.Close()
 		return
 	}
 
-	if event.Stick.Name == fbiw.B {
+	if event.Input.Name == sticks.B {
 		t := w.txtQuery.GetText()
 		if t == `` {
 			return
@@ -81,16 +82,16 @@ func (w *SearchWindow) handleSearchEvents(event *fbiw.Event) {
 		return
 	}
 
-	switch event.Stick.Name {
-	case fbiw.Left, fbiw.Right, fbiw.Up, fbiw.Down:
+	switch event.Input.Name {
+	case sticks.Left, sticks.Right, sticks.Up, sticks.Down:
 		w.switchKey(event)
-	case fbiw.A:
+	case sticks.A:
 		if w.prevKey != nil {
 			old := w.txtQuery.GetText()
 			new := w.prevKey.Children()[0].(*fbiw.Text).GetText()
 			w.txtQuery.SetText(old + new)
 		}
-	case fbiw.X:
+	case sticks.X:
 		s := w.txtQuery.GetText()
 		if s == `` {
 			return
@@ -129,27 +130,27 @@ func (w *SearchWindow) switchKey(event *fbiw.Event) {
 	}
 
 	if w.keyRow == -1 {
-		switch event.Stick.Name {
-		case fbiw.Up:
+		switch event.Input.Name {
+		case sticks.Up:
 			set(2, 0)
-		case fbiw.Right:
+		case sticks.Right:
 			set(0, 0)
-		case fbiw.Down:
+		case sticks.Down:
 			set(0, 0)
-		case fbiw.Left:
+		case sticks.Left:
 			set(0, -1)
 		}
 	} else {
-		switch event.Stick.Name {
-		case fbiw.Up:
+		switch event.Input.Name {
+		case sticks.Up:
 			c := w.keyCol
 			if w.keyRow == 2 {
 				c++
 			}
 			set(w.keyRow-1, c)
-		case fbiw.Right:
+		case sticks.Right:
 			set(w.keyRow, w.keyCol+1)
-		case fbiw.Down:
+		case sticks.Down:
 			c := w.keyCol
 			if w.keyRow == 0 && c == len(w.keyboard.Children()[0].Children())-1 {
 				c--
@@ -163,7 +164,7 @@ func (w *SearchWindow) switchKey(event *fbiw.Event) {
 				}
 			}
 			set(w.keyRow+1, c)
-		case fbiw.Left:
+		case sticks.Left:
 			set(w.keyRow, w.keyCol-1)
 		}
 	}
@@ -176,14 +177,14 @@ type _SearchResultItem struct {
 }
 
 func (w *SearchWindow) handleResultEvents(event *fbiw.Event) {
-	if event.Stick.Name == fbiw.B {
+	if event.Input.Name == sticks.B {
 		w.resultBox.SetProp(`display`, `false`)
 		w.searchBox.SetProp(`display`, `true`)
 		w.searchBox.Activate()
 		return
 	}
 
-	if event.Stick.Name == fbiw.A {
+	if event.Input.Name == sticks.A {
 		index := w.resultList.DataIndex()
 		if index < 0 {
 			return

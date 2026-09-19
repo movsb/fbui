@@ -17,6 +17,7 @@ import (
 	"syscall"
 
 	"github.com/movsb/fbiw"
+	"github.com/movsb/fbiw/input/sticks"
 	"github.com/movsb/fbui/pkg/audio_player"
 	"github.com/movsb/fbui/pkg/file_manager/file_download"
 	"github.com/movsb/fbui/pkg/file_manager/file_edit"
@@ -36,12 +37,12 @@ type FileManagerWindow struct {
 
 	doc         *fbiw.Document
 	root        fbiw.Box
-	emptyDir    fbiw.Box     `css:"#empty"`
-	scroll      *fbiw.Scroll `css:"#scroll"`
-	path        *fbiw.Text   `css:"#path"`
-	statSize    *fbiw.Text   `css:"#stat .size"`
-	statPerm    *fbiw.Text   `css:"#stat .perm"`
-	statModTime *fbiw.Text   `css:"#stat .time"`
+	emptyDir    fbiw.Box   `css:"#empty"`
+	scroll      *fbiw.List `css:"#scroll"`
+	path        *fbiw.Text `css:"#path"`
+	statSize    *fbiw.Text `css:"#stat .size"`
+	statPerm    *fbiw.Text `css:"#stat .perm"`
+	statModTime *fbiw.Text `css:"#stat .time"`
 
 	textPagination *fbiw.Text `css:"#pagination"`
 
@@ -70,9 +71,9 @@ func New(app *fbiw.App) *FileManagerWindow {
 	}
 
 	n.doc.Bind(n)
-	n.root.Listen(fbiw.StickDownEvent, n.handleEvents)
-	n.previewBox.Listen(fbiw.StickDownEvent, n.handlePreviewEvent)
-	n.scroll.Listen(fbiw.ScrollSelectionChange, n.handleSelectionChangeEvent)
+	n.root.Listen(fbiw.InputDownEvent, n.handleEvents)
+	n.previewBox.Listen(fbiw.InputDownEvent, n.handlePreviewEvent)
+	n.scroll.Listen(fbiw.ListSelectionChange, n.handleSelectionChangeEvent)
 
 	if !n.initView() {
 		return nil
@@ -154,10 +155,10 @@ func (n *FileManagerWindow) activate() {
 }
 
 func (n *FileManagerWindow) handleEvents(event *fbiw.Event) {
-	name := event.Stick.Name
+	name := event.Input.Name
 
 	// 返回上一层。
-	if name == fbiw.B {
+	if name == sticks.B {
 		if n.stack.Size() <= 1 {
 			n.doc.Close()
 			return
@@ -169,7 +170,7 @@ func (n *FileManagerWindow) handleEvents(event *fbiw.Event) {
 	}
 
 	// 预览文件或者进入新的目录。
-	if name == fbiw.A {
+	if name == sticks.A {
 		index := n.scroll.DataIndex()
 		// 没有选中？
 		if index < 0 {
@@ -185,7 +186,7 @@ func (n *FileManagerWindow) handleEvents(event *fbiw.Event) {
 		return
 	}
 
-	if name == fbiw.Y {
+	if name == sticks.Y {
 		index := n.scroll.DataIndex()
 		n.openFileMenu(index)
 		event.StopPropagation()

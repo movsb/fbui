@@ -4,6 +4,7 @@ import (
 	"embed"
 
 	"github.com/movsb/fbiw"
+	"github.com/movsb/fbiw/input/sticks"
 )
 
 //go:embed *.html
@@ -15,10 +16,10 @@ type MenuPopup struct {
 
 	items []MenuItem
 
-	content fbiw.Box     `css:"#content"`
-	scroll  *fbiw.Scroll `css:"scroll"`
-	header  fbiw.Box     `css:"#header"`
-	footer  fbiw.Box     `css:"#footer"`
+	content fbiw.Box   `css:"#content"`
+	scroll  *fbiw.List `css:"list"`
+	header  fbiw.Box   `css:"#header"`
+	footer  fbiw.Box   `css:"#footer"`
 }
 
 type MenuItem struct {
@@ -64,18 +65,18 @@ func _NewMenuPopup(app *fbiw.App, opener *fbiw.Document, items []MenuItem, heade
 
 	win.scroll.Activate()
 
-	win.doc.Listen(fbiw.StickDownEvent, win.handleEvents)
+	win.doc.Listen(fbiw.InputDownEvent, win.handleEvents)
 
 	return win
 }
 
 func (win *MenuPopup) handleEvents(e *fbiw.Event) {
-	if e.Stick.Name == fbiw.B {
+	if e.Input.Name == sticks.B {
 		win.doc.Close()
 		return
 	}
 
-	if e.Stick.Name == fbiw.A {
+	if e.Input.Name == sticks.A {
 		if index := win.scroll.DataIndex(); index != -1 {
 			item := win.items[index]
 			item.Click()

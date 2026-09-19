@@ -14,6 +14,7 @@ import (
 	"sync/atomic"
 
 	"github.com/movsb/fbiw"
+	"github.com/movsb/fbiw/input/sticks"
 	"github.com/movsb/fbui/pkg/helpers"
 	qrcode "github.com/skip2/go-qrcode"
 )
@@ -45,7 +46,7 @@ func New(app *fbiw.App, dir string) {
 		dir: dir,
 	}
 	win.doc.Bind(win)
-	win.doc.Listen(fbiw.StickDownEvent, win.handleEvents)
+	win.doc.Listen(fbiw.InputDownEvent, win.handleEvents)
 	win.start()
 }
 
@@ -157,7 +158,7 @@ func (win *_UploadWindow) showError(err error) {
 }
 
 func (win *_UploadWindow) handleEvents(event *fbiw.Event) {
-	if event.Stick.Name != fbiw.B {
+	if event.Input.Name != sticks.B {
 		return
 	}
 	if win.conns.Load() > 0 {

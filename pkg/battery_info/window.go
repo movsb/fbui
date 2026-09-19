@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/movsb/fbiw"
+	"github.com/movsb/fbiw/input/sticks"
 	"github.com/movsb/fbui/pkg/power_supply"
 )
 
@@ -31,10 +32,10 @@ type Window struct {
 	app     *fbiw.App
 	doc     *fbiw.Document
 	reader  *power_supply.Reader
-	summary *fbiw.Text   `css:"#summary"`
-	scroll  *fbiw.Scroll `css:"#fields"`
-	empty   fbiw.Box     `css:"#empty"`
-	status  *fbiw.Text   `css:"#status"`
+	summary *fbiw.Text `css:"#summary"`
+	scroll  *fbiw.List `css:"#fields"`
+	empty   fbiw.Box   `css:"#empty"`
+	status  *fbiw.Text `css:"#status"`
 	rows    []row
 	ctx     context.Context
 	cancel  context.CancelFunc
@@ -51,7 +52,7 @@ func New(app *fbiw.App, reader *power_supply.Reader) *Window {
 	w := &Window{app: app, reader: reader, ctx: ctx, cancel: cancel}
 	w.doc = app.NewDesktop(assets, "window.html")
 	w.doc.Bind(w)
-	w.scroll.Listen(fbiw.StickDownEvent, w.handleEvents)
+	w.scroll.Listen(fbiw.InputDownEvent, w.handleEvents)
 	w.scroll.Activate()
 	w.refresh()
 	return w
@@ -132,11 +133,11 @@ func (w *Window) render(supplies []power_supply.Supply) {
 }
 
 func (w *Window) handleEvents(event *fbiw.Event) {
-	switch event.Stick.Name {
-	case fbiw.B:
+	switch event.Input.Name {
+	case sticks.B:
 		w.cancel()
 		w.doc.Close()
-	case fbiw.X:
+	case sticks.X:
 		w.queueRefresh()
 	}
 }

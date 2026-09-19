@@ -4,6 +4,7 @@ import (
 	"os/exec"
 
 	"github.com/movsb/fbiw"
+	"github.com/movsb/fbiw/input/sticks"
 	"github.com/movsb/fbui/pkg/battery_info"
 	"github.com/movsb/fbui/pkg/config"
 	"github.com/movsb/fbui/pkg/file_manager"
@@ -89,7 +90,7 @@ func NewToolsNavigator(win *MainWindow) *ToolsNavigator {
 			box.name.SetText(win.toolsNav.tools[index].name)
 		},
 	)
-	toolsNav.scroll.Listen(fbiw.StickDownEvent, toolsNav.handleEvents)
+	toolsNav.scroll.Listen(fbiw.InputDownEvent, toolsNav.handleEvents)
 	return toolsNav
 }
 
@@ -105,14 +106,14 @@ func (n *ToolsNavigator) activate() {
 }
 
 func (n *ToolsNavigator) handleEvents(event *fbiw.Event) {
-	name := event.Stick.Name
-	if name == fbiw.B || (name == fbiw.Up && n.scroll.DataRowIndex() <= 0) {
+	name := event.Input.Name
+	if name == sticks.B || (name == sticks.Up && n.scroll.DataRowIndex() <= 0) {
 		n.scroll.Deselect()
 		n.window.statusBarNav.activate()
 		return
 	}
 
-	if name == fbiw.A && n.scroll.DataIndex() != -1 {
+	if name == sticks.A && n.scroll.DataIndex() != -1 {
 		tool := n.tools[n.scroll.DataIndex()]
 		tool.click()
 		event.StopPropagation()

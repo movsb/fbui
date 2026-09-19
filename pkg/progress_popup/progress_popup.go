@@ -23,7 +23,7 @@ func New(app *fbiw.App, opener *fbiw.Document, message string) *Popup {
 	p.message.SetText(message)
 	p.detail.SetText("")
 	p.progress.SetIndeterminate(true)
-	p.doc.Listen(fbiw.StickDownEvent, func(event *fbiw.Event) { event.StopPropagation() })
+	p.doc.Listen(fbiw.InputDownEvent, func(event *fbiw.Event) { event.StopPropagation() })
 	return p
 }
 

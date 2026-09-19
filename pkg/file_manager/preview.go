@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/movsb/fbiw"
+	"github.com/movsb/fbiw/input/sticks"
 )
 
 func (n *FileManagerWindow) alert(format string, args ...any) {
@@ -136,7 +137,7 @@ func (n *FileManagerWindow) previewTextContent(fp *os.File, preprocess func(data
 
 func (n *FileManagerWindow) handlePreviewEvent(e *fbiw.Event) {
 	defer e.StopPropagation()
-	if e.Stick.Name == fbiw.B {
+	if e.Input.Name == sticks.B {
 		n.activate()
 		n.previewBox.SetProp(`display`, `false`)
 		n.previewVideo.Stop()
@@ -145,14 +146,14 @@ func (n *FileManagerWindow) handlePreviewEvent(e *fbiw.Event) {
 		return
 	}
 	if n.previewText.GetComputedStyles().Display {
-		switch e.Stick.Name {
-		case fbiw.Up:
+		switch e.Input.Name {
+		case sticks.Up:
 			n.previewText.ScrollLineUp()
-		case fbiw.Down:
+		case sticks.Down:
 			n.previewText.ScrollLineDown()
-		case fbiw.Left:
+		case sticks.Left:
 			n.previewText.PageLeft()
-		case fbiw.Right:
+		case sticks.Right:
 			n.previewText.PageRight()
 		}
 	}

@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/movsb/fbiw"
+	"github.com/movsb/fbiw/input/sticks"
 	"github.com/movsb/fbui/pkg/menu_popup"
 )
 
@@ -16,9 +17,9 @@ type Window struct {
 	app     *fbiw.App
 	doc     *fbiw.Document
 	backend *Backend
-	scroll  *fbiw.Scroll `css:"#swaps"`
-	empty   fbiw.Box     `css:"#empty"`
-	status  *fbiw.Text   `css:"#status"`
+	scroll  *fbiw.List `css:"#swaps"`
+	empty   fbiw.Box   `css:"#empty"`
+	status  *fbiw.Text `css:"#status"`
 	entries []Entry
 	busy    bool
 }
@@ -33,7 +34,7 @@ type entryView struct {
 func New(app *fbiw.App, backend *Backend) *Window {
 	window := &Window{app: app, backend: backend, doc: app.NewDesktop(assets, "window.html")}
 	window.doc.Bind(window)
-	window.scroll.Listen(fbiw.StickDownEvent, window.handleEvents)
+	window.scroll.Listen(fbiw.InputDownEvent, window.handleEvents)
 	window.scroll.Activate()
 	window.refresh("正在读取交换空间…")
 	return window
@@ -95,17 +96,17 @@ func (w *Window) handleEvents(event *fbiw.Event) {
 	if w.busy {
 		return
 	}
-	switch event.Stick.Name {
-	case fbiw.B:
+	switch event.Input.Name {
+	case sticks.B:
 		w.doc.Close()
-	case fbiw.A:
+	case sticks.A:
 		index := w.scroll.DataIndex()
 		if index >= 0 && index < len(w.entries) {
 			w.confirmSetActive(w.entries[index])
 		}
-	case fbiw.X:
+	case sticks.X:
 		w.openSizeMenu()
-	case fbiw.Y:
+	case sticks.Y:
 		index := w.scroll.DataIndex()
 		if index >= 0 && index < len(w.entries) {
 			w.confirmDelete(w.entries[index])

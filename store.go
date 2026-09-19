@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/movsb/fbiw"
+	"github.com/movsb/fbiw/input/sticks"
 	"github.com/movsb/fbui/pkg/config"
 	"github.com/movsb/fbui/pkg/game_library"
 	"github.com/movsb/fbui/pkg/launcher"
@@ -93,8 +94,8 @@ func NewStoreNavigator(win *MainWindow) *StoreNavigator {
 		),
 	}
 	win.doc.Bind(n)
-	n.shadow.Listen(fbiw.StickDownEvent, n.handleEvents)
-	n.preview.Listen(fbiw.StickDownEvent, n.handlePreviewEvents)
+	n.shadow.Listen(fbiw.InputDownEvent, n.handleEvents)
+	n.preview.Listen(fbiw.InputDownEvent, n.handlePreviewEvents)
 	n.list.Listen(fbiw.ListSelectionChange, func(*fbiw.Event) { n.updatePagination() })
 	n.stack = []storePage{{
 		level: storeRoot,
@@ -168,13 +169,13 @@ func (n *StoreNavigator) handleEvents(event *fbiw.Event) {
 		event.StopPropagation()
 		return
 	}
-	name := event.Stick.Name
-	if name == fbiw.Menu {
+	name := event.Input.Name
+	if name == sticks.Menu {
 		n.showMenu()
 		event.StopPropagation()
 		return
 	}
-	if name == fbiw.B {
+	if name == sticks.B {
 		if len(n.stack) == 1 {
 			n.list.Deselect()
 			n.stack[len(n.stack)-1].state = nil
@@ -188,7 +189,7 @@ func (n *StoreNavigator) handleEvents(event *fbiw.Event) {
 		event.StopPropagation()
 		return
 	}
-	if name == fbiw.Up && len(n.stack) == 1 && n.list.DataRowIndex() <= 0 {
+	if name == sticks.Up && len(n.stack) == 1 && n.list.DataRowIndex() <= 0 {
 		n.list.Deselect()
 		n.stack[len(n.stack)-1].state = nil
 		n.window.statusBarNav.showPagination(false)
@@ -196,7 +197,7 @@ func (n *StoreNavigator) handleEvents(event *fbiw.Event) {
 		event.StopPropagation()
 		return
 	}
-	if name != fbiw.A || n.list.DataIndex() < 0 {
+	if name != sticks.A || n.list.DataIndex() < 0 {
 		return
 	}
 	page := &n.stack[len(n.stack)-1]
@@ -539,7 +540,7 @@ func (n *StoreNavigator) showVideo(path string) {
 }
 
 func (n *StoreNavigator) handlePreviewEvents(event *fbiw.Event) {
-	if event.Stick.Name == fbiw.B {
+	if event.Input.Name == sticks.B {
 		n.video.Stop()
 		n.preview.SetProp("display", "false")
 		n.list.Activate()

@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/movsb/fbiw"
+	"github.com/movsb/fbiw/input/sticks"
 	"github.com/movsb/fbui/pkg/config"
 	"github.com/movsb/fbui/pkg/game_names"
 	"github.com/movsb/fbui/pkg/launcher"
@@ -66,7 +67,7 @@ func NewGamesNavigator(win *MainWindow) *GamesNavigator {
 		window: win,
 	}
 	win.doc.Bind(n)
-	n.container.Listen(fbiw.StickDownEvent, n.handleEvents)
+	n.container.Listen(fbiw.InputDownEvent, n.handleEvents)
 	n.roms.Listen(fbiw.ListSelectionChange, func(e *fbiw.Event) {
 		index := n.roms.DataIndex()
 		text := fbiw.Iif(index == -1, ``, fmt.Sprintf(`%d/%d`, index+1, n.roms.DataCount()))
@@ -124,31 +125,31 @@ func (n *GamesNavigator) activate() {
 }
 
 func (n *GamesNavigator) handleEvents(event *fbiw.Event) {
-	name := event.Stick.Name
+	name := event.Input.Name
 
 	// 模拟器界面
 	if n.stack.Size() == 0 {
 		// 冒泡到上一级回到标题
-		if name == fbiw.B || (name == fbiw.Up && n.emus.DataRowIndex() <= 0) {
+		if name == sticks.B || (name == sticks.Up && n.emus.DataRowIndex() <= 0) {
 			n.emus.Deselect()
 			n.window.statusBarNav.activate()
 			return
 		}
 
 		// 按“Y”搜索
-		if name == fbiw.Y {
+		if name == sticks.Y {
 			n.openSearch(nil, ``)
 			return
 		}
 
 		// 按“A”进入游戏列表
-		if name == fbiw.A {
+		if name == sticks.A {
 			n.switchToRoms()
 			return
 		}
 	} else {
 		// 返回上一层。
-		if name == fbiw.B {
+		if name == sticks.B {
 			// 游戏列表的最上层了，返回模拟器列表。
 			if n.stack.Size() <= 1 {
 				n.backToEmulators()
@@ -160,7 +161,7 @@ func (n *GamesNavigator) handleEvents(event *fbiw.Event) {
 		}
 
 		// 启动游戏或者进入新的目录。
-		if name == fbiw.A {
+		if name == sticks.A {
 			index := n.roms.DataIndex()
 			// 没有选中？
 			if index < 0 {
@@ -179,7 +180,7 @@ func (n *GamesNavigator) handleEvents(event *fbiw.Event) {
 			return
 		}
 
-		if name == fbiw.Y {
+		if name == sticks.Y {
 			n.openSearch(n.currentEmu, n.romFinalPath(n.currentEmu, ``))
 			return
 		}

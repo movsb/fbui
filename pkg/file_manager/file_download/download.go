@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 
 	"github.com/movsb/fbiw"
+	"github.com/movsb/fbiw/input/sticks"
 	qrcode "github.com/skip2/go-qrcode"
 )
 
@@ -40,7 +41,7 @@ func New(app *fbiw.App, opener *fbiw.Document, filePath, ip string) {
 		filePath: filePath,
 	}
 	win.doc.Bind(win)
-	win.doc.Listen(fbiw.StickDownEvent, win.handleEvents)
+	win.doc.Listen(fbiw.InputDownEvent, win.handleEvents)
 	win.start(ip)
 }
 
@@ -110,7 +111,7 @@ func (win *_DownloadWindow) showError(err error) {
 }
 
 func (win *_DownloadWindow) handleEvents(event *fbiw.Event) {
-	if event.Stick.Name != fbiw.B {
+	if event.Input.Name != sticks.B {
 		return
 	}
 	if win.conns.Load() > 0 {
