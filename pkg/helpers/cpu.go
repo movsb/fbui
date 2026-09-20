@@ -87,11 +87,13 @@ func cpuUsage(prev, curr _CPUStat) float64 {
 //
 // 输出字符串格式：[50/400%]。
 // 前者表示当前使用，后者表示总CPU数。
+//
+// 目前读失败也会继续定时刷新失败数据，以尽量模拟主机状态。
 func WatchCPU(ctx context.Context, interval time.Duration, callback func(s string)) {
 	prev, err := readCPUStat()
 	if err != nil {
 		log.Println(`读CPU状态失败:`, err)
-		return
+		// return
 	}
 	for {
 		select {
@@ -101,6 +103,7 @@ func WatchCPU(ctx context.Context, interval time.Duration, callback func(s strin
 			curr, err := readCPUStat()
 			if err != nil {
 				log.Println(`读CPU状态失败:`, err)
+				callback(`[0/0%]`)
 				break
 			}
 			usage := cpuUsage(prev, curr)
