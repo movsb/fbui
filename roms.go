@@ -43,7 +43,7 @@ func (w *MainWindow) asyncInitEmus() {
 			},
 			func(item *_EmuItem, index int) {
 				emu := emus[index]
-				item.image.SetPath(emu.IconPath())
+				item.image.SetOSPath(emu.IconPath())
 				item.text.SetText(emu.Name())
 			},
 		)

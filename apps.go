@@ -46,7 +46,7 @@ func (w *MainWindow) asyncInitApps() {
 			},
 			func(item *_AppItem, index int) {
 				app := apps[index]
-				item.image.SetPath(app.IconPath())
+				item.image.SetOSPath(app.IconPath())
 				item.text.SetText(app.Name())
 			},
 		)
@@ -67,7 +67,7 @@ func (w *MainWindow) asyncInitPorts() {
 			func(item any, index int) {
 				app := apps[index]
 				appItem := item.(*_AppItem)
-				appItem.image.SetPath(app.IconPath())
+				appItem.image.SetOSPath(app.IconPath())
 				appItem.text.SetText(app.Name())
 			},
 		)

@@ -60,7 +60,7 @@ func (n *FileManagerWindow) preview(entry _Entry) {
 
 	switch {
 	case strings.HasPrefix(ct, `image/`):
-		n.previewImage.SetPath(path)
+		n.previewImage.SetOSPath(path)
 		n.previewImage.SetProp(`display`, `true`)
 	case strings.HasPrefix(ct, `video/`):
 		n.previewVideo.SetPath(path)

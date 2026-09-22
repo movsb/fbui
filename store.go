@@ -525,7 +525,7 @@ func (n *StoreNavigator) showRemoteOpenError(id int32, err error) {
 
 func (n *StoreNavigator) showImage(path string) {
 	n.video.SetProp("display", "false")
-	n.image.SetPath(path)
+	n.image.SetOSPath(path)
 	n.image.SetProp("display", "true")
 	n.preview.SetProp("display", "true")
 	n.preview.Activate()
