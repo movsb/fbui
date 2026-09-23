@@ -14,6 +14,7 @@
 		outline-width: 3;
 		outline-color: var(--color-focus);
 		background-color: var(--color-selection-background);
+		border-radius: 8;
 	}
 }
 #content {
@@ -30,6 +31,7 @@
 		outline-width: 3;
 		outline-color: var(--color-focus);
 		background-color: var(--color-selection-background);
+		border-radius: 8;
 		bold: true;
 	}
 }
@@ -37,7 +39,7 @@
 <title>小桃的吹米</title>
 <template id="app-item">
 	<block align="center" padding="30">
-		<img spacer fill="contain">
+		<img spacer aspect-ratio=1 border-radius="30">
 		<spacer height="10"></spacer>
 		<text align=center marquee="horizontal" marquee-count="1"></text>
 	</block>
