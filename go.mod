@@ -11,7 +11,6 @@ require (
 	github.com/movsb/taorm v0.0.0-20260719154116-543998429b46
 	github.com/ncruces/go-sqlite3 v0.35.2
 	github.com/pkg/sftp v1.13.11
-	github.com/rcarmo/go-te v0.1.0
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
 	github.com/tklauser/numcpus v0.12.0
 	golang.org/x/net v0.58.0
@@ -20,16 +19,12 @@ require (
 
 require (
 	github.com/anmitsu/go-shlex v0.0.0-20200514113438-38f4b401e2be // indirect
-	github.com/clipperhouse/uax29/v2 v2.2.0 // indirect
 	github.com/ebitengine/purego v0.11.0 // indirect
 	github.com/kr/fs v0.1.0 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
-	github.com/mattn/go-runewidth v0.0.19 // indirect
 	github.com/mdlayher/netlink v1.1.0 // indirect
 	github.com/ncruces/go-sqlite3-wasm/v3 v3.2.35303 // indirect
 	github.com/ncruces/julianday v1.0.0 // indirect
-	github.com/phuslu/lru v1.0.22 // indirect
-	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/veandco/go-sdl2 v0.4.40 // indirect
 	golang.org/x/crypto v0.55.0 // indirect
 	golang.org/x/image v0.45.0 // indirect
