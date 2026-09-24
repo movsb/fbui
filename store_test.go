@@ -29,3 +29,30 @@ func TestBuildGameItemsOmitsPlatformOutsideSeries(t *testing.T) {
 		t.Fatalf("unexpected item name: %q", items[0].name)
 	}
 }
+
+func TestDisplayNamesPrefersManualChinese(t *testing.T) {
+	names := []game_library.Name{
+		{Language: game_library.LanguageChinese, Name: "导入中文", Source: "trimui"},
+		{Language: game_library.LanguageEnglish, Name: "English"},
+		{Language: game_library.LanguageChinese, Name: "手动中文", Source: "  "},
+	}
+	if got := displayNames(names); got != "手动中文" {
+		t.Fatalf("displayNames=%q, want 手动中文", got)
+	}
+}
+
+func TestDisplayNamesFallsBackByLanguage(t *testing.T) {
+	tests := []struct {
+		names []game_library.Name
+		want  string
+	}{
+		{names: []game_library.Name{{Language: game_library.LanguageEnglish, Name: "English"}, {Language: game_library.LanguageChinese, Name: "导入中文", Source: "trimui"}}, want: "导入中文"},
+		{names: []game_library.Name{{Language: game_library.LanguageJapanese, Name: "日本語"}, {Language: game_library.LanguageEnglish, Name: "English"}}, want: "English"},
+		{names: nil, want: "未命名"},
+	}
+	for _, test := range tests {
+		if got := displayNames(test.names); got != test.want {
+			t.Errorf("displayNames=%q, want %q", got, test.want)
+		}
+	}
+}

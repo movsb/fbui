@@ -673,6 +673,11 @@ func (n *StoreNavigator) runROM(platformID int32, path string, done ...func()) {
 }
 
 func displayNames(names []game_library.Name) string {
+	for _, name := range names {
+		if name.Language == game_library.LanguageChinese && strings.TrimSpace(name.Source) == "" && name.Name != "" {
+			return name.Name
+		}
+	}
 	for _, language := range []game_library.Language{
 		game_library.LanguageChinese,
 		game_library.LanguageEnglish,
