@@ -38,10 +38,11 @@ func createTestLibrary(t *testing.T, version int) string {
 		`CREATE TABLE rom_sets (id INTEGER PRIMARY KEY, emulator TEXT NOT NULL, version TEXT NOT NULL, short_name TEXT NOT NULL, asset_id INTEGER NOT NULL, clone_of TEXT NOT NULL DEFAULT '')`,
 		fmt.Sprintf(`INSERT INTO options VALUES ('db_ver','%d')`, version),
 		`INSERT INTO platforms VALUES (1,'')`,
+		`INSERT INTO platforms VALUES (10,'')`,
 		`INSERT INTO series VALUES (2,'')`,
 		`INSERT INTO games VALUES (3,1,2,'')`,
 		`INSERT INTO releases VALUES (4,3,'',0)`,
-		`INSERT INTO names VALUES (1,1,1,1,'NES',''),(2,1,1,2,'红白机','trimui'),(3,7,2,2,'马力欧',''),(4,2,3,1,'Mario',''),(5,3,4,2,'日版','')`,
+		`INSERT INTO names VALUES (1,1,1,1,'NES',''),(2,1,1,2,'红白机','trimui'),(3,7,2,2,'马力欧',''),(4,2,3,1,'Mario',''),(5,3,4,2,'日版',''),(6,1,10,2,'街机','')`,
 		`INSERT INTO blobs VALUES (5,4,'','','aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'),(6,3,'','','bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb')`,
 		`INSERT INTO assets VALUES (7,3,4,1,'game.rom','','',1,4,5),(8,3,4,1,'set','','',2,3,0)`,
 		`INSERT INTO entries VALUES (9,8,'game.bin',3,6)`,
@@ -70,7 +71,7 @@ func TestLibraryQueriesCatalogAndBlobs(t *testing.T) {
 	}
 	ctx := context.Background()
 	platforms, err := library.ListPlatforms(ctx)
-	if err != nil || len(platforms) != 1 || len(platforms[0].Names) != 2 {
+	if err != nil || len(platforms) != 2 || len(platforms[0].Names) != 2 {
 		var names []Name
 		if len(platforms) > 0 {
 			names = platforms[0].Names
@@ -87,6 +88,9 @@ func TestLibraryQueriesCatalogAndBlobs(t *testing.T) {
 	games, err := library.ListGames(ctx, 1, 0)
 	if err != nil || len(games) != 1 || games[0].SeriesID != 2 {
 		t.Fatalf("games=%#v err=%v", games, err)
+	}
+	if len(games[0].PlatformNames) != 2 || games[0].PlatformNames[0].Name != "NES" {
+		t.Fatalf("game platform names were not loaded: %#v", games[0].PlatformNames)
 	}
 	if filtered, err := library.ListGames(ctx, 99, 0); err != nil || len(filtered) != 0 {
 		t.Fatalf("filtered=%#v err=%v", filtered, err)

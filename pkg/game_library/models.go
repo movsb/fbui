@@ -66,10 +66,11 @@ type Series struct {
 func (Series) TableName() string { return `series` }
 
 type Game struct {
-	ID         int32
-	PlatformID int32
-	SeriesID   int32
-	Names      []Name
+	ID            int32
+	PlatformID    int32
+	SeriesID      int32
+	Names         []Name
+	PlatformNames []Name
 }
 
 func (Game) TableName() string { return `games` }

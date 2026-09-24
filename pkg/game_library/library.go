@@ -140,13 +140,28 @@ func (l *Library) ListGames(ctx context.Context, platformID, seriesID int32) ([]
 	}
 	byID := map[int32]*Game{}
 	ids := make([]int32, 0, len(items))
+	platformIDSet := map[int32]bool{}
 	for _, item := range items {
 		byID[item.ID] = item
 		ids = append(ids, item.ID)
+		platformIDSet[item.PlatformID] = true
 	}
 	if err := l.attachNames(KindGame, ids, func(name Name) {
 		if item := byID[name.KindID]; item != nil {
 			item.Names = append(item.Names, name)
+		}
+	}); err != nil {
+		return nil, err
+	}
+	platformIDs := make([]int32, 0, len(platformIDSet))
+	for id := range platformIDSet {
+		platformIDs = append(platformIDs, id)
+	}
+	if err := l.attachNames(KindPlatform, platformIDs, func(name Name) {
+		for _, item := range items {
+			if item.PlatformID == name.KindID {
+				item.PlatformNames = append(item.PlatformNames, name)
+			}
 		}
 	}); err != nil {
 		return nil, err

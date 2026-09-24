@@ -74,6 +74,14 @@
 		</inline>
 	</block>
 </template>
+<template id="store-series-game-item">
+	<block padding="0 10">
+		<inline spacer align="middle">
+			<text class="name" spacer marquee=horizontal marquee-count=1></text>
+			<text class="platform" font-size="small"></text>
+		</inline>
+	</block>
+</template>
 <stack fill>
 	<stack>
 		<inline id="cat-bar" padding="10">
@@ -105,6 +113,7 @@
 				<inline padding="10 20" font-size="small"><text id="store-title">仓库</text></inline>
 				<stack fill>
 					<list id="store-list" rows="8" cols="1" gap="10" padding="20" spacer></list>
+					<list id="store-series-list" rows="8" cols="1" gap="10" padding="20" spacer display="false"></list>
 					<block id="store-message" align="both" display="false"><text align="center"></text></block>
 				</stack>
 			</block>
