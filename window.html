@@ -78,8 +78,15 @@
 	<block padding="0 10">
 		<inline spacer align="middle">
 			<text class="name" spacer marquee=horizontal marquee-count=1></text>
+			<spacer width="10"></spacer>
 			<text class="platform" font-size="small"></text>
 		</inline>
+	</block>
+</template>
+<template id="store-asset-item">
+	<block padding="0 10" align="middle">
+		<text class="name" marquee=horizontal marquee-count=1></text>
+		<text class="detail" font-size="x-small"></text>
 	</block>
 </template>
 <stack fill>
@@ -96,6 +103,10 @@
 		<block align="both" padding="10" width="100%">
 			<text font-size="small" id="pagination"></text>
 		</block>
+	</stack>
+	<stack id="store-background" fill background-color="clear" display="false">
+		<block background-color="var(--color-background)"></block>
+		<img fill="cover">
 	</stack>
 	<safe-area>
 		<stack id="content" spacer fill>
@@ -114,6 +125,8 @@
 				<stack fill>
 					<list id="store-list" rows="8" cols="1" gap="10" padding="20" spacer></list>
 					<list id="store-series-list" rows="8" cols="1" gap="10" padding="20" spacer display="false"></list>
+					<list id="store-release-list" rows="8" cols="1" gap="10" padding="20" spacer display="false"></list>
+					<list id="store-asset-list" rows="6" cols="1" gap="10" padding="20" spacer display="false"></list>
 					<block id="store-message" align="both" display="false"><text align="center"></text></block>
 				</stack>
 			</block>

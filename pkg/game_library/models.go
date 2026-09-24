@@ -102,6 +102,17 @@ type Entry struct {
 
 func (Entry) TableName() string { return `entries` }
 
+type ROMSet struct {
+	ID        int32
+	Emulator  string
+	Version   string
+	ShortName string
+	AssetID   int32
+	CloneOf   string
+}
+
+func (ROMSet) TableName() string { return `rom_sets` }
+
 type Asset struct {
 	ID      int32
 	Kind    Kind
@@ -113,6 +124,7 @@ type Asset struct {
 	BlobID  int32
 	Blob    *Blob
 	Entries []*Entry
+	ROMSets []*ROMSet
 }
 
 func (Asset) TableName() string { return `assets` }

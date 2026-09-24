@@ -126,6 +126,32 @@ func TestLibraryQueriesCatalogAndBlobs(t *testing.T) {
 	}
 }
 
+func TestListAssetsAttachesROMSets(t *testing.T) {
+	path := createTestLibrary(t, SupportedDatabaseVersion)
+	db, err := sql.Open("sqlite3", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`INSERT INTO rom_sets(emulator,version,short_name,asset_id,clone_of) VALUES('mame','0.259','game',7,'')`); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	library, err := OpenLibrary(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer library.Close()
+	assets, err := library.ListAssets(context.Background(), 4)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(assets[0].ROMSets) != 1 || assets[0].ROMSets[0].Emulator != "mame" || assets[0].ROMSets[0].Version != "0.259" {
+		t.Fatalf("ROM sets were not attached: %#v", assets[0].ROMSets)
+	}
+}
+
 func TestGetLaunchableAssetRejectsInvalidAssets(t *testing.T) {
 	path := createTestLibrary(t, SupportedDatabaseVersion)
 	db, err := sql.Open("sqlite3", path)

@@ -37,16 +37,18 @@ const (
 
 type storeItem struct {
 	name     string
+	detail   string
 	platform string
 	value    any
 }
 
 type storePage struct {
-	level storeLevel
-	title string
-	items []storeItem
-	state any
-	game  *game_library.Game
+	level   storeLevel
+	title   string
+	items   []storeItem
+	state   any
+	game    *game_library.Game
+	release *game_library.Release
 	// 系列中的游戏使用独立列表，并显示所属平台。
 	groupByPlatform bool
 }
@@ -62,6 +64,18 @@ type storeSeriesGameView struct {
 	platform *fbiw.Text `css:".platform"`
 }
 
+type storeAssetView struct {
+	root   fbiw.Box
+	name   *fbiw.Text `css:".name"`
+	detail *fbiw.Text `css:".detail"`
+}
+
+func (view *storeAssetView) ListSelectionChanged(selected bool) {
+	view.name.SetMarqueeRunning(selected)
+}
+
+var _ fbiw.ListSelectionAware = (*storeAssetView)(nil)
+
 func (view *storeSeriesGameView) ListSelectionChanged(selected bool) {
 	view.name.SetMarqueeRunning(selected)
 }
@@ -76,16 +90,21 @@ func (view *storeItemView) ListSelectionChanged(selected bool) {
 var _ fbiw.ListSelectionAware = (*storeItemView)(nil)
 
 type StoreNavigator struct {
-	window  *MainWindow
-	shadow  fbiw.Box                  `css:"#store"`
-	title   *fbiw.Text                `css:"#store-title"`
-	list    *fbiw.List                `css:"#store-list"`
-	series  *fbiw.List                `css:"#store-series-list"`
-	message fbiw.Box                  `css:"#store-message"`
-	msgText *fbiw.Text                `css:"#store-message text"`
-	preview *fbiw.Stack               `css:"#store-preview"`
-	image   *fbiw.Image               `css:"#store-preview img"`
-	video   *video_player.VideoPlayer `css:"#store-preview video"`
+	window          *MainWindow
+	shadow          fbiw.Box    `css:"#store"`
+	title           *fbiw.Text  `css:"#store-title"`
+	list            *fbiw.List  `css:"#store-list"`
+	series          *fbiw.List  `css:"#store-series-list"`
+	releases        *fbiw.List  `css:"#store-release-list"`
+	assets          *fbiw.List  `css:"#store-asset-list"`
+	message         fbiw.Box    `css:"#store-message"`
+	msgText         *fbiw.Text  `css:"#store-message text"`
+	background      *fbiw.Stack `css:"#store-background"`
+	backgroundImage *fbiw.Image `css:"#store-background img"`
+	preview         *fbiw.Stack `css:"#store-preview"`
+	previewImage    *fbiw.Image `css:"#store-preview img"`
+
+	video *video_player.VideoPlayer `css:"#store-preview video"`
 
 	// 游戏商店元数据来源。
 	metadata    *game_library.Library
@@ -96,6 +115,10 @@ type StoreNavigator struct {
 	stack      []storePage
 	busy       bool
 	remoteBusy atomic.Bool
+
+	backgroundAsset  *game_library.Asset
+	backgroundCancel context.CancelFunc
+	stopFade         func()
 }
 
 func NewStoreNavigator(win *MainWindow) *StoreNavigator {
@@ -111,10 +134,19 @@ func NewStoreNavigator(win *MainWindow) *StoreNavigator {
 		),
 	}
 	win.doc.Bind(n)
-	n.shadow.Listen(fbiw.InputDownEvent, n.handleEvents)
+	n.shadow.Listen(fbiw.InputDownEvent, n.handleDownEvents)
+	n.shadow.Listen(fbiw.InputUpEvent, n.handleUpEvents)
 	n.preview.Listen(fbiw.InputDownEvent, n.handlePreviewEvents)
-	n.list.Listen(fbiw.ListSelectionChange, func(*fbiw.Event) { n.updatePagination() })
-	n.series.Listen(fbiw.ListSelectionChange, func(*fbiw.Event) { n.updatePagination() })
+	n.list.Listen(fbiw.ListSelectionChange, func(*fbiw.Event) {
+		n.updatePagination()
+		n.scheduleGamePreview()
+	})
+	n.series.Listen(fbiw.ListSelectionChange, func(*fbiw.Event) {
+		n.updatePagination()
+		n.scheduleGamePreview()
+	})
+	n.releases.Listen(fbiw.ListSelectionChange, func(*fbiw.Event) { n.updatePagination() })
+	n.assets.Listen(fbiw.ListSelectionChange, func(*fbiw.Event) { n.updatePagination() })
 	n.stack = []storePage{{
 		level: storeRoot,
 		title: "仓库",
@@ -133,6 +165,12 @@ func (n *StoreNavigator) activate() {
 }
 
 func (n *StoreNavigator) activeList() *fbiw.List {
+	if len(n.stack) > 0 && n.stack[len(n.stack)-1].level == storeReleases {
+		return n.releases
+	}
+	if len(n.stack) > 0 && n.stack[len(n.stack)-1].level == storeAssets {
+		return n.assets
+	}
 	if len(n.stack) > 0 && n.stack[len(n.stack)-1].groupByPlatform {
 		return n.series
 	}
@@ -142,11 +180,37 @@ func (n *StoreNavigator) activeList() *fbiw.List {
 // 渲染栈顶元素。
 func (n *StoreNavigator) render(state any) {
 	page := &n.stack[len(n.stack)-1]
+	n.cancelBackgroundUpdate()
 	n.title.SetText(page.title)
 	n.message.SetProp("display", "false")
-	n.list.SetProp("display", fmt.Sprint(!page.groupByPlatform))
-	n.series.SetProp("display", fmt.Sprint(page.groupByPlatform))
-	if page.groupByPlatform {
+	isReleases := page.level == storeReleases
+	isAssets := page.level == storeAssets
+	n.list.SetProp("display", fmt.Sprint(!page.groupByPlatform && !isReleases && !isAssets))
+	n.series.SetProp("display", fmt.Sprint(page.groupByPlatform && !isReleases))
+	n.releases.SetProp("display", fmt.Sprint(isReleases))
+	n.assets.SetProp("display", fmt.Sprint(isAssets))
+	if isReleases {
+		n.releases.SetItems(
+			len(page.items),
+			func() (fbiw.Box, *storeItemView) {
+				view := n.window.doc.Instantiate[storeItemView](`store-item`)
+				return view.root, view
+			},
+			func(view *storeItemView, index int) { view.name.SetText(page.items[index].name) },
+		)
+	} else if isAssets {
+		n.assets.SetItems(
+			len(page.items),
+			func() (fbiw.Box, *storeAssetView) {
+				view := n.window.doc.Instantiate[storeAssetView](`store-asset-item`)
+				return view.root, view
+			},
+			func(view *storeAssetView, index int) {
+				view.name.SetText(page.items[index].name)
+				view.detail.SetText(page.items[index].detail)
+			},
+		)
+	} else if page.groupByPlatform {
 		n.series.SetItems(
 			len(page.items),
 			func() (fbiw.Box, *storeSeriesGameView) {
@@ -172,10 +236,12 @@ func (n *StoreNavigator) render(state any) {
 	}
 	if len(page.items) == 0 {
 		n.showMessage("没有内容")
+		return
 	}
 	if state != nil {
 		n.activeList().SetState(state)
 	}
+	n.schedulePageBackground(page)
 	n.updatePagination()
 }
 
@@ -184,6 +250,9 @@ func (n *StoreNavigator) showMessage(message string) {
 	n.message.SetProp("display", "true")
 	n.list.SetProp("display", "false")
 	n.series.SetProp("display", "false")
+	n.releases.SetProp("display", "false")
+	n.assets.SetProp("display", "false")
+	n.clearBackground()
 	n.updatePagination()
 }
 
@@ -207,18 +276,13 @@ func (n *StoreNavigator) updatePagination() {
 	n.window.statusBarNav.pagination.SetText(text)
 }
 
-func (n *StoreNavigator) handleEvents(event *fbiw.Event) {
+func (n *StoreNavigator) handleDownEvents(event *fbiw.Event) {
 	if n.busy {
 		event.StopPropagation()
 		return
 	}
 	name := event.Input.Name
 	list := n.activeList()
-	if name == sticks.Menu {
-		n.showMenu()
-		event.StopPropagation()
-		return
-	}
 	if name == sticks.B {
 		if len(n.stack) == 1 {
 			list.Deselect()
@@ -264,6 +328,19 @@ func (n *StoreNavigator) handleEvents(event *fbiw.Event) {
 		n.openAsset(page.game, item.value.(*game_library.Asset))
 	}
 	event.StopPropagation()
+}
+
+func (n *StoreNavigator) handleUpEvents(event *fbiw.Event) {
+	if n.busy {
+		event.StopPropagation()
+		return
+	}
+	name := event.Input.Name
+	if name == sticks.Menu {
+		n.showMenu()
+		event.StopPropagation()
+		return
+	}
 }
 
 func (n *StoreNavigator) showMenu() {
@@ -345,8 +422,18 @@ func (n *StoreNavigator) updateDatabase() {
 }
 
 func (n *StoreNavigator) async(title string, load func(context.Context) (storePage, error)) {
+	n.asyncPage(title, false, load)
+}
+
+func (n *StoreNavigator) asyncKeepingPreview(title string, load func(context.Context) (storePage, error)) {
+	n.asyncPage(title, true, load)
+}
+
+func (n *StoreNavigator) asyncPage(title string, keepPreview bool, load func(context.Context) (storePage, error)) {
 	n.busy = true
-	n.showMessage(title + "...")
+	if !keepPreview {
+		n.showMessage(title + "...")
+	}
 	go func() {
 		page, err := load(context.Background())
 		n.window.doc.Async(func() {
@@ -363,6 +450,9 @@ func (n *StoreNavigator) async(title string, load func(context.Context) (storePa
 			n.render(nil)
 			// n.activeList().SetIndex(0, 0, 0)
 			n.activeList().Activate()
+			if page.level == storeGames {
+				n.scheduleGamePreview()
+			}
 		})
 	}()
 }
@@ -440,8 +530,150 @@ func buildGameItems(games []*game_library.Game, showPlatform bool) []storeItem {
 	return items
 }
 
+func (n *StoreNavigator) cancelBackgroundUpdate() {
+	if n.backgroundCancel != nil {
+		n.backgroundCancel()
+		n.backgroundCancel = nil
+	}
+}
+
+func (n *StoreNavigator) schedulePageBackground(page *storePage) {
+	switch page.level {
+	case storeGames:
+		// The active list selection schedules its debounced lookup.
+		return
+	case storeReleases:
+		n.resolveBackground(func(ctx context.Context) (*game_library.Asset, error) {
+			return n.findGameImage(ctx, page.game.ID)
+		})
+	case storeAssets:
+		n.resolveBackground(func(ctx context.Context) (*game_library.Asset, error) {
+			assets, err := n.metadata.ListAssets(ctx, page.release.ID)
+			if err != nil {
+				return nil, err
+			}
+			if image := selectReleaseImage(nil, assets); image != nil {
+				return image, nil
+			}
+			return n.findGameImage(ctx, page.game.ID)
+		})
+	default:
+		n.syncBackground(nil, "")
+	}
+}
+
+func (n *StoreNavigator) resolveBackground(resolve func(context.Context) (*game_library.Asset, error)) {
+	ctx, cancel := context.WithCancel(context.Background())
+	n.backgroundCancel = cancel
+	go func() {
+		asset, err := resolve(ctx)
+		if err != nil {
+			if !errors.Is(err, context.Canceled) {
+				log.Printf("加载游戏图片失败：%v", err)
+			}
+			return
+		}
+		path := ""
+		if asset != nil {
+			path, err = n.store.Materialize(ctx, asset, func(string, float32) {})
+			if err != nil {
+				if !errors.Is(err, context.Canceled) {
+					log.Printf("加载游戏图片失败：%v", err)
+				}
+				return
+			}
+		}
+		n.window.doc.Async(func() {
+			if ctx.Err() == nil {
+				n.syncBackground(asset, path)
+			}
+		})
+	}()
+}
+
+func (n *StoreNavigator) scheduleGamePreview() {
+	n.cancelBackgroundUpdate()
+	if len(n.stack) == 0 || n.stack[len(n.stack)-1].level != storeGames {
+		return
+	}
+	list := n.activeList()
+	index := list.DataIndex()
+	page := &n.stack[len(n.stack)-1]
+	if index < 0 || index >= len(page.items) {
+		return
+	}
+	game, ok := page.items[index].value.(*game_library.Game)
+	if !ok {
+		return
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	n.backgroundCancel = cancel
+	go func() {
+		timer := time.NewTimer(time.Millisecond * 500)
+		defer timer.Stop()
+		select {
+		case <-ctx.Done():
+			return
+		case <-timer.C:
+		}
+		asset, err := n.findGameImage(ctx, game.ID)
+		if err != nil {
+			if !errors.Is(err, context.Canceled) {
+				log.Printf("加载游戏列表预览失败：%v", err)
+			}
+			return
+		}
+		path := ""
+		if asset != nil {
+			path, err = n.store.Materialize(ctx, asset, func(string, float32) {})
+			if err != nil {
+				if !errors.Is(err, context.Canceled) {
+					log.Printf("加载游戏列表预览失败：%v", err)
+				}
+				return
+			}
+		}
+		n.window.doc.Async(func() {
+			if ctx.Err() != nil || len(n.stack) == 0 || n.stack[len(n.stack)-1].level != storeGames {
+				return
+			}
+			current := n.activeList().DataIndex()
+			page := &n.stack[len(n.stack)-1]
+			if current < 0 || current >= len(page.items) {
+				return
+			}
+			selected, ok := page.items[current].value.(*game_library.Game)
+			if !ok || selected.ID != game.ID {
+				return
+			}
+			n.syncBackground(asset, path)
+		})
+	}()
+}
+
+func (n *StoreNavigator) findGameImage(ctx context.Context, gameID int32) (*game_library.Asset, error) {
+	if n.metadataErr != nil {
+		return nil, n.metadataErr
+	}
+	gameAssets, err := n.metadata.ListOwnedAssets(ctx, game_library.KindGame, gameID)
+	if err != nil {
+		return nil, err
+	}
+	if image := selectReleaseImage(gameAssets, nil); image != nil {
+		return image, nil
+	}
+	releases, err := n.metadata.ListReleases(ctx, gameID)
+	if err != nil {
+		return nil, err
+	}
+	return firstReleaseImage(releases, func(releaseID int32) ([]*game_library.Asset, error) {
+		return n.metadata.ListAssets(ctx, releaseID)
+	})
+}
+
 func (n *StoreNavigator) loadReleases(game *game_library.Game) {
-	n.async("加载发行版", func(ctx context.Context) (storePage, error) {
+	n.cancelBackgroundUpdate()
+	n.asyncKeepingPreview("加载发行版", func(ctx context.Context) (storePage, error) {
 		response, err := n.metadata.ListReleases(ctx, game.ID)
 		page := storePage{
 			level: storeReleases,
@@ -461,25 +693,65 @@ func (n *StoreNavigator) loadReleases(game *game_library.Game) {
 	})
 }
 
-func (n *StoreNavigator) loadAssets(game *game_library.Game, release *game_library.Release) {
-	n.async("加载资源", func(ctx context.Context) (storePage, error) {
-		response, err := n.metadata.ListAssets(ctx, release.ID)
-		page := storePage{
-			level: storeAssets,
-			title: displayNames(release.Names),
-			game:  game,
+func firstReleaseImage(releases []*game_library.Release, listAssets func(int32) ([]*game_library.Asset, error)) (*game_library.Asset, error) {
+	for _, release := range releases {
+		assets, err := listAssets(release.ID)
+		if err != nil {
+			return nil, err
 		}
+		if image := selectReleaseImage(nil, assets); image != nil {
+			return image, nil
+		}
+	}
+	return nil, nil
+}
+
+func selectReleaseImage(gameAssets, releaseAssets []*game_library.Asset) *game_library.Asset {
+	for _, assets := range [][]*game_library.Asset{gameAssets, releaseAssets} {
+		for _, assetType := range []game_library.AssetType{
+			game_library.AssetTypeScreenshot,
+			game_library.AssetTypeLogo,
+			game_library.AssetTypeCover,
+		} {
+			for _, asset := range assets {
+				if asset.Type == assetType && asset.Format == game_library.FormatRegular && asset.Blob != nil {
+					return asset
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func (n *StoreNavigator) loadAssets(game *game_library.Game, release *game_library.Release) {
+	n.asyncKeepingPreview("加载资源", func(ctx context.Context) (storePage, error) {
+		response, err := n.metadata.ListAssets(ctx, release.ID)
+		page := storePage{level: storeAssets, title: displayNames(release.Names), game: game, release: release}
 		if err != nil {
 			return page, err
 		}
+		sort.SliceStable(response, func(i, j int) bool {
+			return response[i].Type == game_library.AssetTypeROM && response[j].Type != game_library.AssetTypeROM
+		})
 		for _, item := range response {
 			page.items = append(page.items, storeItem{
-				name:  fmt.Sprintf("%s  ·  %s  ·  %s", item.Name, assetTypeName(item.Type), formatSize(item.Size)),
-				value: item,
+				name:   item.Name,
+				detail: assetDetail(game, item),
+				value:  item,
 			})
 		}
 		return page, nil
 	})
+}
+
+func sameImageAsset(left, right *game_library.Asset) bool {
+	if left == nil || right == nil {
+		return left == right
+	}
+	if left.Blob != nil && right.Blob != nil && left.Blob.SHA256 != "" && right.Blob.SHA256 != "" {
+		return strings.EqualFold(left.Blob.SHA256, right.Blob.SHA256)
+	}
+	return left.ID == right.ID
 }
 
 func (n *StoreNavigator) openAsset(game *game_library.Game, asset *game_library.Asset) {
@@ -592,14 +864,70 @@ func (n *StoreNavigator) showRemoteOpenError(id int32, err error) {
 
 func (n *StoreNavigator) showImage(path string) {
 	n.video.SetProp("display", "false")
-	n.image.SetOSPath(path)
-	n.image.SetProp("display", "true")
+	n.previewImage.SetOSPath(path)
+	n.previewImage.SetProp("display", "true")
 	n.preview.SetProp("display", "true")
 	n.preview.Activate()
 }
 
+func (n *StoreNavigator) setBackgroundImage(asset *game_library.Asset, path string) {
+	n.cancelBackgroundFade(false)
+	n.backgroundImage.SetOSPath(path)
+	n.backgroundImage.Fade(0, .6, 500*time.Millisecond, nil)
+	n.backgroundAsset = asset
+}
+
+func (n *StoreNavigator) syncBackground(asset *game_library.Asset, path string) {
+	if asset == nil {
+		if n.backgroundAsset != nil {
+			n.clearBackground()
+		}
+		return
+	}
+	if sameImageAsset(n.backgroundAsset, asset) {
+		n.cancelBackgroundFade(true)
+		return
+	}
+	if path == "" {
+		return
+	}
+	n.setBackgroundImage(asset, path)
+	n.background.SetProp("display", "true")
+}
+
+func (n *StoreNavigator) clearBackground() {
+	if n.backgroundAsset == nil || n.stopFade != nil {
+		return
+	}
+	n.cancelBackgroundFade(false)
+	asset := n.backgroundAsset
+	complete := func() {
+		if sameImageAsset(n.backgroundAsset, asset) {
+			n.background.SetProp("display", "false")
+			n.backgroundAsset = nil
+		}
+		n.stopFade = nil
+	}
+	if n.backgroundImage.Opacity() == 0 {
+		complete()
+		return
+	}
+	n.stopFade = n.backgroundImage.Fade(n.backgroundImage.Opacity(), 0, 500*time.Millisecond, complete)
+}
+
+func (n *StoreNavigator) cancelBackgroundFade(restore bool) {
+	wasFadingOut := n.stopFade != nil
+	if n.stopFade != nil {
+		n.stopFade()
+		n.stopFade = nil
+	}
+	if restore && wasFadingOut {
+		n.backgroundImage.Fade(n.backgroundImage.Opacity(), .6, 500*time.Millisecond, nil)
+	}
+}
+
 func (n *StoreNavigator) showVideo(path string) {
-	n.image.SetProp("display", "false")
+	n.previewImage.SetProp("display", "false")
 	n.video.SetPath(path)
 	n.video.SetProp("display", "true")
 	n.preview.SetProp("display", "true")
@@ -712,6 +1040,32 @@ func assetTypeName(kind game_library.AssetType) string {
 		return "未指定"
 	}
 	return name
+}
+
+func assetDetail(game *game_library.Game, asset *game_library.Asset) string {
+	parts := []string{formatSize(asset.Size), assetTypeName(asset.Type)}
+	if game == nil || game.PlatformID != 1 || asset.Type != game_library.AssetTypeROM {
+		return strings.Join(parts, "  ·  ")
+	}
+	seen := map[string]bool{}
+	var supported []string
+	for _, romSet := range asset.ROMSets {
+		name := strings.ToUpper(strings.TrimSpace(romSet.Emulator))
+		if version := strings.TrimSpace(romSet.Version); version != "" {
+			name += "/" + version
+		}
+		if name != "" && !seen[name] {
+			seen[name] = true
+			supported = append(supported, name)
+		}
+	}
+	if len(supported) > 0 {
+		sort.Strings(supported)
+		for _, ver := range supported {
+			parts = append(parts, ver)
+		}
+	}
+	return strings.Join(parts, "  ·  ")
 }
 
 func formatSize(size int64) string {

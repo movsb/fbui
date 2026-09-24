@@ -207,9 +207,14 @@ func (l *Library) attachNames(kind Kind, ownerIDs []int32, attach func(Name)) er
 }
 
 func (l *Library) ListAssets(ctx context.Context, releaseID int32) ([]*Asset, error) {
+	return l.ListOwnedAssets(ctx, KindRelease, releaseID)
+}
+
+// ListOwnedAssets returns the assets attached directly to an object.
+func (l *Library) ListOwnedAssets(ctx context.Context, kind Kind, ownerID int32) ([]*Asset, error) {
 	var items []*Asset
 	if err := l.tdb.Select(`id,kind,kind_id,type,name,format,size,blob_id`).From(Asset{}).
-		Where(`kind=? AND kind_id=?`, KindRelease, releaseID).OrderBy(`id`).Find(&items); err != nil {
+		Where(`kind=? AND kind_id=?`, kind, ownerID).OrderBy(`id`).Find(&items); err != nil {
 		return nil, err
 	}
 	if len(items) == 0 {
@@ -269,6 +274,19 @@ func (l *Library) ListAssets(ctx context.Context, releaseID int32) ([]*Asset, er
 		entry.Blob = blobsByID[entry.BlobID]
 		if asset := assetsByID[entry.AssetID]; asset != nil {
 			asset.Entries = append(asset.Entries, entry)
+		}
+	}
+	for begin := 0; begin < len(assetIDs); begin += maxQueryIDs {
+		end := min(begin+maxQueryIDs, len(assetIDs))
+		var romSets []*ROMSet
+		if err := l.tdb.Select(`id,emulator,version,short_name,asset_id,clone_of`).From(ROMSet{}).
+			Where(`asset_id IN (?)`, assetIDs[begin:end]).OrderBy(`emulator,version,id`).Find(&romSets); err != nil {
+			return nil, err
+		}
+		for _, romSet := range romSets {
+			if asset := assetsByID[romSet.AssetID]; asset != nil {
+				asset.ROMSets = append(asset.ROMSets, romSet)
+			}
 		}
 	}
 	return items, nil
