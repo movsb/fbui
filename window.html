@@ -90,6 +90,10 @@
 	</block>
 </template>
 <stack fill>
+	<stack id="store-background" fill background-color="clear" display="false">
+		<block background-color="var(--color-background)"></block>
+		<img fill="cover">
+	</stack>
 	<stack>
 		<inline id="cat-bar" padding="10">
 			<spacer></spacer>
@@ -103,10 +107,6 @@
 		<block align="both" padding="10" width="100%">
 			<text font-size="small" id="pagination"></text>
 		</block>
-	</stack>
-	<stack id="store-background" fill background-color="clear" display="false">
-		<block background-color="var(--color-background)"></block>
-		<img fill="cover">
 	</stack>
 	<safe-area>
 		<stack id="content" spacer fill>
