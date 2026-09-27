@@ -18,6 +18,11 @@ func TestSelectReleaseImage(t *testing.T) {
 		t.Fatalf("game asset must win across owners: got %#v", got)
 	}
 
+	releaseTitle := asset(6, game_library.AssetTypeTitle)
+	if got := selectReleaseImage([]*game_library.Asset{gameCover}, []*game_library.Asset{releaseScreenshot, releaseTitle}); got != releaseTitle {
+		t.Fatalf("title screen must win across owners: got %#v", got)
+	}
+
 	gameLogo := asset(3, game_library.AssetTypeLogo)
 	gameScreenshot := asset(4, game_library.AssetTypeScreenshot)
 	if got := selectReleaseImage([]*game_library.Asset{gameCover, gameLogo, gameScreenshot}, nil); got != gameScreenshot {

@@ -31,6 +31,7 @@ const (
 	AssetTypeVideo
 	AssetTypeLogo
 	AssetTypeSystem
+	AssetTypeTitle
 )
 
 type Format int32

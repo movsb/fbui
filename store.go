@@ -708,6 +708,13 @@ func firstReleaseImage(releases []*game_library.Release, listAssets func(int32) 
 
 func selectReleaseImage(gameAssets, releaseAssets []*game_library.Asset) *game_library.Asset {
 	for _, assets := range [][]*game_library.Asset{gameAssets, releaseAssets} {
+		for _, asset := range assets {
+			if asset.Type == game_library.AssetTypeTitle && asset.Format == game_library.FormatRegular && asset.Blob != nil {
+				return asset
+			}
+		}
+	}
+	for _, assets := range [][]*game_library.Asset{gameAssets, releaseAssets} {
 		for _, assetType := range []game_library.AssetType{
 			game_library.AssetTypeScreenshot,
 			game_library.AssetTypeLogo,
@@ -806,7 +813,7 @@ func (n *StoreNavigator) openAsset(game *game_library.Game, asset *game_library.
 			switch asset.Type {
 			case game_library.AssetTypeROM:
 				n.runROM(game.PlatformID, path)
-			case game_library.AssetTypeCover, game_library.AssetTypeScreenshot, game_library.AssetTypeLogo:
+			case game_library.AssetTypeCover, game_library.AssetTypeScreenshot, game_library.AssetTypeLogo, game_library.AssetTypeTitle:
 				n.showImage(path)
 			case game_library.AssetTypeVideo:
 				n.showVideo(path)
@@ -1034,6 +1041,7 @@ func assetTypeName(kind game_library.AssetType) string {
 		game_library.AssetTypeLogo:       "Logo",
 		game_library.AssetTypeManual:     "说明书",
 		game_library.AssetTypeSystem:     "系统",
+		game_library.AssetTypeTitle:      "标题画面",
 		game_library.AssetTypeOther:      "其它",
 	}[kind]
 	if name == "" {
