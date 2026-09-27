@@ -1059,13 +1059,29 @@ func assetDetail(game *game_library.Game, asset *game_library.Asset) string {
 			supported = append(supported, name)
 		}
 	}
-	if len(supported) > 0 {
-		sort.Strings(supported)
-		for _, ver := range supported {
-			parts = append(parts, ver)
+	if incompleteROMSet(asset) {
+		parts = append(parts, "缺少文件")
+	} else {
+		if len(supported) > 0 {
+			sort.Strings(supported)
+			for _, ver := range supported {
+				parts = append(parts, ver)
+			}
 		}
 	}
 	return strings.Join(parts, "  ·  ")
+}
+
+func incompleteROMSet(asset *game_library.Asset) bool {
+	if len(asset.ROMSets) == 0 {
+		return false
+	}
+	for _, entry := range asset.Entries {
+		if entry.Blob == nil || entry.Blob.SHA256 == "" {
+			return true
+		}
+	}
+	return false
 }
 
 func formatSize(size int64) string {

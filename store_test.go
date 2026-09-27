@@ -86,6 +86,13 @@ func TestAssetDetailIncludesArcadeROMSets(t *testing.T) {
 	if got, want := assetDetail(&game_library.Game{PlatformID: 2}, asset), "1.0 KB  ·  ROM"; got != want {
 		t.Fatalf("non-arcade assetDetail=%q, want %q", got, want)
 	}
+	asset.Entries = []*game_library.Entry{
+		{Name: "present.bin", Blob: &game_library.Blob{SHA256: "present"}},
+		{Name: "missing.bin", Blob: &game_library.Blob{}},
+	}
+	if got, want := assetDetail(&game_library.Game{PlatformID: 1}, asset), "1.0 KB  ·  ROM  ·  缺少文件"; got != want {
+		t.Fatalf("incomplete assetDetail=%q, want %q", got, want)
+	}
 }
 
 func TestBuildGameItemsGroupsSeriesByPlatform(t *testing.T) {
