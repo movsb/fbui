@@ -145,7 +145,10 @@ func NewStoreNavigator(win *MainWindow) *StoreNavigator {
 		n.updatePagination()
 		n.scheduleGamePreview()
 	})
-	n.releases.Listen(fbiw.ListSelectionChange, func(*fbiw.Event) { n.updatePagination() })
+	n.releases.Listen(fbiw.ListSelectionChange, func(*fbiw.Event) {
+		n.updatePagination()
+		n.scheduleReleasePreview()
+	})
 	n.assets.Listen(fbiw.ListSelectionChange, func(*fbiw.Event) { n.updatePagination() })
 	n.stack = []storePage{{
 		level: storeRoot,
@@ -543,29 +546,58 @@ func (n *StoreNavigator) schedulePageBackground(page *storePage) {
 		// The active list selection schedules its debounced lookup.
 		return
 	case storeReleases:
-		n.resolveBackground(func(ctx context.Context) (*game_library.Asset, error) {
-			return n.findGameImage(ctx, page.game.ID)
-		})
+		n.scheduleReleasePreview()
 	case storeAssets:
 		n.resolveBackground(func(ctx context.Context) (*game_library.Asset, error) {
-			assets, err := n.metadata.ListAssets(ctx, page.release.ID)
-			if err != nil {
-				return nil, err
-			}
-			if image := selectReleaseImage(nil, assets); image != nil {
-				return image, nil
-			}
-			return n.findGameImage(ctx, page.game.ID)
+			return n.findReleaseImage(ctx, page.game.ID, page.release.ID)
 		})
 	default:
 		n.syncBackground(nil, "")
 	}
 }
 
+func (n *StoreNavigator) scheduleReleasePreview() {
+	n.cancelBackgroundUpdate()
+	if len(n.stack) == 0 {
+		return
+	}
+	page := &n.stack[len(n.stack)-1]
+	if page.level != storeReleases {
+		return
+	}
+	index := n.releases.DataIndex()
+	if index < 0 || index >= len(page.items) {
+		n.resolveBackgroundAfter(time.Second, func(ctx context.Context) (*game_library.Asset, error) {
+			return n.findGameImage(ctx, page.game.ID)
+		})
+		return
+	}
+	release, ok := page.items[index].value.(*game_library.Release)
+	if !ok {
+		return
+	}
+	n.resolveBackgroundAfter(time.Second, func(ctx context.Context) (*game_library.Asset, error) {
+		return n.findReleaseImage(ctx, page.game.ID, release.ID)
+	})
+}
+
 func (n *StoreNavigator) resolveBackground(resolve func(context.Context) (*game_library.Asset, error)) {
+	n.resolveBackgroundAfter(0, resolve)
+}
+
+func (n *StoreNavigator) resolveBackgroundAfter(delay time.Duration, resolve func(context.Context) (*game_library.Asset, error)) {
 	ctx, cancel := context.WithCancel(context.Background())
 	n.backgroundCancel = cancel
 	go func() {
+		if delay > 0 {
+			timer := time.NewTimer(delay)
+			defer timer.Stop()
+			select {
+			case <-ctx.Done():
+				return
+			case <-timer.C:
+			}
+		}
 		asset, err := resolve(ctx)
 		if err != nil {
 			if !errors.Is(err, context.Canceled) {
@@ -669,6 +701,17 @@ func (n *StoreNavigator) findGameImage(ctx context.Context, gameID int32) (*game
 	return firstReleaseImage(releases, func(releaseID int32) ([]*game_library.Asset, error) {
 		return n.metadata.ListAssets(ctx, releaseID)
 	})
+}
+
+func (n *StoreNavigator) findReleaseImage(ctx context.Context, gameID, releaseID int32) (*game_library.Asset, error) {
+	assets, err := n.metadata.ListAssets(ctx, releaseID)
+	if err != nil {
+		return nil, err
+	}
+	if image := selectReleaseImage(nil, assets); image != nil {
+		return image, nil
+	}
+	return n.findGameImage(ctx, gameID)
 }
 
 func (n *StoreNavigator) loadReleases(game *game_library.Game) {
