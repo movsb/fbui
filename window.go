@@ -40,9 +40,7 @@ func NewMainWindow(app *fbiw.App) *MainWindow {
 	win.toolsNav = NewToolsNavigator(win)
 	win.storeNav = NewStoreNavigator(win)
 
-	go win.asyncInitApps()
-	go win.asyncInitEmus()
-	go win.asyncInitPorts()
+	go win.watchLaunchConfigs()
 
 	win.statusBarNav.activate()
 
