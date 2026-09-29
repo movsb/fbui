@@ -45,9 +45,10 @@ func gzipBytes(t *testing.T, content string) []byte {
 	return output.Bytes()
 }
 
-func TestHTTPBlobSourceDecompressesStoredBlob(t *testing.T) {
+func TestHTTPBlobSourceReturnsStoredGZIP(t *testing.T) {
 	content := "blob contents"
-	source := testHTTPBlobSource(http.StatusOK, "gzip", gzipBytes(t, content))
+	stored := gzipBytes(t, content)
+	source := testHTTPBlobSource(http.StatusOK, "gzip", stored)
 	reader, err := source.Open(context.Background(), strings.Repeat("a", 64))
 	if err != nil {
 		t.Fatal(err)
@@ -57,8 +58,8 @@ func TestHTTPBlobSourceDecompressesStoredBlob(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(data) != content {
-		t.Fatalf("content=%q", data)
+	if !bytes.Equal(data, stored) {
+		t.Fatalf("stored data changed")
 	}
 }
 
@@ -69,15 +70,8 @@ func TestHTTPBlobSourceRequiresGZIPStorageEncoding(t *testing.T) {
 	}
 }
 
-func TestHTTPBlobSourceRejectsInvalidGZIP(t *testing.T) {
-	_, err := testHTTPBlobSource(http.StatusOK, "gzip", []byte("broken")).Open(context.Background(), strings.Repeat("c", 64))
-	if err == nil || !strings.Contains(err.Error(), "gzip") {
-		t.Fatalf("error=%v", err)
-	}
-}
-
 func TestHTTPBlobSourceRejectsHTTPError(t *testing.T) {
-	_, err := testHTTPBlobSource(http.StatusNotFound, "", []byte("missing")).Open(context.Background(), strings.Repeat("d", 64))
+	_, err := testHTTPBlobSource(http.StatusNotFound, "", []byte("missing")).Open(context.Background(), strings.Repeat("c", 64))
 	if err == nil || !strings.Contains(err.Error(), fmt.Sprint(http.StatusNotFound)) {
 		t.Fatalf("error=%v", err)
 	}

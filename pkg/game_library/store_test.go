@@ -3,6 +3,7 @@ package game_library
 import (
 	"archive/zip"
 	"bytes"
+	"compress/gzip"
 	"context"
 	"crypto/sha256"
 	"fmt"
@@ -41,7 +42,15 @@ func (s *fakeSource) Open(_ context.Context, sha string) (io.ReadCloser, error) 
 	if !ok {
 		return nil, os.ErrNotExist
 	}
-	return io.NopCloser(bytes.NewReader(content)), nil
+	var stored bytes.Buffer
+	writer := gzip.NewWriter(&stored)
+	if _, err := writer.Write(content); err != nil {
+		return nil, err
+	}
+	if err := writer.Close(); err != nil {
+		return nil, err
+	}
+	return io.NopCloser(bytes.NewReader(stored.Bytes())), nil
 }
 
 func testBlob(id int32, content string) (*Blob, string) {
@@ -60,6 +69,23 @@ func TestEnsureBlobVerifiesAndReusesCAS(t *testing.T) {
 	}
 	if path != store.blobPath(sha) {
 		t.Fatalf("unexpected path: %s", path)
+	}
+	stored, err := os.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reader, err := gzip.NewReader(stored)
+	if err != nil {
+		t.Fatalf("local blob is not gzip: %v", err)
+	}
+	decoded, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = reader.Close()
+	_ = stored.Close()
+	if string(decoded) != "verified content" {
+		t.Fatalf("decoded local blob=%q", decoded)
 	}
 	if _, err := store.ensureBlob(context.Background(), blob, nil, nil); err != nil {
 		t.Fatal(err)

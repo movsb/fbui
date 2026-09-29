@@ -2,6 +2,7 @@ package game_library
 
 import (
 	"archive/zip"
+	"compress/gzip"
 	"context"
 	"crypto/sha256"
 	"errors"
@@ -18,7 +19,7 @@ var sha256Pattern = regexp.MustCompile(`^[0-9a-f]{64}$`)
 
 // 远程二进制存储。
 type BlobSource interface {
-	// 通过内容哈希下载二进制。
+	// 通过内容哈希下载 gzip 存储数据。
 	Open(context.Context, string) (io.ReadCloser, error)
 }
 
@@ -51,7 +52,7 @@ func (s *Store) ensureBlob(ctx context.Context, expected *Blob, local, remote fu
 	final := s.blobPath(expected.SHA256)
 
 	// 如果本地有此二进制，校验并直接使用。
-	if validBlob(final, expected, local) {
+	if validStoredBlob(final, expected, local) {
 		return final, nil
 	}
 
@@ -69,27 +70,32 @@ func (s *Store) ensureBlob(ctx context.Context, expected *Blob, local, remote fu
 		return "", err
 	}
 
-	var (
-		hash           = sha256.New()
-		remoteProgress = &_ProgressWriter{
-			total:    expected.Size,
-			progress: remote,
-		}
-		closeAndRemove = func(downloadErr error) (string, error) {
-			file.Close()
-			os.Remove(temporary)
-			return "", downloadErr
-		}
-	)
+	var closeAndRemove = func(downloadErr error) (string, error) {
+		file.Close()
+		os.Remove(temporary)
+		return "", downloadErr
+	}
 
 	reader, err := s.source.Open(ctx, expected.SHA256)
 	if err != nil {
 		return closeAndRemove(err)
 	}
-	written, copyErr := io.Copy(io.MultiWriter(file, hash, remoteProgress), reader)
+	compressed := io.TeeReader(reader, file)
+	decoded, err := gzip.NewReader(compressed)
+	if err != nil {
+		_ = reader.Close()
+		return closeAndRemove(fmt.Errorf("downloaded blob is not valid gzip: %w", err))
+	}
+	hash := sha256.New()
+	remoteProgress := &_ProgressWriter{total: expected.Size, progress: remote}
+	written, copyErr := io.Copy(io.MultiWriter(hash, remoteProgress), decoded)
+	gzipCloseErr := decoded.Close()
 	closeErr := reader.Close()
 	if copyErr != nil {
 		return closeAndRemove(copyErr)
+	}
+	if gzipCloseErr != nil {
+		return closeAndRemove(gzipCloseErr)
 	}
 	if closeErr != nil {
 		return closeAndRemove(closeErr)
@@ -111,7 +117,7 @@ func (s *Store) ensureBlob(ctx context.Context, expected *Blob, local, remote fu
 	return final, nil
 }
 
-func validBlob(path string, expected *Blob, progress func(p float32)) bool {
+func validStoredBlob(path string, expected *Blob, progress func(p float32)) bool {
 	if expected == nil {
 		return false
 	}
@@ -120,16 +126,18 @@ func validBlob(path string, expected *Blob, progress func(p float32)) bool {
 		return false
 	}
 	defer file.Close()
-	info, err := file.Stat()
-	if err != nil || info.Size() != expected.Size {
+	reader, err := gzip.NewReader(file)
+	if err != nil {
 		return false
 	}
+	defer reader.Close()
 	hash := sha256.New()
 	pw := &_ProgressWriter{
 		total:    expected.Size,
 		progress: progress,
 	}
-	if _, err := io.Copy(io.MultiWriter(hash, pw), file); err != nil {
+	written, err := io.Copy(io.MultiWriter(hash, pw), reader)
+	if err != nil || written != expected.Size {
 		return false
 	}
 	return fmt.Sprintf("%x", hash.Sum(nil)) == expected.SHA256
@@ -153,7 +161,7 @@ func (s *Store) Materialize(ctx context.Context, asset *Asset, progress func(mes
 	case FormatRegular:
 		// 有就直接使用。
 		final := filepath.Join(dir, name)
-		if validBlob(final, asset.Blob, func(p float32) {
+		if validOriginalBlob(final, asset.Blob, func(p float32) {
 			progress(`校验文件`, p)
 		}) {
 			return final, nil
@@ -171,10 +179,8 @@ func (s *Store) Materialize(ctx context.Context, asset *Asset, progress func(mes
 			return "", err
 		}
 		os.Remove(final)
-		if err := os.Link(blob, final); err != nil {
-			if err := copyFile(blob, final); err != nil {
-				return "", err
-			}
+		if err := materializeStoredBlob(blob, final); err != nil {
+			return "", err
 		}
 		return final, nil
 	case FormatZIP:
@@ -264,8 +270,13 @@ func (s *Store) Materialize(ctx context.Context, asset *Asset, progress func(mes
 			},
 		}
 		for _, entry := range entries {
-			input, err := os.Open(entry.path)
+			stored, err := os.Open(entry.path)
 			if err != nil {
+				return fail(err)
+			}
+			input, err := gzip.NewReader(stored)
+			if err != nil {
+				_ = stored.Close()
 				return fail(err)
 			}
 			output, err := archive.CreateHeader(&zip.FileHeader{
@@ -275,9 +286,13 @@ func (s *Store) Materialize(ctx context.Context, asset *Asset, progress func(mes
 			if err == nil {
 				_, err = io.Copy(io.MultiWriter(output, assembleProgress), input)
 			}
-			closeErr := input.Close()
+			gzipCloseErr := input.Close()
+			closeErr := stored.Close()
 			if err != nil {
 				return fail(err)
+			}
+			if gzipCloseErr != nil {
+				return fail(gzipCloseErr)
 			}
 			if closeErr != nil {
 				return fail(closeErr)
@@ -418,17 +433,22 @@ func safeEntryName(name string) (string, error) {
 	return clean, nil
 }
 
-func copyFile(source, destination string) error {
+func materializeStoredBlob(source, destination string) error {
 	in, err := os.Open(source)
 	if err != nil {
 		return err
 	}
 	defer in.Close()
+	reader, err := gzip.NewReader(in)
+	if err != nil {
+		return err
+	}
+	defer reader.Close()
 	out, err := os.OpenFile(destination, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
 	if err != nil {
 		return err
 	}
-	_, copyErr := io.Copy(out, in)
+	_, copyErr := io.Copy(out, reader)
 	closeErr := out.Close()
 	if copyErr != nil || closeErr != nil {
 		_ = os.Remove(destination)
@@ -438,6 +458,27 @@ func copyFile(source, destination string) error {
 		return closeErr
 	}
 	return nil
+}
+
+func validOriginalBlob(path string, expected *Blob, progress func(p float32)) bool {
+	if expected == nil {
+		return false
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		return false
+	}
+	defer file.Close()
+	info, err := file.Stat()
+	if err != nil || info.Size() != expected.Size {
+		return false
+	}
+	hash := sha256.New()
+	pw := &_ProgressWriter{total: expected.Size, progress: progress}
+	if _, err := io.Copy(io.MultiWriter(hash, pw), file); err != nil {
+		return false
+	}
+	return fmt.Sprintf("%x", hash.Sum(nil)) == expected.SHA256
 }
 
 type _ProgressWriter struct {

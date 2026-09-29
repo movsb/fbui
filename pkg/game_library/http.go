@@ -1,9 +1,7 @@
 package game_library
 
 import (
-	"compress/gzip"
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -19,17 +17,6 @@ type HTTPBlobSource struct {
 	Client  *http.Client
 }
 
-type gzipResponseBody struct {
-	reader *gzip.Reader
-	body   io.ReadCloser
-}
-
-func (b *gzipResponseBody) Read(data []byte) (int, error) { return b.reader.Read(data) }
-
-func (b *gzipResponseBody) Close() error {
-	return errors.Join(b.reader.Close(), b.body.Close())
-}
-
 // 在 baseURL 后面追加 `/v3/blobs/sha256` 来构造最终 URL。
 func NewHTTPBlobSource(baseURL string) *HTTPBlobSource {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
@@ -41,6 +28,7 @@ func NewHTTPBlobSource(baseURL string) *HTTPBlobSource {
 	}
 }
 
+// 返回的是gzip字节流。
 func (s *HTTPBlobSource) Open(ctx context.Context, sha256 string) (io.ReadCloser, error) {
 	if !sha256Pattern.MatchString(sha256) {
 		return nil, fmt.Errorf("invalid blob sha256: %q", sha256)
@@ -61,10 +49,5 @@ func (s *HTTPBlobSource) Open(ctx context.Context, sha256 string) (io.ReadCloser
 		response.Body.Close()
 		return nil, fmt.Errorf("download blob %s: unsupported GM-Content-Encoding %q", sha256, response.Header.Get("GM-Content-Encoding"))
 	}
-	reader, err := gzip.NewReader(response.Body)
-	if err != nil {
-		response.Body.Close()
-		return nil, fmt.Errorf("download blob %s: open gzip stream: %w", sha256, err)
-	}
-	return &gzipResponseBody{reader: reader, body: response.Body}, nil
+	return response.Body, nil
 }
