@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"database/sql"
 	"fmt"
@@ -9,7 +10,10 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
+
+	"github.com/movsb/fbui/pkg/game_library"
 )
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
@@ -25,7 +29,7 @@ func makeSnapshot(t *testing.T) []byte {
 	}
 	statements := []string{
 		`CREATE TABLE options (name TEXT, value TEXT)`,
-		`INSERT INTO options VALUES ('db_ver', '14')`,
+		fmt.Sprintf(`INSERT INTO options VALUES ('db_ver', '%d')`, game_library.SupportedDatabaseVersion),
 	}
 	for _, table := range []string{"platforms", "series", "games", "names", "releases", "assets", "entries", "blobs", "rom_sets"} {
 		statements = append(statements, fmt.Sprintf(`CREATE TABLE %s (id INTEGER)`, table))
@@ -46,21 +50,38 @@ func makeSnapshot(t *testing.T) []byte {
 	return data
 }
 
+func gzipSnapshot(t *testing.T, snapshot []byte) []byte {
+	t.Helper()
+	var compressed bytes.Buffer
+	writer := gzip.NewWriter(&compressed)
+	if _, err := writer.Write(snapshot); err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return compressed.Bytes()
+}
+
 func TestDownloadLibrarySnapshotReplacesAndReportsProgress(t *testing.T) {
 	snapshot := makeSnapshot(t)
+	compressed := gzipSnapshot(t, snapshot)
 	client := &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
 		if r.Method == http.MethodGet && r.URL.Path == "/v3/backups/version" {
-			return jsonResponse(`{"database_version":14}`), nil
+			return jsonResponse(fmt.Sprintf(`{"database_version":%d}`, game_library.SupportedDatabaseVersion)), nil
 		}
 		if r.Method != http.MethodPost || r.URL.Path != "/v3/backups:download" {
 			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
 		}
+		header := make(http.Header)
+		header.Set("GM-Content-Encoding", "gzip")
+		header.Set("GM-Original-Size", strconv.Itoa(len(snapshot)))
 		return &http.Response{
 			StatusCode:    http.StatusOK,
 			Status:        "200 OK",
-			ContentLength: int64(len(snapshot)),
-			Body:          io.NopCloser(bytes.NewReader(snapshot)),
-			Header:        make(http.Header),
+			ContentLength: int64(len(compressed)),
+			Body:          io.NopCloser(bytes.NewReader(compressed)),
+			Header:        header,
 		}, nil
 	})}
 
@@ -76,8 +97,8 @@ func TestDownloadLibrarySnapshotReplacesAndReportsProgress(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer library.Close()
-	if received != int64(len(snapshot)) || total != int64(len(snapshot)) {
-		t.Fatalf("progress=%d/%d want=%d", received, total, len(snapshot))
+	if received != int64(len(compressed)) || total != int64(len(compressed)) {
+		t.Fatalf("progress=%d/%d want=%d", received, total, len(compressed))
 	}
 	if _, err := os.Stat(target + ".part"); !os.IsNotExist(err) {
 		t.Fatalf("part file remains: %v", err)
@@ -88,15 +109,18 @@ func TestDownloadLibrarySnapshotFailurePreservesOldDatabase(t *testing.T) {
 	downloadCalled := false
 	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		if request.Method == http.MethodGet {
-			return jsonResponse(`{"database_version":14}`), nil
+			return jsonResponse(fmt.Sprintf(`{"database_version":%d}`, game_library.SupportedDatabaseVersion)), nil
 		}
 		downloadCalled = true
+		header := make(http.Header)
+		header.Set("GM-Content-Encoding", "gzip")
+		header.Set("GM-Original-Size", "100")
 		return &http.Response{
 			StatusCode:    http.StatusOK,
 			Status:        "200 OK",
 			ContentLength: 100,
 			Body:          io.NopCloser(bytes.NewReader([]byte("short"))),
-			Header:        make(http.Header),
+			Header:        header,
 		}, nil
 	})}
 
@@ -125,7 +149,7 @@ func TestDownloadLibrarySnapshotRejectsIncompatibleVersionBeforeDownload(t *test
 		if request.Method == http.MethodPost {
 			downloadCalled = true
 		}
-		return jsonResponse(`{"database_version":15}`), nil
+		return jsonResponse(fmt.Sprintf(`{"database_version":%d}`, game_library.SupportedDatabaseVersion+1)), nil
 	})}
 	if _, err := downloadLibrarySnapshot(context.Background(), client, "http://gm.test", filepath.Join(t.TempDir(), "gm.db"), nil); err == nil {
 		t.Fatal("expected incompatible version error")

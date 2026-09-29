@@ -1,6 +1,7 @@
 package main
 
 import (
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"errors"
@@ -9,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/movsb/fbui/pkg/game_library"
@@ -36,9 +38,16 @@ func downloadLibrarySnapshot(ctx context.Context, client *http.Client, baseURL, 
 		message, _ := io.ReadAll(io.LimitReader(response.Body, 4096))
 		return nil, fmt.Errorf("下载数据库快照：HTTP %s：%s", response.Status, strings.TrimSpace(string(message)))
 	}
+	if response.Header.Get("GM-Content-Encoding") != "gzip" {
+		return nil, fmt.Errorf("下载数据库快照：不支持的 GM-Content-Encoding %q", response.Header.Get("GM-Content-Encoding"))
+	}
 	total := response.ContentLength
 	if total <= 0 {
 		return nil, errors.New("下载数据库快照：服务器未提供有效的 Content-Length")
+	}
+	originalSize, err := strconv.ParseInt(response.Header.Get("GM-Original-Size"), 10, 64)
+	if err != nil || originalSize <= 0 {
+		return nil, errors.New("下载数据库快照：服务器未提供有效的 GM-Original-Size")
 	}
 	if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
 		return nil, err
@@ -57,12 +66,21 @@ func downloadLibrarySnapshot(ctx context.Context, client *http.Client, baseURL, 
 		}
 	}()
 
-	written, err := io.Copy(file, io.TeeReader(response.Body, &progressWriter{total: total, progress: progress}))
+	compressed := io.TeeReader(response.Body, &progressWriter{total: total, progress: progress})
+	reader, err := gzip.NewReader(compressed)
 	if err != nil {
-		return nil, fmt.Errorf("下载数据库快照：%w", err)
+		return nil, fmt.Errorf("下载数据库快照：打开 gzip 数据：%w", err)
 	}
-	if written != total {
-		return nil, fmt.Errorf("下载数据库快照不完整：收到 %d 字节，预期 %d 字节", written, total)
+	written, copyErr := io.Copy(file, reader)
+	closeErr := reader.Close()
+	if copyErr != nil {
+		return nil, fmt.Errorf("下载数据库快照：%w", copyErr)
+	}
+	if closeErr != nil {
+		return nil, fmt.Errorf("下载数据库快照：%w", closeErr)
+	}
+	if written != originalSize {
+		return nil, fmt.Errorf("下载数据库快照不完整：解压后收到 %d 字节，预期 %d 字节", written, originalSize)
 	}
 	if err := file.Sync(); err != nil {
 		return nil, err
