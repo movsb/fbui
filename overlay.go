@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/fswatcher/fswatcher"
 	"github.com/movsb/fbiw"
@@ -27,6 +28,23 @@ type OverlayWindow struct {
 	txtWifiOpen      *fbiw.Text `css:"#wifi"`
 	txtBluetoothOpen *fbiw.Text `css:"#bluetooth"`
 	txtCpuStatus     *fbiw.Text `css:"#cpu"`
+
+	bottom      *fbiw.Inline `css:"#bottom"`
+	buttonHints []*overlayButtonHint
+}
+
+// ButtonHint describes one button hint displayed at the bottom of the overlay.
+// Button is the button name shown in the badge, and Text describes its action.
+type ButtonHint struct {
+	Button string
+	Text   string
+}
+
+type overlayButtonHint struct {
+	root   fbiw.Box
+	badge  *fbiw.Inline `css:".stick"`
+	button *fbiw.Text   `css:".button"`
+	text   *fbiw.Text   `css:".description"`
 }
 
 func NewOverlayWindow(app *fbiw.App) *OverlayWindow {
@@ -55,11 +73,36 @@ func (win *OverlayWindow) SetTitle(s string) {
 	win.theTitle.SetText(s)
 }
 
+// SetButtonHints replaces the button hints displayed at the bottom of the
+// overlay. Passing no hints hides the bottom bar.
+func (win *OverlayWindow) SetButtonHints(hints ...ButtonHint) {
+	for len(win.buttonHints) < len(hints) {
+		win.appendButtonHint()
+	}
+
+	for i, view := range win.buttonHints {
+		visible := i < len(hints)
+		view.root.SetProp(`display`, fmt.Sprint(visible))
+		if visible {
+			view.button.SetText(hints[i].Button)
+			view.badge.ClassToggle(`single`, utf8.RuneCountInString(hints[i].Button) == 1)
+			view.text.SetText(hints[i].Text)
+		}
+	}
+	win.bottom.SetProp(`display`, fmt.Sprint(len(hints) > 0))
+}
+
+func (win *OverlayWindow) appendButtonHint() {
+	hint := win.doc.Instantiate[overlayButtonHint](`button-hint`)
+	win.bottom.AppendChild(hint.root)
+	win.buttonHints = append(win.buttonHints, hint)
+}
+
 func (win *OverlayWindow) watchDocChange() {
 	win.app.Listen(fbiw.DocChange, func(e *fbiw.Event) {
 		d := e.DocChange.Doc
 		if d.Title() != `` {
-			win.theTitle.SetText(d.Title())
+			win.SetTitle(d.Title())
 		}
 	})
 }
