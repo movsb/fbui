@@ -16,7 +16,6 @@ import (
 	"github.com/movsb/fbiw/input/sticks"
 	"github.com/movsb/fbui/pkg/config"
 	"github.com/movsb/fbui/pkg/game_names"
-	"github.com/movsb/fbui/pkg/launcher"
 	"github.com/movsb/fbui/pkg/searchable"
 )
 
@@ -47,6 +46,7 @@ type SearchWindow struct {
 	prevKey        fbiw.Box
 	keyRow, keyCol int
 	onModeChange   func(Mode)
+	onLaunch       func(*config.LaunchConfig, string, string)
 
 	// ctx                context.Context
 	// cancel             context.CancelFunc
@@ -55,7 +55,7 @@ type SearchWindow struct {
 
 // initEmu: 初始化模拟器配置，如果没有，表示全部。
 // initDir: 初始化游戏列表，没有表示全部。
-func New(app *fbiw.App, opener *fbiw.Document, initEmu *config.LaunchConfig, initDir string, onModeChange func(Mode)) *SearchWindow {
+func New(app *fbiw.App, opener *fbiw.Document, initEmu *config.LaunchConfig, initDir string, onModeChange func(Mode), onLaunch func(*config.LaunchConfig, string, string)) *SearchWindow {
 	doc := app.NewPopup(_embed, `search.html`, opener)
 	win := &SearchWindow{
 		app:          app,
@@ -63,6 +63,7 @@ func New(app *fbiw.App, opener *fbiw.Document, initEmu *config.LaunchConfig, ini
 		keyRow:       -1,
 		keyCol:       -1,
 		onModeChange: onModeChange,
+		onLaunch:     onLaunch,
 	}
 	doc.Bind(win)
 	win.searchBox.Listen(fbiw.InputDownEvent, win.handleSearchEvents)
@@ -209,15 +210,8 @@ func (w *SearchWindow) handleResultEvents(event *fbiw.Event) {
 		}
 		matched := w.resultList.GetData(`matched`).([]_SearchResultItem)
 		item := matched[index]
-		w.app.Detach()
-		go func() {
-			defer w.app.AttachAsync()
-			script := item.launcher.LauncherScriptPath()
-			log.Println(`解释执行启动脚本：`, script, item.romPath)
-			if err := launcher.RunScript(context.Background(), script, item.romPath); err != nil {
-				log.Println(`启动失败：`, err)
-			}
-		}()
+		w.doc.Close()
+		w.onLaunch(item.launcher, item.displayName, item.romPath)
 		return
 	}
 }

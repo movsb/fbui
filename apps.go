@@ -2,7 +2,6 @@ package main
 
 import (
 	"log"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -11,6 +10,8 @@ import (
 	"github.com/movsb/fbiw"
 	"github.com/movsb/fbiw/input/sticks"
 	"github.com/movsb/fbui/pkg/config"
+	"github.com/movsb/fbui/pkg/mainui"
+	"github.com/movsb/fbui/pkg/menu_popup"
 )
 
 type launchConfigKind uint8
@@ -188,18 +189,21 @@ func (w *MainWindow) asyncInitPorts() {
 }
 
 type LauncherNavigator struct {
-	window  *MainWindow
-	dataKey string
-	scroll  *fbiw.List
+	window   *MainWindow
+	dataKey  string
+	scroll   *fbiw.List
+	sublabel string
 }
 
 func NewLauncherNavigator(win *MainWindow, selector string, dataKey string) *LauncherNavigator {
 	n := LauncherNavigator{
-		window:  win,
-		dataKey: dataKey,
-		scroll:  win.doc.QuerySelector[*fbiw.List](selector),
+		window:   win,
+		dataKey:  dataKey,
+		scroll:   win.doc.QuerySelector[*fbiw.List](selector),
+		sublabel: fbiw.Iif(dataKey == `ports`, `独立`, `应用`),
 	}
 	n.scroll.Listen(fbiw.InputDownEvent, n.handleKeyDown)
+	n.scroll.Listen(fbiw.InputUpEvent, n.handleKeyUp)
 	return &n
 }
 
@@ -208,8 +212,42 @@ func (n *LauncherNavigator) activate() {
 	n.scroll.Activate()
 	overlayWindow.SetButtonHints(
 		ButtonHint{Button: `A`, Text: `打开`},
+		ButtonHint{Button: `Menu`, Text: `收藏`},
 		ButtonHint{Button: `B`, Text: `返回`},
 	)
+}
+
+func (n *LauncherNavigator) handleKeyUp(event *fbiw.Event) {
+	if event.Input.Name != sticks.Menu || n.scroll.DataIndex() < 0 {
+		return
+	}
+	item := n.selectedItem()
+	favorite, err := n.window.lists.IsFavorite(item)
+	if err != nil {
+		log.Println(`读取收藏失败：`, err)
+	}
+	name := `加入收藏`
+	if favorite {
+		name = `取消收藏`
+	}
+	menu_popup.NewMenuPopup(n.window.app, n.window.doc, []menu_popup.MenuItem{{
+		Name: name,
+		Click: func() {
+			if _, err := n.window.lists.ToggleFavorite(item); err != nil {
+				log.Println(`更新收藏失败：`, err)
+			}
+		},
+	}}, nil, nil)
+	event.StopPropagation()
+}
+
+func (n *LauncherNavigator) selectedItem() mainui.Item {
+	configs := n.scroll.GetData(n.dataKey).([]*config.LaunchConfig)
+	config := configs[n.scroll.DataIndex()]
+	return mainui.Item{
+		Label: config.Name(), SubLabel: n.sublabel,
+		Launch: config.LauncherScriptPath(), Type: mainui.AppType,
+	}
 }
 
 func (n *LauncherNavigator) handleKeyDown(event *fbiw.Event) {
@@ -227,13 +265,5 @@ func (n *LauncherNavigator) handleKeyDown(event *fbiw.Event) {
 }
 
 func (n *LauncherNavigator) openApp() {
-	configs := n.scroll.GetData(n.dataKey).([]*config.LaunchConfig)
-	config := configs[n.scroll.DataIndex()]
-	n.window.app.Detach()
-	go func() {
-		defer n.window.app.AttachAsync()
-		cmd := exec.Command(config.LauncherScriptPath())
-		log.Println(`启动进程：`, cmd.String())
-		cmd.Run()
-	}()
+	n.window.launchItem(n.selectedItem())
 }

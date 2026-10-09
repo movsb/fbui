@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"os"
@@ -13,7 +12,8 @@ import (
 	"github.com/movsb/fbiw/input/sticks"
 	"github.com/movsb/fbui/pkg/config"
 	"github.com/movsb/fbui/pkg/game_names"
-	"github.com/movsb/fbui/pkg/launcher"
+	"github.com/movsb/fbui/pkg/mainui"
+	"github.com/movsb/fbui/pkg/menu_popup"
 	"github.com/movsb/fbui/pkg/search_window"
 )
 
@@ -68,6 +68,7 @@ func NewGamesNavigator(win *MainWindow) *GamesNavigator {
 	}
 	win.doc.Bind(n)
 	n.container.Listen(fbiw.InputDownEvent, n.handleEvents)
+	n.container.Listen(fbiw.InputUpEvent, n.handleUpEvents)
 	n.roms.Listen(fbiw.ListSelectionChange, func(e *fbiw.Event) {
 		index := n.roms.DataIndex()
 		text := fbiw.Iif(index == -1, ``, fmt.Sprintf(`%d/%d`, index+1, n.roms.DataCount()))
@@ -136,9 +137,42 @@ func (n *GamesNavigator) setEmulatorButtonHints() {
 func (n *GamesNavigator) setRomButtonHints() {
 	overlayWindow.SetButtonHints(
 		ButtonHint{Button: `A`, Text: `启动`},
+		ButtonHint{Button: `Menu`, Text: `收藏`},
 		ButtonHint{Button: `Y`, Text: `搜索`},
 		ButtonHint{Button: `B`, Text: `返回`},
 	)
+}
+
+func (n *GamesNavigator) handleUpEvents(event *fbiw.Event) {
+	if event.Input.Name != sticks.Menu || n.stack.Size() == 0 {
+		return
+	}
+	index := n.roms.DataIndex()
+	if index < 0 {
+		return
+	}
+	info := n.stack.Top().roms[index]
+	if info.isDir {
+		return
+	}
+	item := n.launchItem(info)
+	favorite, err := n.window.lists.IsFavorite(item)
+	if err != nil {
+		log.Println(`读取收藏失败：`, err)
+	}
+	name := `加入收藏`
+	if favorite {
+		name = `取消收藏`
+	}
+	menu_popup.NewMenuPopup(n.window.app, n.window.doc, []menu_popup.MenuItem{{
+		Name: name,
+		Click: func() {
+			if _, err := n.window.lists.ToggleFavorite(item); err != nil {
+				log.Println(`更新收藏失败：`, err)
+			}
+		},
+	}}, nil, nil)
+	event.StopPropagation()
 }
 
 func (n *GamesNavigator) handleEvents(event *fbiw.Event) {
@@ -205,22 +239,30 @@ func (n *GamesNavigator) handleEvents(event *fbiw.Event) {
 }
 
 func (n *GamesNavigator) openSearch(emu *config.LaunchConfig, dir string) {
-	search_window.New(n.window.app, n.window.doc, emu, dir, func(mode search_window.Mode) {
-		switch mode {
-		case search_window.ModeKeyboard:
-			overlayWindow.SetButtonHints(
-				ButtonHint{Button: `A`, Text: `输入`},
-				ButtonHint{Button: `B`, Text: `删除`},
-				ButtonHint{Button: `X`, Text: `搜索`},
-				ButtonHint{Button: `Y`, Text: `关闭`},
-			)
-		case search_window.ModeResults:
-			overlayWindow.SetButtonHints(
-				ButtonHint{Button: `A`, Text: `启动`},
-				ButtonHint{Button: `B`, Text: `返回`},
-			)
-		}
-	})
+	search_window.New(n.window.app, n.window.doc, emu, dir,
+		func(mode search_window.Mode) {
+			switch mode {
+			case search_window.ModeKeyboard:
+				overlayWindow.SetButtonHints(
+					ButtonHint{Button: `A`, Text: `输入`},
+					ButtonHint{Button: `B`, Text: `删除`},
+					ButtonHint{Button: `X`, Text: `搜索`},
+					ButtonHint{Button: `Y`, Text: `关闭`},
+				)
+			case search_window.ModeResults:
+				overlayWindow.SetButtonHints(
+					ButtonHint{Button: `A`, Text: `启动`},
+					ButtonHint{Button: `B`, Text: `返回`},
+				)
+			}
+		},
+		func(launcherConfig *config.LaunchConfig, label, romPath string) {
+			n.window.launchItem(mainui.Item{
+				Label: label, SubLabel: launcherConfig.Name(),
+				Launch: launcherConfig.LauncherScriptPath(), ROMPath: romPath, Type: mainui.ROMType,
+			})
+		},
+	)
 }
 
 func (n *GamesNavigator) backToEmulators() {
@@ -278,21 +320,15 @@ func (n *GamesNavigator) enterDirectory(info RomInfo) {
 }
 
 func (n *GamesNavigator) runGame(info RomInfo) {
-	launcherScript := n.currentEmu.LauncherScriptPath()
-	romPath := n.romFinalPath(n.currentEmu, info.name)
-	n.window.app.Detach()
-	go func() {
-		defer n.window.app.AttachAsync()
-		if err := launcher.RunScript(context.Background(), launcherScript, romPath); err != nil {
-			log.Printf(`运行失败：%s: %s: %s`, launcherScript, romPath, err.Error())
-			n.window.doc.Async(func() {
-				n.window.app.ShowAlertDialog(n.window.doc, fbiw.AlertDialogOptions{
-					Title:       `启动失败`,
-					Description: err.Error(),
-				})
-			})
-		}
-	}()
+	n.window.launchItem(n.launchItem(info))
+}
+
+func (n *GamesNavigator) launchItem(info RomInfo) mainui.Item {
+	return mainui.Item{
+		Label: info.displayName, SubLabel: n.currentEmu.Name(),
+		Launch:  n.currentEmu.LauncherScriptPath(),
+		ROMPath: n.romFinalPath(n.currentEmu, info.name), Type: mainui.ROMType,
+	}
 }
 
 type _RomBox struct {

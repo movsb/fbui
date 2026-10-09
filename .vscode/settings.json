@@ -20,7 +20,8 @@
 		"swapon",
 		"TRIMUI",
 		"uevent",
-		"wlan"
+		"wlan",
+		"mainui"
 	],
 	"go.toolsEnvVars": {
 		"GOEXPERIMENT": "simd"

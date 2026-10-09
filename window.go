@@ -1,11 +1,17 @@
 package main
 
 import (
+	"context"
 	"embed"
 	"fmt"
+	"log"
+	"os/exec"
 
 	"github.com/movsb/fbiw"
 	"github.com/movsb/fbiw/input/sticks"
+	"github.com/movsb/fbui/pkg/config"
+	"github.com/movsb/fbui/pkg/launcher"
+	"github.com/movsb/fbui/pkg/mainui"
 )
 
 //go:embed *.html
@@ -17,24 +23,30 @@ type MainWindow struct {
 
 	statusBarNav *StatusBarNavigator
 	gamesNav     *GamesNavigator
+	favoritesNav *SavedItemsNavigator
+	recentNav    *SavedItemsNavigator
 	portsNav     *LauncherNavigator
 	appsNav      *LauncherNavigator
 	toolsNav     *ToolsNavigator
 	storeNav     *StoreNavigator
+	lists        *mainui.Lists
 }
 
 func NewMainWindow(app *fbiw.App) *MainWindow {
 	doc := app.NewDesktop(_embed, `window.html`)
 
 	win := &MainWindow{
-		app: app,
-		doc: doc,
+		app:   app,
+		doc:   doc,
+		lists: mainui.NewLists(config.SDCARDRoot),
 	}
 
 	doc.Bind(win)
 
 	win.statusBarNav = NewStatusBarNavigator(win)
 	win.gamesNav = NewGamesNavigator(win)
+	win.favoritesNav = NewSavedItemsNavigator(win, `#favorites`, true)
+	win.recentNav = NewSavedItemsNavigator(win, `#recent`, false)
 	win.portsNav = NewLauncherNavigator(win, `#ports`, `ports`)
 	win.appsNav = NewLauncherNavigator(win, `#apps`, `apps`)
 	win.toolsNav = NewToolsNavigator(win)
@@ -45,6 +57,38 @@ func NewMainWindow(app *fbiw.App) *MainWindow {
 	win.statusBarNav.activate()
 
 	return win
+}
+
+func (w *MainWindow) launchItem(item mainui.Item) {
+	if err := item.Validate(); err != nil {
+		w.showLaunchError(err)
+		return
+	}
+	if err := w.lists.AddRecent(item); err != nil {
+		log.Println("更新最近项目失败：", err)
+	}
+	w.app.Detach()
+	go func() {
+		defer w.app.AttachAsync()
+		var err error
+		if item.ROMPath != "" {
+			err = launcher.RunScript(context.Background(), item.Launch, item.ROMPath)
+		} else {
+			cmd := exec.Command(item.Launch)
+			log.Println("启动进程：", cmd.String())
+			err = cmd.Run()
+		}
+		if err != nil {
+			log.Printf("启动失败：%s: %v", item, err)
+			w.doc.Async(func() { w.showLaunchError(err) })
+		}
+	}()
+}
+
+func (w *MainWindow) showLaunchError(err error) {
+	w.app.ShowAlertDialog(w.doc, fbiw.AlertDialogOptions{
+		Title: "启动失败", Description: err.Error(),
+	})
 }
 
 type StatusBarNavigator struct {
@@ -62,6 +106,17 @@ func NewStatusBarNavigator(win *MainWindow) *StatusBarNavigator {
 		catIndex: 0,
 	}
 	win.doc.Bind(&n)
+
+	// 初始选中项不一定是第一个。
+	for i, cat := range n.catBoxes {
+		if cat.ClassContains(`selected`) {
+			n.catIndex = i
+			break
+		}
+	}
+
+	n.setIndex(n.catIndex)
+
 	n.catBar.Listen(fbiw.InputDownEvent, n.handleEvents)
 	return &n
 }
@@ -89,6 +144,10 @@ func (n *StatusBarNavigator) activateContent() {
 		switch content.GetID() {
 		case `games`:
 			n.window.gamesNav.activate()
+		case `favorites`:
+			n.window.favoritesNav.activate()
+		case `recent`:
+			n.window.recentNav.activate()
 		case `ports`:
 			n.window.portsNav.activate()
 		case `apps`:
@@ -130,26 +189,14 @@ func (n *StatusBarNavigator) handleEvents(event *fbiw.Event) {
 	}
 
 	if keyName == sticks.Left || keyName == sticks.Right {
-		// 原来的去掉选中
-		if n.catIndex >= 0 && n.catIndex < len(n.catBoxes) {
-			t := n.catBoxes[n.catIndex].(*fbiw.Text)
-			t.ClassRemove(`selected`)
-			b := n.contentBoxes[n.catIndex]
-			b.Base().ClassRemove(`selected`)
-		}
-
+		newIndex := 0
 		switch keyName {
 		case sticks.Left:
-			n.catIndex--
+			newIndex = n.catIndex - 1
 		case sticks.Right:
-			n.catIndex++
+			newIndex = n.catIndex + 1
 		}
-
-		t := n.catBoxes[n.catIndex].(*fbiw.Text)
-		t.ClassAdd(`selected`)
-		b := n.contentBoxes[n.catIndex]
-		b.Base().ClassAdd(`selected`)
-
+		n.setIndex(newIndex)
 		event.StopPropagation()
 		return
 	}
@@ -157,5 +204,30 @@ func (n *StatusBarNavigator) handleEvents(event *fbiw.Event) {
 	if keyName == sticks.Down {
 		n.activateContent()
 		event.StopPropagation()
+	}
+}
+
+func (n *StatusBarNavigator) setIndex(newIndex int) {
+	oldIndex := n.catIndex
+	if oldIndex >= 0 && oldIndex < len(n.catBoxes) {
+		t := n.catBoxes[oldIndex].(*fbiw.Text)
+		t.ClassRemove(`selected`)
+		b := n.contentBoxes[oldIndex]
+		b.Base().ClassRemove(`selected`)
+	}
+
+	if newIndex >= 0 && newIndex < len(n.catBoxes) {
+		t := n.catBoxes[newIndex].(*fbiw.Text)
+		t.ClassAdd(`selected`)
+		b := n.contentBoxes[newIndex]
+		b.Base().ClassAdd(`selected`)
+		n.catIndex = newIndex
+
+		switch t.GetName() {
+		case `recent`:
+			n.window.recentNav.reload()
+		case `favorites`:
+			n.window.favoritesNav.reload()
+		}
 	}
 }
