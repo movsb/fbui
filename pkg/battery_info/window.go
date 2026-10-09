@@ -98,7 +98,7 @@ func (w *Window) refresh() {
 			if err != nil {
 				w.setStatus("部分数据读取失败："+err.Error(), true)
 			} else {
-				w.setStatus("X 刷新 · B 返回", false)
+				w.setStatus("", false)
 			}
 		})
 		w.mu.Lock()

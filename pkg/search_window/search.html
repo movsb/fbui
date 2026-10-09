@@ -13,11 +13,11 @@
 		width: 55;
 		height: 55;
 		background-color: var(--color-primary);
-		border-width: 2;
+		border-width: 4;
 		border-color: none;
 
 		&.selected {
-			outline-width: 1;
+			outline-width: 2;
 			outline-color: var(--color-focus);
 		}
 	}
@@ -81,9 +81,6 @@
 				</inline>
 			</block>
 			<spacer></spacer>
-			<inline align="both" font-size="x-small" font-family="monospace">
-				<text>“A”输入，“B”删除，“X”搜索，“Y”关闭</text>
-			</inline>
 		</block>
 		<stack id="result" fill>
 			<list id="result-list" display="false" rows="5" cols="1" display="false">

@@ -165,6 +165,15 @@ func (n *StoreNavigator) activate() {
 	list := n.activeList()
 	list.SetIndex(0, 0, 0)
 	list.Activate()
+	n.setButtonHints()
+}
+
+func (n *StoreNavigator) setButtonHints() {
+	overlayWindow.SetButtonHints(
+		ButtonHint{Button: `A`, Text: `选择`},
+		ButtonHint{Button: `Menu`, Text: `菜单`},
+		ButtonHint{Button: `B`, Text: `返回`},
+	)
 }
 
 func (n *StoreNavigator) activeList() *fbiw.List {
@@ -918,6 +927,7 @@ func (n *StoreNavigator) showImage(path string) {
 	n.previewImage.SetProp("display", "true")
 	n.preview.SetProp("display", "true")
 	n.preview.Activate()
+	overlayWindow.SetButtonHints(ButtonHint{Button: `B`, Text: `关闭`})
 }
 
 func (n *StoreNavigator) setBackgroundImage(asset *game_library.Asset, path string) {
@@ -982,6 +992,7 @@ func (n *StoreNavigator) showVideo(path string) {
 	n.video.SetProp("display", "true")
 	n.preview.SetProp("display", "true")
 	n.preview.Activate()
+	overlayWindow.SetButtonHints(ButtonHint{Button: `B`, Text: `关闭`})
 }
 
 func (n *StoreNavigator) handlePreviewEvents(event *fbiw.Event) {
@@ -989,6 +1000,7 @@ func (n *StoreNavigator) handlePreviewEvents(event *fbiw.Event) {
 		n.video.Stop()
 		n.preview.SetProp("display", "false")
 		n.activeList().Activate()
+		n.setButtonHints()
 	}
 	event.StopPropagation()
 }

@@ -28,24 +28,63 @@ func NewToolsNavigator(win *MainWindow) *ToolsNavigator {
 		window: win,
 		tools: []_ToolItemData{
 			{
-				name:  `电池信息`,
-				click: func() { battery_info.New(win.app, nil) },
+				name: `电池信息`,
+				click: func() {
+					battery_info.New(win.app, nil)
+					overlayWindow.SetButtonHints(
+						ButtonHint{Button: `X`, Text: `刷新`},
+						ButtonHint{Button: `B`, Text: `返回`},
+					)
+				},
 			},
 			{
-				name:  `虚拟内存/交换空间(Swap)管理`,
-				click: func() { swap_manager.New(win.app, swap_manager.NewBackend(config.SDCARDRoot)) },
+				name: `虚拟内存/交换空间(Swap)管理`,
+				click: func() {
+					swap_manager.New(win.app, swap_manager.NewBackend(config.SDCARDRoot))
+					overlayWindow.SetButtonHints(
+						ButtonHint{Button: `A`, Text: `启用/停用`},
+						ButtonHint{Button: `X`, Text: `创建`},
+						ButtonHint{Button: `Y`, Text: `删除`},
+						ButtonHint{Button: `B`, Text: `返回`},
+					)
+				},
 			},
 			{
-				name:  `文件服务器（WebDAV）`,
-				click: func() { webdav_server.New(win.app) },
+				name: `文件服务器（WebDAV）`,
+				click: func() {
+					webdav_server.New(win.app)
+					overlayWindow.SetButtonHints(
+						ButtonHint{Button: `A`, Text: `开启/关闭`},
+						ButtonHint{Button: `B`, Text: `返回/关闭`},
+					)
+				},
 			},
 			{
-				name:  `文件管理器`,
-				click: func() { file_manager.New(win.app) },
+				name: `文件管理器`,
+				click: func() {
+					file_manager.New(win.app, func(mode file_manager.Mode) {
+						switch mode {
+						case file_manager.ModeBrowse:
+							overlayWindow.SetButtonHints(
+								ButtonHint{Button: `A`, Text: `打开`},
+								ButtonHint{Button: `Y`, Text: `菜单`},
+								ButtonHint{Button: `B`, Text: `返回`},
+							)
+						case file_manager.ModePreview:
+							overlayWindow.SetButtonHints(ButtonHint{Button: `B`, Text: `关闭`})
+						}
+					})
+				},
 			},
 			{
-				name:  `远程登录（SSH）`,
-				click: func() { ssh.New(win.app) },
+				name: `远程登录（SSH）`,
+				click: func() {
+					ssh.New(win.app)
+					overlayWindow.SetButtonHints(
+						ButtonHint{Button: `A`, Text: `开启/关闭`},
+						ButtonHint{Button: `B`, Text: `返回/关闭`},
+					)
+				},
 			},
 			{
 				name: `重启系统`,
@@ -103,6 +142,10 @@ type ToolsNavigator struct {
 func (n *ToolsNavigator) activate() {
 	n.scroll.SetIndex(0, 0, 0)
 	n.scroll.Activate()
+	overlayWindow.SetButtonHints(
+		ButtonHint{Button: `A`, Text: `打开`},
+		ButtonHint{Button: `B`, Text: `返回`},
+	)
 }
 
 func (n *ToolsNavigator) handleEvents(event *fbiw.Event) {

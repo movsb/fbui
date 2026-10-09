@@ -76,6 +76,10 @@ func (n *StatusBarNavigator) showPagination(show bool) {
 func (n *StatusBarNavigator) activate() {
 	n.catBar.Activate()
 	n.catBar.ClassAdd(`active`)
+	overlayWindow.SetButtonHints(
+		ButtonHint{Button: `↓`, Text: `进入`},
+		ButtonHint{Button: `B`, Text: `退出`},
+	)
 }
 
 func (n *StatusBarNavigator) activateContent() {

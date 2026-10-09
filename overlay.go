@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -13,6 +14,8 @@ import (
 	"github.com/movsb/fbiw"
 	"github.com/movsb/fbui/pkg/helpers"
 )
+
+var overlayWindow *OverlayWindow
 
 type OverlayWindow struct {
 	app *fbiw.App
@@ -31,6 +34,9 @@ type OverlayWindow struct {
 
 	bottom      *fbiw.Inline `css:"#bottom"`
 	buttonHints []*overlayButtonHint
+
+	currentDoc       *fbiw.Document
+	buttonHintsByDoc map[*fbiw.Document][]ButtonHint
 }
 
 // ButtonHint describes one button hint displayed at the bottom of the overlay.
@@ -51,8 +57,9 @@ func NewOverlayWindow(app *fbiw.App) *OverlayWindow {
 	doc := app.NewOverlay(_embed, `overlay.html`)
 
 	win := &OverlayWindow{
-		app: app,
-		doc: doc,
+		app:              app,
+		doc:              doc,
+		buttonHintsByDoc: map[*fbiw.Document][]ButtonHint{},
 	}
 
 	doc.Bind(win)
@@ -74,8 +81,15 @@ func (win *OverlayWindow) SetTitle(s string) {
 }
 
 // SetButtonHints replaces the button hints displayed at the bottom of the
-// overlay. Passing no hints hides the bottom bar.
+// overlay for the current document. Passing no hints hides the bottom bar.
 func (win *OverlayWindow) SetButtonHints(hints ...ButtonHint) {
+	if win.currentDoc != nil {
+		win.buttonHintsByDoc[win.currentDoc] = slices.Clone(hints)
+	}
+	win.renderButtonHints(hints)
+}
+
+func (win *OverlayWindow) renderButtonHints(hints []ButtonHint) {
 	for len(win.buttonHints) < len(hints) {
 		win.appendButtonHint()
 	}
@@ -100,10 +114,18 @@ func (win *OverlayWindow) appendButtonHint() {
 
 func (win *OverlayWindow) watchDocChange() {
 	win.app.Listen(fbiw.DocChange, func(e *fbiw.Event) {
+		for doc := range win.buttonHintsByDoc {
+			if doc.App() != win.app {
+				delete(win.buttonHintsByDoc, doc)
+			}
+		}
+
 		d := e.DocChange.Doc
-		if d.Title() != `` {
+		win.currentDoc = d
+		if d != nil && d.Title() != `` {
 			win.SetTitle(d.Title())
 		}
+		win.renderButtonHints(win.buttonHintsByDoc[d])
 	})
 }
 

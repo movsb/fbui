@@ -23,6 +23,13 @@ import (
 //go:embed *.html
 var _embed embed.FS
 
+type Mode uint8
+
+const (
+	ModeKeyboard Mode = iota
+	ModeResults
+)
+
 type SearchWindow struct {
 	app *fbiw.App
 	doc *fbiw.Document
@@ -39,6 +46,7 @@ type SearchWindow struct {
 
 	prevKey        fbiw.Box
 	keyRow, keyCol int
+	onModeChange   func(Mode)
 
 	// ctx                context.Context
 	// cancel             context.CancelFunc
@@ -47,20 +55,28 @@ type SearchWindow struct {
 
 // initEmu: 初始化模拟器配置，如果没有，表示全部。
 // initDir: 初始化游戏列表，没有表示全部。
-func New(app *fbiw.App, opener *fbiw.Document, initEmu *config.LaunchConfig, initDir string) *SearchWindow {
+func New(app *fbiw.App, opener *fbiw.Document, initEmu *config.LaunchConfig, initDir string, onModeChange func(Mode)) *SearchWindow {
 	doc := app.NewPopup(_embed, `search.html`, opener)
 	win := &SearchWindow{
-		app:    app,
-		doc:    doc,
-		keyRow: -1,
-		keyCol: -1,
+		app:          app,
+		doc:          doc,
+		keyRow:       -1,
+		keyCol:       -1,
+		onModeChange: onModeChange,
 	}
 	doc.Bind(win)
 	win.searchBox.Listen(fbiw.InputDownEvent, win.handleSearchEvents)
 	win.resultBox.Listen(fbiw.InputDownEvent, win.handleResultEvents)
 	win.searchBox.Activate()
+	win.setMode(ModeKeyboard)
 	go win.asyncInitAllSearchableItems(initEmu, initDir)
 	return win
+}
+
+func (w *SearchWindow) setMode(mode Mode) {
+	if w.onModeChange != nil {
+		w.onModeChange(mode)
+	}
 }
 
 func (w *SearchWindow) handleSearchEvents(event *fbiw.Event) {
@@ -101,6 +117,7 @@ func (w *SearchWindow) handleSearchEvents(event *fbiw.Event) {
 		w.resultList.SetProp(`display`, `false`)
 		w.resultStatusWrapper.SetProp(`display`, `true`)
 		w.resultBox.Activate()
+		w.setMode(ModeResults)
 		go w.asyncSearch(context.Background(), s)
 	}
 }
@@ -181,6 +198,7 @@ func (w *SearchWindow) handleResultEvents(event *fbiw.Event) {
 		w.resultBox.SetProp(`display`, `false`)
 		w.searchBox.SetProp(`display`, `true`)
 		w.searchBox.Activate()
+		w.setMode(ModeKeyboard)
 		return
 	}
 

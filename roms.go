@@ -122,6 +122,23 @@ type _RomDirInfo struct {
 func (n *GamesNavigator) activate() {
 	n.emus.SetIndex(0, 0, 0)
 	n.emus.Activate()
+	n.setEmulatorButtonHints()
+}
+
+func (n *GamesNavigator) setEmulatorButtonHints() {
+	overlayWindow.SetButtonHints(
+		ButtonHint{Button: `A`, Text: `进入`},
+		ButtonHint{Button: `Y`, Text: `搜索`},
+		ButtonHint{Button: `B`, Text: `返回`},
+	)
+}
+
+func (n *GamesNavigator) setRomButtonHints() {
+	overlayWindow.SetButtonHints(
+		ButtonHint{Button: `A`, Text: `启动`},
+		ButtonHint{Button: `Y`, Text: `搜索`},
+		ButtonHint{Button: `B`, Text: `返回`},
+	)
 }
 
 func (n *GamesNavigator) handleEvents(event *fbiw.Event) {
@@ -188,7 +205,22 @@ func (n *GamesNavigator) handleEvents(event *fbiw.Event) {
 }
 
 func (n *GamesNavigator) openSearch(emu *config.LaunchConfig, dir string) {
-	search_window.New(n.window.app, n.window.doc, emu, dir)
+	search_window.New(n.window.app, n.window.doc, emu, dir, func(mode search_window.Mode) {
+		switch mode {
+		case search_window.ModeKeyboard:
+			overlayWindow.SetButtonHints(
+				ButtonHint{Button: `A`, Text: `输入`},
+				ButtonHint{Button: `B`, Text: `删除`},
+				ButtonHint{Button: `X`, Text: `搜索`},
+				ButtonHint{Button: `Y`, Text: `关闭`},
+			)
+		case search_window.ModeResults:
+			overlayWindow.SetButtonHints(
+				ButtonHint{Button: `A`, Text: `启动`},
+				ButtonHint{Button: `B`, Text: `返回`},
+			)
+		}
+	})
 }
 
 func (n *GamesNavigator) backToEmulators() {
@@ -199,6 +231,7 @@ func (n *GamesNavigator) backToEmulators() {
 	n.emus.Activate()
 	n.window.statusBarNav.showPagination(false)
 	n.window.statusBarNav.showCatBar(true)
+	n.setEmulatorButtonHints()
 }
 
 func (n *GamesNavigator) gotoUpperDirectory() {
@@ -229,6 +262,7 @@ func (n *GamesNavigator) switchToRoms() {
 	n.stack.Push(`.`, list, nil)
 	n.setRomsList(list, nil)
 	n.roms.Activate()
+	n.setRomButtonHints()
 }
 
 func (n *GamesNavigator) enterDirectory(info RomInfo) {

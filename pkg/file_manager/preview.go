@@ -104,6 +104,7 @@ func (n *FileManagerWindow) preview(entry _Entry) {
 
 	n.previewBox.SetProp(`display`, `true`)
 	n.previewBox.Activate()
+	n.setMode(ModePreview)
 }
 
 func (n *FileManagerWindow) previewTextContent(fp *os.File, preprocess func(data []byte)) {

@@ -23,12 +23,7 @@ func main() {
 
 	app.SetThemeAccent(`deepskyblue`)
 
-	overlay := NewOverlayWindow(app)
-	overlay.SetButtonHints(
-		ButtonHint{Button: `Select`, Text: `确认`},
-		ButtonHint{Button: `A`, Text: `取消`},
-		ButtonHint{Button: `上`, Text: `取消`},
-	)
+	overlayWindow = NewOverlayWindow(app)
 	window := NewMainWindow(app)
 	http.Handle(`/api/store/assets/`, storeOpenAssetHandler(window.storeNav))
 	// pprof 性能测试：go tool pprof -web http://localhost:8888/debug/pprof/profile?seconds=30

@@ -206,6 +206,10 @@ func NewLauncherNavigator(win *MainWindow, selector string, dataKey string) *Lau
 func (n *LauncherNavigator) activate() {
 	n.scroll.SetIndex(0, 0, 0)
 	n.scroll.Activate()
+	overlayWindow.SetButtonHints(
+		ButtonHint{Button: `A`, Text: `打开`},
+		ButtonHint{Button: `B`, Text: `返回`},
+	)
 }
 
 func (n *LauncherNavigator) handleKeyDown(event *fbiw.Event) {

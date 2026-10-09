@@ -32,6 +32,13 @@ var _embed embed.FS
 
 const _maxTextFileSize = 1 << 20
 
+type Mode uint8
+
+const (
+	ModeBrowse Mode = iota
+	ModePreview
+)
+
 type FileManagerWindow struct {
 	app *fbiw.App
 
@@ -57,6 +64,8 @@ type FileManagerWindow struct {
 
 	// 文件操作剪贴板。move 为 true 时，粘贴会移动源项目。
 	clipboard *_FileClipboard
+
+	onModeChange func(Mode)
 }
 
 type _FileClipboard struct {
@@ -64,10 +73,11 @@ type _FileClipboard struct {
 	move bool
 }
 
-func New(app *fbiw.App) *FileManagerWindow {
+func New(app *fbiw.App, onModeChange func(Mode)) *FileManagerWindow {
 	n := &FileManagerWindow{
-		app: app,
-		doc: app.NewDesktop(_embed, `file_manager.html`),
+		app:          app,
+		doc:          app.NewDesktop(_embed, `file_manager.html`),
+		onModeChange: onModeChange,
 	}
 
 	n.doc.Bind(n)
@@ -152,6 +162,13 @@ func (n *FileManagerWindow) initView() bool {
 func (n *FileManagerWindow) activate() {
 	// n.scroll.SetIndex(0, 0, 0)
 	n.scroll.Activate()
+	n.setMode(ModeBrowse)
+}
+
+func (n *FileManagerWindow) setMode(mode Mode) {
+	if n.onModeChange != nil {
+		n.onModeChange(mode)
+	}
 }
 
 func (n *FileManagerWindow) handleEvents(event *fbiw.Event) {
