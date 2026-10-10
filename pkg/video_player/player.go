@@ -23,7 +23,7 @@ type VideoPlayer struct {
 
 	src string
 
-	prevWidth, prevHeight int
+	prevRect fbiw.Rect
 
 	videoWidth, videoHeight int
 
@@ -46,8 +46,9 @@ func (b *VideoPlayer) SetProp(key, val string) error {
 	case `src`:
 		b.src = val
 		b.Stop()
-		b.prevWidth = 0
-		b.prevHeight = 0
+		b.prevRect = fbiw.Rect{}
+		b.videoWidth = 0
+		b.videoHeight = 0
 		b.Document().RequestLayout()
 		return nil
 	default:
@@ -63,19 +64,25 @@ func (b *VideoPlayer) SetPath(path string) {
 func (b *VideoPlayer) Draw(canvas *fbiw.Canvas) {
 	b.Base().Draw(canvas)
 
-	if b.cmd != nil {
+	rect := b.GetBoundingClientRect()
+	if rect.Width <= 0 || rect.Height <= 0 {
+		return
+	}
+	if rect == b.prevRect && b.cmd != nil {
 		log.Println(`正在播放，不重绘`)
 		return
 	}
-
-	if b.GetLayoutBox().Width == b.prevWidth && b.GetLayoutBox().Height == b.prevHeight {
+	if rect == b.prevRect {
 		return
 	}
+	if b.cmd != nil {
+		b.Stop()
+	}
+	b.prevRect = rect
 
-	b.prevWidth = b.GetLayoutBox().Width
-	b.prevHeight = b.GetLayoutBox().Height
-
-	b.probe()
+	if b.videoWidth == 0 || b.videoHeight == 0 {
+		b.probe()
+	}
 
 	if b.videoWidth == 0 {
 		log.Println(`视频没有尺寸，无法播放`)
@@ -146,19 +153,8 @@ func (b *VideoPlayer) Play() {
 			}
 		}
 
-		// 缩放到 contain 大小。
-		// 参考图片的缩放算法。
-		scaleX := float64(b.prevWidth) / float64(b.videoWidth)
-		scaleY := float64(b.prevHeight) / float64(b.videoHeight)
-		scale := min(scaleX, scaleY)
-		fittingWidth := int(float64(b.videoWidth) * scale)
-		fittingHeight := int(float64(b.videoHeight) * scale)
-
-		// 简单居中一下，目前没有getBoundingClientRect可用。
-		x := (b.prevWidth - fittingWidth) / 2
-		y := (b.prevHeight - fittingHeight) / 2
-
-		cmd := exec.Command(bin, b.path, fmt.Sprint(x), fmt.Sprint(y), fmt.Sprint(fittingWidth), fmt.Sprint(fittingHeight))
+		fitting := containRect(b.prevRect, b.videoWidth, b.videoHeight)
+		cmd := exec.Command(bin, b.path, fmt.Sprint(fitting.X), fmt.Sprint(fitting.Y), fmt.Sprint(fitting.Width), fmt.Sprint(fitting.Height))
 		cmd.Stdin = nil
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
@@ -167,13 +163,7 @@ func (b *VideoPlayer) Play() {
 		} else {
 			b.cmd = cmd
 			log.Println(`已启动播放器进程`)
-			go func() {
-				cmd.Wait()
-				log.Println(`播放器已退出`)
-				b.Document().Async(func() {
-					b.Stop()
-				})
-			}()
+			go b.wait(cmd)
 		}
 	} else {
 		cmd := exec.Command(`ffplay`, b.path)
@@ -181,15 +171,36 @@ func (b *VideoPlayer) Play() {
 			log.Println(err)
 		} else {
 			b.cmd = cmd
-			go func() {
-				cmd.Wait()
-				log.Println(`播放器已退出`)
-				b.Document().Async(func() {
-					b.Stop()
-				})
-			}()
+			go b.wait(cmd)
 		}
 	}
+}
+
+func containRect(container fbiw.Rect, contentWidth, contentHeight int) fbiw.Rect {
+	if container.Width <= 0 || container.Height <= 0 || contentWidth <= 0 || contentHeight <= 0 {
+		return fbiw.Rect{X: container.X, Y: container.Y}
+	}
+	scaleX := float64(container.Width) / float64(contentWidth)
+	scaleY := float64(container.Height) / float64(contentHeight)
+	scale := min(scaleX, scaleY)
+	width := int(float64(contentWidth) * scale)
+	height := int(float64(contentHeight) * scale)
+	return fbiw.Rect{
+		X:      container.X + (container.Width-width)/2,
+		Y:      container.Y + (container.Height-height)/2,
+		Width:  width,
+		Height: height,
+	}
+}
+
+func (b *VideoPlayer) wait(cmd *exec.Cmd) {
+	cmd.Wait()
+	log.Println(`播放器已退出`)
+	b.Document().Async(func() {
+		if b.cmd == cmd {
+			b.Stop()
+		}
+	})
 }
 
 func (b *VideoPlayer) Stop() {

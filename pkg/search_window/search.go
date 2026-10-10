@@ -253,6 +253,18 @@ func (w *SearchWindow) handleResultEvents(event *fbiw.Event) {
 	}
 }
 
+type _SearchResultItemView struct {
+	root fbiw.Box
+	name *fbiw.Text `css:".name"`
+	path *fbiw.Text `css:".path"`
+}
+
+// ScrollSelectionChanged implements [fbiw.ListSelectionAware].
+func (view *_SearchResultItemView) ListSelectionChanged(selected bool) {
+	view.name.SetMarqueeRunning(selected)
+	view.path.SetMarqueeRunning(selected)
+}
+
 func (w *SearchWindow) asyncSearch(ctx context.Context, search string) {
 	for w.allSearchableItems.Load() == nil {
 		w.doc.Async(func() {
@@ -297,12 +309,6 @@ func (w *SearchWindow) asyncSearch(ctx context.Context, search string) {
 		case <-ctx.Done():
 			return
 		default:
-		}
-
-		type _SearchResultItemView struct {
-			root fbiw.Box
-			name *fbiw.Text `css:".name"`
-			path *fbiw.Text `css:".path"`
 		}
 
 		log.Println(`搜索结果:`, len(matched))

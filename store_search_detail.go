@@ -42,6 +42,12 @@ type storeSearchDetailItemView struct {
 	detail *fbiw.Text `css:".detail"`
 }
 
+// ScrollSelectionChanged implements [fbiw.ListSelectionAware].
+func (view *storeSearchDetailItemView) ListSelectionChanged(selected bool) {
+	view.name.SetMarqueeRunning(selected)
+	view.detail.SetMarqueeRunning(selected)
+}
+
 func newStoreSearchDetail(n *StoreNavigator, searchDoc *fbiw.Document, game *game_library.Game, release *game_library.Release) {
 	w := &storeSearchDetail{
 		navigator:      n,
