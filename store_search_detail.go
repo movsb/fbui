@@ -34,6 +34,10 @@ type storeSearchDetail struct {
 	startedAtAsset bool
 	items          []storeItem
 	busy           bool
+
+	releasesLoaded bool
+	releaseItems   []storeItem
+	releaseState   any
 }
 
 type storeSearchDetailItemView struct {
@@ -79,7 +83,7 @@ func (w *storeSearchDetail) showMessage(message string) {
 	w.list.SetProp("display", "false")
 }
 
-func (w *storeSearchDetail) render() {
+func (w *storeSearchDetail) render(state any) {
 	w.message.SetProp("display", "false")
 	w.list.SetProp("display", "true")
 	w.list.SetItems(len(w.items),
@@ -96,12 +100,22 @@ func (w *storeSearchDetail) render() {
 		w.showMessage("没有内容")
 		return
 	}
-	w.list.SetIndex(0, 0, 0)
+	if state != nil {
+		w.list.SetState(state)
+	} else {
+		w.list.SetIndex(0, 0, 0)
+	}
 	w.list.Activate()
 	w.setHints()
 }
 
 func (w *storeSearchDetail) loadReleases() {
+	if w.releasesLoaded {
+		w.level = storeSearchDetailReleases
+		w.items = w.releaseItems
+		w.render(w.releaseState)
+		return
+	}
 	w.busy = true
 	w.level = storeSearchDetailReleases
 	w.showMessage("加载发行版...")
@@ -114,11 +128,13 @@ func (w *storeSearchDetail) loadReleases() {
 				w.setHints()
 				return
 			}
-			w.items = make([]storeItem, 0, len(releases))
+			w.releaseItems = make([]storeItem, 0, len(releases))
 			for _, release := range releases {
-				w.items = append(w.items, storeItem{name: displayNames(release.Names), value: release})
+				w.releaseItems = append(w.releaseItems, storeItem{name: displayNames(release.Names), value: release})
 			}
-			w.render()
+			w.releasesLoaded = true
+			w.items = w.releaseItems
+			w.render(nil)
 		})
 	}()
 }
@@ -144,7 +160,7 @@ func (w *storeSearchDetail) loadAssets(release *game_library.Release) {
 			for _, asset := range assets {
 				w.items = append(w.items, storeItem{name: asset.Name, detail: assetDetail(w.game, asset), value: asset})
 			}
-			w.render()
+			w.render(nil)
 		})
 	}()
 }
@@ -176,6 +192,7 @@ func (w *storeSearchDetail) handleEvents(event *fbiw.Event) {
 			return
 		}
 		if w.level == storeSearchDetailReleases {
+			w.releaseState = w.list.GetState()
 			w.loadAssets(w.items[index].value.(*game_library.Release))
 		} else {
 			asset := w.items[index].value.(*game_library.Asset)
