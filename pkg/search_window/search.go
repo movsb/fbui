@@ -5,6 +5,7 @@ import (
 	"embed"
 	"io/fs"
 	"log"
+	"math"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -162,9 +163,10 @@ func (w *SearchWindow) handleSearchEvents(event *fbiw.Event) {
 }
 
 func (w *SearchWindow) switchKey(event *fbiw.Event) {
+	rows := w.keyboard.Children()
 	set := func(r, c int) {
-		if 0 <= r && r <= len(w.keyboard.Children())-1 {
-			row := w.keyboard.Children()[r]
+		if 0 <= r && r < len(rows) {
+			row := rows[r]
 			cols := len(row.Children())
 			if c == -1 {
 				c = cols - 1
@@ -188,7 +190,7 @@ func (w *SearchWindow) switchKey(event *fbiw.Event) {
 	if w.keyRow == -1 {
 		switch event.Input.Name {
 		case sticks.Up:
-			set(2, 0)
+			set(len(rows)-1, 0)
 		case sticks.Right:
 			set(0, 0)
 		case sticks.Down:
@@ -199,31 +201,27 @@ func (w *SearchWindow) switchKey(event *fbiw.Event) {
 	} else {
 		switch event.Input.Name {
 		case sticks.Up:
-			c := w.keyCol
-			if w.keyRow == 2 {
-				c++
+			if w.keyRow > 0 {
+				set(w.keyRow-1, centeredKeyColumn(w.keyCol, len(rows[w.keyRow].Children()), len(rows[w.keyRow-1].Children())))
 			}
-			set(w.keyRow-1, c)
 		case sticks.Right:
 			set(w.keyRow, w.keyCol+1)
 		case sticks.Down:
-			c := w.keyCol
-			if w.keyRow == 0 && c == len(w.keyboard.Children()[0].Children())-1 {
-				c--
-			} else if w.keyRow == 1 {
-				if c > 0 {
-					if c == len(w.keyboard.Children()[1].Children())-1 {
-						c -= 2
-					} else {
-						c--
-					}
-				}
+			if w.keyRow+1 < len(rows) {
+				set(w.keyRow+1, centeredKeyColumn(w.keyCol, len(rows[w.keyRow].Children()), len(rows[w.keyRow+1].Children())))
 			}
-			set(w.keyRow+1, c)
 		case sticks.Left:
 			set(w.keyRow, w.keyCol-1)
 		}
 	}
+}
+
+func centeredKeyColumn(column, fromColumns, toColumns int) int {
+	if fromColumns <= 0 || toColumns <= 0 {
+		return 0
+	}
+	mapped := int(math.Floor(float64(column) + float64(toColumns-fromColumns)/2))
+	return min(max(mapped, 0), toColumns-1)
 }
 
 type _SearchResultItem struct {
