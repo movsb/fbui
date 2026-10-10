@@ -78,6 +78,10 @@ func construct(buf []byte, i int, provide []rune, j int, yield func(string)) {
 			r += 0x20
 			buf[i] = byte(r)
 			i++
+		default:
+			// 其余字符通通当作空格，以避免被作为子串被搜索到。
+			buf[i] = ' '
+			i++
 		}
 		construct(buf, i, provide, j+1, yield)
 		return
@@ -93,6 +97,14 @@ func construct(buf []byte, i int, provide []rune, j int, yield func(string)) {
 		}
 		return
 	}
+
+	// 其余字符通通当作空格，以避免被作为子串被搜索到。
+	if i+1 > len(buf) {
+		return
+	}
+	buf[i] = ' '
+	i++
+
 	construct(buf, i, provide, j+1, yield)
 }
 
@@ -100,17 +112,3 @@ func construct(buf []byte, i int, provide []rune, j int, yield func(string)) {
 func subSeq(a, b string) bool {
 	return strings.Contains(b, a)
 }
-
-// 判断非连续子序列。
-// func subSeq(a, b string) bool {
-// 	i := 0
-// 	for j := range b {
-// 		if b[j] == a[i] {
-// 			i++
-// 			if i == len(a) {
-// 				return true
-// 			}
-// 		}
-// 	}
-// 	return false
-// }
