@@ -1105,6 +1105,10 @@ var platformEmulators = map[int32]string{
 }
 
 func (n *StoreNavigator) runROM(platformID int32, path string, done ...func()) {
+	n.runROMWithOpener(n.window.doc, platformID, path, done...)
+}
+
+func (n *StoreNavigator) runROMWithOpener(opener *fbiw.Document, platformID int32, path string, done ...func()) {
 	finish := func() {
 		if len(done) > 0 && done[0] != nil {
 			done[0]()
@@ -1121,7 +1125,7 @@ func (n *StoreNavigator) runROM(platformID int32, path string, done ...func()) {
 	if wanted == "" || emulator == nil {
 		finish()
 		log.Printf("无法打开仓库 ROM：平台 %d 没有模拟器映射", platformID)
-		n.window.app.ShowAlertDialog(n.window.doc,
+		n.window.app.ShowAlertDialog(opener,
 			fbiw.AlertDialogOptions{
 				Title:       `没有模拟器映射`,
 				Description: fmt.Sprintf(`资源已下载，但是不知道如何打开平台: %d`, platformID),
@@ -1140,8 +1144,8 @@ func (n *StoreNavigator) runROM(platformID int32, path string, done ...func()) {
 				return
 			}
 			log.Printf("启动仓库 ROM 失败：%v", err)
-			n.window.doc.Async(func() {
-				n.window.app.ShowAlertDialog(n.window.doc, fbiw.AlertDialogOptions{
+			opener.Async(func() {
+				n.window.app.ShowAlertDialog(opener, fbiw.AlertDialogOptions{
 					Title:       `启动失败`,
 					Description: err.Error(),
 				})

@@ -61,6 +61,8 @@ func (b *VideoPlayer) SetPath(path string) {
 }
 
 func (b *VideoPlayer) Draw(canvas *fbiw.Canvas) {
+	b.Base().Draw(canvas)
+
 	if b.cmd != nil {
 		log.Println(`正在播放，不重绘`)
 		return

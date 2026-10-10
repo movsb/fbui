@@ -22,7 +22,6 @@ const (
 
 type storeSearchDetail struct {
 	navigator *StoreNavigator
-	searchDoc *fbiw.Document
 	doc       *fbiw.Document
 
 	list    *fbiw.List `css:"#list"`
@@ -46,7 +45,6 @@ type storeSearchDetailItemView struct {
 func newStoreSearchDetail(n *StoreNavigator, searchDoc *fbiw.Document, game *game_library.Game, release *game_library.Release) {
 	w := &storeSearchDetail{
 		navigator:      n,
-		searchDoc:      searchDoc,
 		doc:            n.window.app.NewPopup(storeSearchDetailAssets, "store_search_detail.html", searchDoc),
 		game:           game,
 		release:        release,
@@ -175,10 +173,7 @@ func (w *storeSearchDetail) handleEvents(event *fbiw.Event) {
 			w.loadAssets(w.items[index].value.(*game_library.Release))
 		} else {
 			asset := w.items[index].value.(*game_library.Asset)
-			w.doc.Close()
-			w.searchDoc.Close()
-			w.navigator.setButtonHints()
-			w.navigator.openAsset(w.game, asset)
+			newStoreAssetView(w.navigator, w.doc, w.game, asset, w.setHints)
 		}
 		event.StopPropagation()
 	}
