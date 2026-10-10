@@ -349,11 +349,6 @@ func (n *StoreNavigator) handleDownEvents(event *fbiw.Event) {
 	event.StopPropagation()
 }
 
-type storeSearchValue struct {
-	game    *game_library.Game
-	release *game_library.Release
-}
-
 func (n *StoreNavigator) openSearch() {
 	search_window.NewItems(n.window.app, n.window.doc,
 		func(mode search_window.Mode) {
@@ -386,40 +381,30 @@ func (n *StoreNavigator) openSearch() {
 			if err != nil {
 				return nil, err
 			}
-			gamesByID := make(map[int32]*game_library.Game, len(games))
-			items := make([]search_window.Item, 0, len(games)+len(releases))
-			for _, game := range games {
-				gamesByID[game.ID] = game
-				terms := storeNameTerms(game.Names)
-				items = append(items, search_window.Item{
-					Name:        displayNames(game.Names),
-					Detail:      "游戏 · " + displayNames(game.PlatformNames),
-					SearchTerms: terms,
-					Value:       storeSearchValue{game: game},
-				})
-			}
-			for _, release := range releases {
-				game := gamesByID[release.GameID]
-				if game == nil {
-					continue
-				}
-				items = append(items, search_window.Item{
-					Name:        displayNames(release.Names),
-					Detail:      "发行版 · " + displayNames(game.Names),
-					SearchTerms: storeNameTerms(release.Names),
-					Value: storeSearchValue{
-						game:    game,
-						release: release,
-					},
-				})
-			}
-			return items, nil
+			return buildStoreSearchItems(games, releases), nil
 		},
 		func(searchDoc *fbiw.Document, item search_window.Item) {
-			value := item.Value.(storeSearchValue)
-			newStoreSearchDetail(n, searchDoc, value.game, value.release)
+			newStoreSearchDetail(n, searchDoc, item.Value.(*game_library.Game), nil)
 		},
 	)
+}
+
+func buildStoreSearchItems(games []*game_library.Game, releases []*game_library.Release) []search_window.Item {
+	releaseTerms := make(map[int32][]string)
+	for _, release := range releases {
+		releaseTerms[release.GameID] = append(releaseTerms[release.GameID], storeNameTerms(release.Names)...)
+	}
+	items := make([]search_window.Item, 0, len(games))
+	for _, game := range games {
+		terms := append(storeNameTerms(game.Names), releaseTerms[game.ID]...)
+		items = append(items, search_window.Item{
+			Name:        displayNames(game.Names),
+			Detail:      displayNames(game.PlatformNames),
+			SearchTerms: terms,
+			Value:       game,
+		})
+	}
+	return items
 }
 
 func storeNameTerms(names []game_library.Name) []string {

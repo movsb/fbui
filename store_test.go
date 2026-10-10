@@ -4,7 +4,31 @@ import (
 	"testing"
 
 	"github.com/movsb/fbui/pkg/game_library"
+	"github.com/movsb/fbui/pkg/searchable"
 )
+
+func TestStoreSearchDisplaysGamesForGameAndReleaseMatches(t *testing.T) {
+	game := &game_library.Game{
+		ID:            1,
+		Names:         []game_library.Name{{Language: game_library.LanguageChinese, Name: "魂斗罗"}},
+		PlatformNames: []game_library.Name{{Language: game_library.LanguageChinese, Name: "红白机"}},
+	}
+	items := buildStoreSearchItems(
+		[]*game_library.Game{game},
+		[]*game_library.Release{
+			{ID: 10, GameID: game.ID, Names: []game_library.Name{{Language: game_library.LanguageChinese, Name: "日版"}}},
+			{ID: 11, GameID: game.ID, Names: []game_library.Name{{Language: game_library.LanguageEnglish, Name: "USA"}}},
+		},
+	)
+	if len(items) != 1 || items[0].Value != game || items[0].Name != "魂斗罗" || items[0].Detail != "红白机" {
+		t.Fatalf("search items=%#v", items)
+	}
+	for _, query := range []string{"hdl", "rb", "usa"} {
+		if !searchable.Match(query, items[0].SearchTerms...) {
+			t.Errorf("query %q did not match game through game/release names", query)
+		}
+	}
+}
 
 func TestSelectReleaseImage(t *testing.T) {
 	blob := &game_library.Blob{SHA256: "image"}
