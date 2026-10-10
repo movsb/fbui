@@ -171,7 +171,8 @@ func (l *Library) ListGames(ctx context.Context, platformID, seriesID int32) ([]
 
 func (l *Library) ListReleases(ctx context.Context, gameID int32) ([]*Release, error) {
 	var items []*Release
-	if err := l.tdb.Select(`id,game_id`).From(Release{}).Where(`game_id=?`, gameID).OrderBy(`id`).Find(&items); err != nil {
+	if err := l.tdb.Select(`id,game_id`).From(Release{}).
+		WhereIf(gameID != 0, `game_id=?`, gameID).OrderBy(`id`).Find(&items); err != nil {
 		return nil, err
 	}
 	byID := map[int32]*Release{}

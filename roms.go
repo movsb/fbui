@@ -254,6 +254,12 @@ func (n *GamesNavigator) openSearch(emu *config.LaunchConfig, dir string) {
 					ButtonHint{Button: `A`, Text: `启动`},
 					ButtonHint{Button: `B`, Text: `返回`},
 				)
+			case search_window.ModeClosed:
+				if n.stack.Size() == 0 {
+					n.setEmulatorButtonHints()
+				} else {
+					n.setRomButtonHints()
+				}
 			}
 		},
 		func(launcherConfig *config.LaunchConfig, label, romPath string) {

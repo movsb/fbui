@@ -99,6 +99,10 @@ func TestLibraryQueriesCatalogAndBlobs(t *testing.T) {
 	if err != nil || len(releases) != 1 || releases[0].ID != 4 {
 		t.Fatalf("releases=%#v err=%v", releases, err)
 	}
+	allReleases, err := library.ListReleases(ctx, 0)
+	if err != nil || len(allReleases) != 1 || len(allReleases[0].Names) != 1 || allReleases[0].Names[0].Name != "日版" {
+		t.Fatalf("all releases=%#v err=%v", allReleases, err)
+	}
 	assets, err := library.ListAssets(ctx, 4)
 	if err != nil || len(assets) != 2 {
 		t.Fatalf("assets=%#v err=%v", assets, err)

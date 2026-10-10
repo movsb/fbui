@@ -1,0 +1,21 @@
+<document>
+<style>
+.selected {
+	outline-width: 3;
+	outline-color: var(--color-focus);
+	background-color: var(--color-selection-background);
+}
+</style>
+<template id="item">
+	<block padding="0 15" align="middle">
+		<text class="name" marquee=horizontal marquee-count=1></text>
+		<text class="detail" font-size="x-small"></text>
+	</block>
+</template>
+<block width="640" height="480" border-width="3" border-color="var(--color-border)" padding="20">
+	<stack fill>
+		<list id="list" rows="5" cols="1" gap="5"></list>
+		<block id="message" align="both" display="false"><text></text></block>
+	</stack>
+</block>
+</document>

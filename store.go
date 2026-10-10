@@ -19,6 +19,7 @@ import (
 	"github.com/movsb/fbui/pkg/launcher"
 	"github.com/movsb/fbui/pkg/menu_popup"
 	"github.com/movsb/fbui/pkg/progress_popup"
+	"github.com/movsb/fbui/pkg/search_window"
 	"github.com/movsb/fbui/pkg/video_player"
 )
 
@@ -171,6 +172,7 @@ func (n *StoreNavigator) activate() {
 func (n *StoreNavigator) setButtonHints() {
 	overlayWindow.SetButtonHints(
 		ButtonHint{Button: `A`, Text: `选择`},
+		ButtonHint{Button: `Y`, Text: `搜索`},
 		ButtonHint{Button: `Menu`, Text: `菜单`},
 		ButtonHint{Button: `B`, Text: `返回`},
 	)
@@ -295,6 +297,11 @@ func (n *StoreNavigator) handleDownEvents(event *fbiw.Event) {
 	}
 	name := event.Input.Name
 	list := n.activeList()
+	if name == sticks.Y {
+		n.openSearch()
+		event.StopPropagation()
+		return
+	}
 	if name == sticks.B {
 		if len(n.stack) == 1 {
 			list.Deselect()
@@ -340,6 +347,87 @@ func (n *StoreNavigator) handleDownEvents(event *fbiw.Event) {
 		n.openAsset(page.game, item.value.(*game_library.Asset))
 	}
 	event.StopPropagation()
+}
+
+type storeSearchValue struct {
+	game    *game_library.Game
+	release *game_library.Release
+}
+
+func (n *StoreNavigator) openSearch() {
+	search_window.NewItems(n.window.app, n.window.doc,
+		func(mode search_window.Mode) {
+			switch mode {
+			case search_window.ModeKeyboard:
+				overlayWindow.SetButtonHints(
+					ButtonHint{Button: `A`, Text: `输入`},
+					ButtonHint{Button: `B`, Text: `删除`},
+					ButtonHint{Button: `X`, Text: `搜索`},
+					ButtonHint{Button: `Y`, Text: `关闭`},
+				)
+			case search_window.ModeResults:
+				overlayWindow.SetButtonHints(
+					ButtonHint{Button: `A`, Text: `打开`},
+					ButtonHint{Button: `B`, Text: `返回`},
+				)
+			case search_window.ModeClosed:
+				n.setButtonHints()
+			}
+		},
+		func(ctx context.Context) ([]search_window.Item, error) {
+			if n.metadataErr != nil {
+				return nil, n.metadataErr
+			}
+			games, err := n.metadata.ListGames(ctx, 0, 0)
+			if err != nil {
+				return nil, err
+			}
+			releases, err := n.metadata.ListReleases(ctx, 0)
+			if err != nil {
+				return nil, err
+			}
+			gamesByID := make(map[int32]*game_library.Game, len(games))
+			items := make([]search_window.Item, 0, len(games)+len(releases))
+			for _, game := range games {
+				gamesByID[game.ID] = game
+				terms := storeNameTerms(game.Names)
+				items = append(items, search_window.Item{
+					Name:        displayNames(game.Names),
+					Detail:      "游戏 · " + displayNames(game.PlatformNames),
+					SearchTerms: terms,
+					Value:       storeSearchValue{game: game},
+				})
+			}
+			for _, release := range releases {
+				game := gamesByID[release.GameID]
+				if game == nil {
+					continue
+				}
+				items = append(items, search_window.Item{
+					Name:        displayNames(release.Names),
+					Detail:      "发行版 · " + displayNames(game.Names),
+					SearchTerms: storeNameTerms(release.Names),
+					Value: storeSearchValue{
+						game:    game,
+						release: release,
+					},
+				})
+			}
+			return items, nil
+		},
+		func(searchDoc *fbiw.Document, item search_window.Item) {
+			value := item.Value.(storeSearchValue)
+			newStoreSearchDetail(n, searchDoc, value.game, value.release)
+		},
+	)
+}
+
+func storeNameTerms(names []game_library.Name) []string {
+	terms := make([]string, 0, len(names))
+	for _, name := range names {
+		terms = append(terms, name.Name)
+	}
+	return terms
 }
 
 func (n *StoreNavigator) handleUpEvents(event *fbiw.Event) {

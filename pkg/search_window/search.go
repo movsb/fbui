@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"log"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -27,6 +28,7 @@ type Mode uint8
 const (
 	ModeKeyboard Mode = iota
 	ModeResults
+	ModeClosed
 )
 
 type SearchWindow struct {
@@ -46,16 +48,44 @@ type SearchWindow struct {
 	prevKey        fbiw.Box
 	keyRow, keyCol int
 	onModeChange   func(Mode)
-	onLaunch       func(*config.LaunchConfig, string, string)
+	onSelect       func(*fbiw.Document, Item)
 
 	// ctx                context.Context
 	// cancel             context.CancelFunc
 	allSearchableItems atomic.Value
 }
 
+// Item is an entry displayed and matched by the search window. Value is passed
+// back unchanged when the user selects the item.
+type Item struct {
+	Name        string
+	Detail      string
+	SearchTerms []string
+	Value       any
+}
+
+type loadResult struct {
+	items []Item
+	err   error
+}
+
 // initEmu: 初始化模拟器配置，如果没有，表示全部。
 // initDir: 初始化游戏列表，没有表示全部。
 func New(app *fbiw.App, opener *fbiw.Document, initEmu *config.LaunchConfig, initDir string, onModeChange func(Mode), onLaunch func(*config.LaunchConfig, string, string)) *SearchWindow {
+	return NewItems(app, opener, onModeChange, func(context.Context) ([]Item, error) {
+		return loadROMItems(initEmu, initDir), nil
+	}, func(doc *fbiw.Document, item Item) {
+		if onModeChange != nil {
+			onModeChange(ModeClosed)
+		}
+		doc.Close()
+		rom := item.Value.(_SearchResultItem)
+		onLaunch(rom.launcher, rom.displayName, rom.romPath)
+	})
+}
+
+// NewItems opens a search window backed by arbitrary in-memory items.
+func NewItems(app *fbiw.App, opener *fbiw.Document, onModeChange func(Mode), load func(context.Context) ([]Item, error), onSelect func(*fbiw.Document, Item)) *SearchWindow {
 	doc := app.NewPopup(_embed, `search.html`, opener)
 	win := &SearchWindow{
 		app:          app,
@@ -63,14 +93,17 @@ func New(app *fbiw.App, opener *fbiw.Document, initEmu *config.LaunchConfig, ini
 		keyRow:       -1,
 		keyCol:       -1,
 		onModeChange: onModeChange,
-		onLaunch:     onLaunch,
+		onSelect:     onSelect,
 	}
 	doc.Bind(win)
 	win.searchBox.Listen(fbiw.InputDownEvent, win.handleSearchEvents)
 	win.resultBox.Listen(fbiw.InputDownEvent, win.handleResultEvents)
 	win.searchBox.Activate()
 	win.setMode(ModeKeyboard)
-	go win.asyncInitAllSearchableItems(initEmu, initDir)
+	go func() {
+		items, err := load(context.Background())
+		win.allSearchableItems.Store(loadResult{items: items, err: err})
+	}()
 	return win
 }
 
@@ -83,7 +116,12 @@ func (w *SearchWindow) setMode(mode Mode) {
 func (w *SearchWindow) handleSearchEvents(event *fbiw.Event) {
 	// 按“Y”直接关闭窗口。
 	if event.Input.Name == sticks.Y {
+		w.setMode(ModeClosed)
 		w.doc.Close()
+		go func() {
+			time.Sleep(time.Second)
+			runtime.GC()
+		}()
 		return
 	}
 
@@ -208,10 +246,9 @@ func (w *SearchWindow) handleResultEvents(event *fbiw.Event) {
 		if index < 0 {
 			return
 		}
-		matched := w.resultList.GetData(`matched`).([]_SearchResultItem)
+		matched := w.resultList.GetData(`matched`).([]Item)
 		item := matched[index]
-		w.doc.Close()
-		w.onLaunch(item.launcher, item.displayName, item.romPath)
+		w.onSelect(w.doc, item)
 		return
 	}
 }
@@ -235,34 +272,24 @@ func (w *SearchWindow) asyncSearch(ctx context.Context, search string) {
 
 	time.Sleep(time.Millisecond * 100)
 
-	items := w.allSearchableItems.Load().([]_SearchResultItem)
-
-	matched := []_SearchResultItem{}
-
-	// 这样把拆文件名再删除后缀要快。
-	// 几乎所有的文件名都成立。
-	// 应用名/移植名除外。
-	nameOnly := func(s string) string {
-		if slash := strings.LastIndexByte(s, '/'); slash > 0 {
-			s = s[slash+1:]
-		}
-		if dot := strings.LastIndexByte(s, '.'); dot > 0 {
-			s = s[:dot]
-		}
-		return s
+	loaded := w.allSearchableItems.Load().(loadResult)
+	if loaded.err != nil {
+		w.doc.Async(func() { w.resultStatus.SetText(`加载搜索数据失败：` + loaded.err.Error()) })
+		return
 	}
+	items := loaded.items
+
+	matched := []Item{}
 
 	for _, item := range items {
-		name := nameOnly(item.displayName)
-		path := nameOnly(item.romPath)
-		if searchable.Match(search, name, path) {
+		if searchable.Match(search, item.SearchTerms...) {
 			matched = append(matched, item)
 		}
 	}
 
 	// 名字越短说明得分越高？
-	slices.SortFunc(matched, func(a, b _SearchResultItem) int {
-		return len(a.displayName) - len(b.displayName)
+	slices.SortFunc(matched, func(a, b Item) int {
+		return len(a.Name) - len(b.Name)
 	})
 
 	w.doc.Async(func() {
@@ -287,8 +314,8 @@ func (w *SearchWindow) asyncSearch(ctx context.Context, search string) {
 			},
 			func(box *_SearchResultItemView, index int) {
 				item := matched[index]
-				box.name.SetText(item.displayName)
-				box.path.SetText(item.romPath)
+				box.name.SetText(item.Name)
+				box.path.SetText(item.Detail)
 			},
 		)
 
@@ -303,27 +330,38 @@ func (w *SearchWindow) asyncSearch(ctx context.Context, search string) {
 }
 
 // 暂时只读游戏列表。
-func (w *SearchWindow) asyncInitAllSearchableItems(initEmu *config.LaunchConfig, initDir string) {
+func loadROMItems(initEmu *config.LaunchConfig, initDir string) []Item {
 	log.Println(`异步加载戏列表中...`)
 	defer log.Println(`异步加载游戏列表完成。`)
 
-	items := []_SearchResultItem{}
+	items := []Item{}
 
 	if initEmu != nil {
-		w.addDir(&items, initEmu, initDir)
+		addROMDir(&items, initEmu, initDir)
 	} else {
 		emus := config.LoadDir(filepath.Join(config.SDCARDRoot, `Emus`))
 		for _, emu := range emus {
-			w.addDir(&items, emu, emu.RomDir())
+			addROMDir(&items, emu, emu.RomDir())
 		}
 	}
 
-	w.allSearchableItems.Store(items)
+	return items
 }
 
-func (w *SearchWindow) addDir(out *[]_SearchResultItem, emu *config.LaunchConfig, dir string) {
+// 这样拆文件名再删除后缀比在每次搜索时处理更快。
+func romSearchName(s string) string {
+	if slash := strings.LastIndexByte(s, '/'); slash > 0 {
+		s = s[slash+1:]
+	}
+	if dot := strings.LastIndexByte(s, '.'); dot > 0 {
+		s = s[:dot]
+	}
+	return s
+}
+
+func addROMDir(out *[]Item, emu *config.LaunchConfig, dir string) {
 	log.Println(`搜索目录:`, dir)
-	items := []_SearchResultItem{}
+	items := []Item{}
 	filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			log.Println(`搜索遇到错误:`, err)
@@ -347,10 +385,12 @@ func (w *SearchWindow) addDir(out *[]_SearchResultItem, emu *config.LaunchConfig
 
 		translated := game_names.Translate(filename)
 		displayName := fbiw.Iif(translated != ``, translated, filename)
-		items = append(items, _SearchResultItem{
-			launcher:    emu,
-			displayName: displayName,
-			romPath:     path,
+		rom := _SearchResultItem{launcher: emu, displayName: displayName, romPath: path}
+		items = append(items, Item{
+			Name:        displayName,
+			Detail:      path,
+			SearchTerms: []string{romSearchName(displayName), romSearchName(path)},
+			Value:       rom,
 		})
 		return nil
 	})

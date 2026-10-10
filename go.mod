@@ -33,4 +33,4 @@ require (
 	golang.org/x/text v0.41.0 // indirect
 )
 
-replace github.com/movsb/fbiw => /Users/tao/code/fbiw
+replace github.com/movsb/fbiw => ../fbiw
