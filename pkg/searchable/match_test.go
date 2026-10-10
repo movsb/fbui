@@ -22,3 +22,44 @@ func TestConstruct2(t *testing.T) {
 		t.Log(s)
 	})
 }
+
+func TestMatchIgnoresSeparatorDifferences(t *testing.T) {
+	for _, query := range []string{`qh97`, `qh 97`, `qh '97`, `QH-97`} {
+		if !Match(query, `拳皇 '97`) {
+			t.Errorf("query %q did not match", query)
+		}
+	}
+}
+
+func TestMatchSeparatorOnlyQueryDoesNotMatchEverything(t *testing.T) {
+	if Match(` ' - `, `拳皇 '97`) {
+		t.Fatal("separator-only query unexpectedly matched")
+	}
+}
+
+func TestMatchDoesNotCrossStructuralSeparator(t *testing.T) {
+	if Match(`smb`, `三（美版`) {
+		t.Fatal(`smb unexpectedly matched 三（美版`)
+	}
+	if Match(`smb`, `s mb`) {
+		t.Fatal(`smb unexpectedly matched s mb`)
+	}
+	if !Match(`mb`, `三（美版`) {
+		t.Fatal(`mb did not match 美版`)
+	}
+}
+
+func TestConstructCompressesSpaces(t *testing.T) {
+	buf := make([]byte, 256)
+	var got string
+	construct(buf, 0, []rune(`s   mb`), 0, func(s string) { got = s })
+	if got != `s mb` {
+		t.Fatalf("got %q, want %q", got, `s mb`)
+	}
+	if Match(`smb`, `s   mb`) {
+		t.Fatal(`smb unexpectedly matched s   mb`)
+	}
+	if !Match(`qh97`, `拳皇   '97`) {
+		t.Fatal(`qh97 did not match 拳皇   '97`)
+	}
+}

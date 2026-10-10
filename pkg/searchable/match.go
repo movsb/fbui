@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"unicode"
 	"unicode/utf8"
 )
 
@@ -35,6 +36,10 @@ func Match(search string, provides ...string) bool {
 	if search == "" {
 		return true
 	}
+	search = normalizeQuery(search)
+	if search == "" {
+		return false
+	}
 
 	provides = slices.Compact(provides)
 
@@ -56,6 +61,59 @@ func Match(search string, provides ...string) bool {
 	return false
 }
 
+// normalizeQuery makes separators in user input insignificant. Candidate
+// names retain hard boundaries such as parentheses so initials cannot match
+// across an edition/region qualifier.
+func normalizeQuery(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+	for _, r := range s {
+		switch {
+		case '0' <= r && r <= '9', 'a' <= r && r <= 'z':
+			b.WriteRune(r)
+		case 'A' <= r && r <= 'Z':
+			b.WriteRune(r + ('a' - 'A'))
+		}
+	}
+	return b.String()
+}
+
+func isSoftPunctuation(r rune) bool {
+	return strings.ContainsRune("'’‘ʼ-‐‑–—_", r)
+}
+
+func isSoftSeparator(s []rune, i int) bool {
+	if isSoftPunctuation(s[i]) {
+		return true
+	}
+	if !unicode.IsSpace(s[i]) {
+		return false
+	}
+	// Spaces used merely to pad apostrophes or hyphens are insignificant
+	// (for example, "拳皇 '97"). An ordinary word boundary is retained.
+	left := i - 1
+	for left >= 0 && unicode.IsSpace(s[left]) {
+		left--
+	}
+	right := i + 1
+	for right < len(s) && unicode.IsSpace(s[right]) {
+		right++
+	}
+	return left >= 0 && isSoftPunctuation(s[left]) ||
+		right < len(s) && isSoftPunctuation(s[right])
+}
+
+func appendBoundary(buf []byte, i int) (int, bool) {
+	if i > 0 && buf[i-1] == ' ' {
+		return i, true
+	}
+	if i+1 > len(buf) {
+		return i, false
+	}
+	buf[i] = ' '
+	return i + 1, true
+}
+
 // TODO 支持中途停止
 func construct(buf []byte, i int, provide []rune, j int, yield func(string)) {
 	if j == len(provide) {
@@ -64,24 +122,32 @@ func construct(buf []byte, i int, provide []rune, j int, yield func(string)) {
 	}
 	r := provide[j]
 	if r < utf8.RuneSelf {
-		if i+1 > len(buf) {
-			return
-		}
 		switch {
 		case '0' <= r && r <= '9':
+			if i+1 > len(buf) {
+				return
+			}
 			buf[i] = byte(r)
 			i++
 		case 'a' <= r && r <= 'z':
+			if i+1 > len(buf) {
+				return
+			}
 			buf[i] = byte(r)
 			i++
 		case 'A' <= r && r <= 'Z':
+			if i+1 > len(buf) {
+				return
+			}
 			r += 0x20
 			buf[i] = byte(r)
 			i++
-		default:
-			// 其余字符通通当作空格，以避免被作为子串被搜索到。
-			buf[i] = ' '
-			i++
+		case !isSoftSeparator(provide, j):
+			var ok bool
+			i, ok = appendBoundary(buf, i)
+			if !ok {
+				return
+			}
 		}
 		construct(buf, i, provide, j+1, yield)
 		return
@@ -98,12 +164,15 @@ func construct(buf []byte, i int, provide []rune, j int, yield func(string)) {
 		return
 	}
 
-	// 其余字符通通当作空格，以避免被作为子串被搜索到。
-	if i+1 > len(buf) {
-		return
+	// 撇号和连字符（包括其两侧的空格）不打断搜索；普通空格、
+	// 括号等结构性分隔则保留为边界。
+	if !isSoftSeparator(provide, j) {
+		var ok bool
+		i, ok = appendBoundary(buf, i)
+		if !ok {
+			return
+		}
 	}
-	buf[i] = ' '
-	i++
 
 	construct(buf, i, provide, j+1, yield)
 }
