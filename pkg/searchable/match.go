@@ -54,11 +54,16 @@ func Match(search string, provides ...string) bool {
 
 	match := false
 	for _, provide := range provides {
-		construct(buf, 0, []rune(provide), 0, func(s string) {
+		runes := []rune(provide)
+		yield := func(s string) {
 			if !match {
 				match = subSeq(search, s)
 			}
-		})
+		}
+		constructMode(buf, 0, runes, 0, false, yield)
+		if !match {
+			constructMode(buf, 0, runes, 0, true, yield)
+		}
 		if match {
 			return true
 		}
@@ -67,9 +72,7 @@ func Match(search string, provides ...string) bool {
 	return false
 }
 
-// normalizeQuery makes separators in user input insignificant. Candidate
-// names retain hard boundaries such as parentheses so initials cannot match
-// across an edition/region qualifier.
+// normalizeQuery retains word boundaries and compresses repeated whitespace.
 func normalizeQuery(s string) string {
 	var b strings.Builder
 	b.Grow(len(s))
@@ -79,20 +82,27 @@ func normalizeQuery(s string) string {
 			b.WriteRune(r)
 		case 'A' <= r && r <= 'Z':
 			b.WriteRune(r + ('a' - 'A'))
+		case unicode.IsSpace(r):
+			if b.Len() > 0 && b.String()[b.Len()-1] != ' ' {
+				b.WriteByte(' ')
+			}
 		}
 	}
-	return b.String()
+	return strings.TrimSpace(b.String())
 }
 
 func isSoftPunctuation(r rune) bool {
 	return strings.ContainsRune("'’‘ʼ-‐‑–—_", r)
 }
 
-func isSoftSeparator(s []rune, i int) bool {
+func isSoftSeparator(s []rune, i int, preserveWordSpaces bool) bool {
 	if isSoftPunctuation(s[i]) {
 		return true
 	}
 	if !unicode.IsSpace(s[i]) {
+		return false
+	}
+	if preserveWordSpaces {
 		return false
 	}
 	// Spaces used merely to pad apostrophes or hyphens are insignificant
@@ -122,6 +132,10 @@ func appendBoundary(buf []byte, i int) (int, bool) {
 
 // TODO 支持中途停止
 func construct(buf []byte, i int, provide []rune, j int, yield func(string)) {
+	constructMode(buf, i, provide, j, false, yield)
+}
+
+func constructMode(buf []byte, i int, provide []rune, j int, preserveWordSpaces bool, yield func(string)) {
 	if j == len(provide) {
 		yield(string(buf[:i]))
 		return
@@ -148,14 +162,14 @@ func construct(buf []byte, i int, provide []rune, j int, yield func(string)) {
 			r += 0x20
 			buf[i] = byte(r)
 			i++
-		case !isSoftSeparator(provide, j):
+		case !isSoftSeparator(provide, j, preserveWordSpaces):
 			var ok bool
 			i, ok = appendBoundary(buf, i)
 			if !ok {
 				return
 			}
 		}
-		construct(buf, i, provide, j+1, yield)
+		constructMode(buf, i, provide, j+1, preserveWordSpaces, yield)
 		return
 	}
 	if mapped, ok := runeMaps()[r]; ok {
@@ -165,11 +179,11 @@ func construct(buf []byte, i int, provide []rune, j int, yield func(string)) {
 				return
 			}
 			copy(buf[i:], []byte(part))
-			construct(buf, i+len(part), provide, j+1, yield)
+			constructMode(buf, i+len(part), provide, j+1, preserveWordSpaces, yield)
 		}
 		if digit, ok := chineseDigit[r]; ok && i+1 <= len(buf) {
 			buf[i] = digit
-			construct(buf, i+1, provide, j+1, yield)
+			constructMode(buf, i+1, provide, j+1, preserveWordSpaces, yield)
 		}
 		return
 	}
@@ -178,13 +192,13 @@ func construct(buf []byte, i int, provide []rune, j int, yield func(string)) {
 			return
 		}
 		buf[i] = digit
-		construct(buf, i+1, provide, j+1, yield)
+		constructMode(buf, i+1, provide, j+1, preserveWordSpaces, yield)
 		return
 	}
 
 	// 撇号和连字符（包括其两侧的空格）不打断搜索；普通空格、
 	// 括号等结构性分隔则保留为边界。
-	if !isSoftSeparator(provide, j) {
+	if !isSoftSeparator(provide, j, preserveWordSpaces) {
 		var ok bool
 		i, ok = appendBoundary(buf, i)
 		if !ok {
@@ -192,7 +206,7 @@ func construct(buf []byte, i int, provide []rune, j int, yield func(string)) {
 		}
 	}
 
-	construct(buf, i, provide, j+1, yield)
+	constructMode(buf, i, provide, j+1, preserveWordSpaces, yield)
 }
 
 // 判断子串。

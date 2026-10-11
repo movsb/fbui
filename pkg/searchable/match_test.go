@@ -71,3 +71,15 @@ func TestMatchChineseDigitAlternatives(t *testing.T) {
 		}
 	}
 }
+
+func TestMatchMultiWordLatinName(t *testing.T) {
+	if !Match(`Mitsume ga`, `Mitsume ga Tooru`) {
+		t.Fatal(`Mitsume ga did not match Mitsume ga Tooru`)
+	}
+	if !Match(`Mitsume   ga`, `Mitsume ga Tooru`) {
+		t.Fatal(`repeated query spaces were not compressed`)
+	}
+	if Match(`Mitsumega`, `Mitsume ga Tooru`) {
+		t.Fatal(`Mitsumega unexpectedly crossed a word boundary`)
+	}
+}
