@@ -90,7 +90,7 @@ func (l *Library) validate(ctx context.Context) error {
 
 func (l *Library) ListPlatforms(ctx context.Context) ([]*Platform, error) {
 	var items []*Platform
-	if err := l.tdb.Select(`id`).From(Platform{}).OrderBy(`id`).Find(&items); err != nil {
+	if err := l.tdb.Select(`id,description`).From(Platform{}).OrderBy(`id`).Find(&items); err != nil {
 		return nil, err
 	}
 	byID := map[int32]*Platform{}
@@ -111,7 +111,7 @@ func (l *Library) ListPlatforms(ctx context.Context) ([]*Platform, error) {
 
 func (l *Library) ListSeries(ctx context.Context) ([]*Series, error) {
 	var items []*Series
-	if err := l.tdb.Select(`id`).From(Series{}).OrderBy(`id`).Find(&items); err != nil {
+	if err := l.tdb.Select(`id,description`).From(Series{}).OrderBy(`id`).Find(&items); err != nil {
 		return nil, err
 	}
 	byID := map[int32]*Series{}
@@ -132,7 +132,7 @@ func (l *Library) ListSeries(ctx context.Context) ([]*Series, error) {
 
 func (l *Library) ListGames(ctx context.Context, platformID, seriesID int32) ([]*Game, error) {
 	var items []*Game
-	if err := l.tdb.Select(`id,platform_id,series_id`).From(Game{}).
+	if err := l.tdb.Select(`id,platform_id,series_id,description`).From(Game{}).
 		WhereIf(platformID != 0, `platform_id=?`, platformID).
 		WhereIf(seriesID != 0, `series_id=?`, seriesID).
 		OrderBy(`id`).Find(&items); err != nil {
@@ -171,7 +171,7 @@ func (l *Library) ListGames(ctx context.Context, platformID, seriesID int32) ([]
 
 func (l *Library) ListReleases(ctx context.Context, gameID int32) ([]*Release, error) {
 	var items []*Release
-	if err := l.tdb.Select(`id,game_id`).From(Release{}).
+	if err := l.tdb.Select(`id,game_id,description`).From(Release{}).
 		WhereIf(gameID != 0, `game_id=?`, gameID).OrderBy(`id`).Find(&items); err != nil {
 		return nil, err
 	}
@@ -214,7 +214,7 @@ func (l *Library) ListAssets(ctx context.Context, releaseID int32) ([]*Asset, er
 // ListOwnedAssets returns the assets attached directly to an object.
 func (l *Library) ListOwnedAssets(ctx context.Context, kind Kind, ownerID int32) ([]*Asset, error) {
 	var items []*Asset
-	if err := l.tdb.Select(`id,kind,kind_id,type,name,format,size,blob_id`).From(Asset{}).
+	if err := l.tdb.Select(`id,kind,kind_id,type,name,description,format,size,blob_id`).From(Asset{}).
 		Where(`kind=? AND kind_id=?`, kind, ownerID).OrderBy(`id`).Find(&items); err != nil {
 		return nil, err
 	}

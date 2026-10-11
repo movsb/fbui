@@ -38,14 +38,14 @@ func createTestLibrary(t *testing.T, version int) string {
 		`CREATE TABLE rom_sets (id INTEGER PRIMARY KEY, emulator TEXT NOT NULL, version TEXT NOT NULL, short_name TEXT NOT NULL, asset_id INTEGER NOT NULL, clone_of TEXT NOT NULL DEFAULT '')`,
 		`CREATE TABLE rom_import_exclusions (id INTEGER PRIMARY KEY, platform_id INTEGER NOT NULL, fingerprint TEXT NOT NULL, reason TEXT NOT NULL, original_name TEXT NOT NULL, created_at INTEGER NOT NULL)`,
 		fmt.Sprintf(`INSERT INTO options VALUES ('db_ver','%d')`, version),
-		`INSERT INTO platforms VALUES (1,'')`,
+		`INSERT INTO platforms VALUES (1,'任天堂家用游戏机')`,
 		`INSERT INTO platforms VALUES (10,'')`,
-		`INSERT INTO series VALUES (2,'')`,
-		`INSERT INTO games VALUES (3,1,2,'')`,
-		`INSERT INTO releases VALUES (4,3,'',0)`,
+		`INSERT INTO series VALUES (2,'平台游戏系列')`,
+		`INSERT INTO games VALUES (3,1,2,'经典平台游戏')`,
+		`INSERT INTO releases VALUES (4,3,'日本发行版',0)`,
 		`INSERT INTO names VALUES (1,1,1,1,'NES',''),(2,1,1,2,'红白机','trimui'),(3,7,2,2,'马力欧',''),(4,2,3,1,'Mario',''),(5,3,4,2,'日版',''),(6,1,10,2,'街机','')`,
 		`INSERT INTO blobs VALUES (5,4,'','','aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'),(6,3,'','','bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb')`,
-		`INSERT INTO assets VALUES (7,3,4,1,'game.rom','','',1,4,5),(8,3,4,1,'set','','',2,3,0)`,
+		`INSERT INTO assets VALUES (7,3,4,1,'game.rom','原始 ROM','',1,4,5),(8,3,4,1,'set','','',2,3,0)`,
 		`INSERT INTO entries VALUES (9,8,'game.bin',3,6)`,
 	}
 	for _, statement := range schema {
@@ -82,13 +82,22 @@ func TestLibraryQueriesCatalogAndBlobs(t *testing.T) {
 	if platforms[0].Names[1].Source != "trimui" {
 		t.Fatalf("name source was not loaded: %#v", platforms[0].Names)
 	}
+	if platforms[0].Description != "任天堂家用游戏机" {
+		t.Fatalf("platform description was not loaded: %#v", platforms[0])
+	}
 	series, err := library.ListSeries(ctx)
 	if err != nil || len(series) != 1 || series[0].ID != 2 {
 		t.Fatalf("series=%#v err=%v", series, err)
 	}
+	if series[0].Description != "平台游戏系列" {
+		t.Fatalf("series description was not loaded: %#v", series[0])
+	}
 	games, err := library.ListGames(ctx, 1, 0)
 	if err != nil || len(games) != 1 || games[0].SeriesID != 2 {
 		t.Fatalf("games=%#v err=%v", games, err)
+	}
+	if games[0].Description != "经典平台游戏" {
+		t.Fatalf("game description was not loaded: %#v", games[0])
 	}
 	if len(games[0].PlatformNames) != 2 || games[0].PlatformNames[0].Name != "NES" {
 		t.Fatalf("game platform names were not loaded: %#v", games[0].PlatformNames)
@@ -100,6 +109,9 @@ func TestLibraryQueriesCatalogAndBlobs(t *testing.T) {
 	if err != nil || len(releases) != 1 || releases[0].ID != 4 {
 		t.Fatalf("releases=%#v err=%v", releases, err)
 	}
+	if releases[0].Description != "日本发行版" {
+		t.Fatalf("release description was not loaded: %#v", releases[0])
+	}
 	allReleases, err := library.ListReleases(ctx, 0)
 	if err != nil || len(allReleases) != 1 || len(allReleases[0].Names) != 1 || allReleases[0].Names[0].Name != "日版" {
 		t.Fatalf("all releases=%#v err=%v", allReleases, err)
@@ -107,6 +119,9 @@ func TestLibraryQueriesCatalogAndBlobs(t *testing.T) {
 	assets, err := library.ListAssets(ctx, 4)
 	if err != nil || len(assets) != 2 {
 		t.Fatalf("assets=%#v err=%v", assets, err)
+	}
+	if assets[0].Description != "原始 ROM" {
+		t.Fatalf("asset description was not loaded: %#v", assets[0])
 	}
 	if assets[0].Blob == nil || assets[0].Blob.Size != 4 || len(assets[1].Entries) != 1 || assets[1].Entries[0].Blob.Size != 3 {
 		t.Fatalf("blob metadata was not attached: %#v", assets)

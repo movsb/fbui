@@ -53,15 +53,17 @@ type Name struct {
 func (Name) TableName() string { return `names` }
 
 type Platform struct {
-	ID    int32
-	Names []Name
+	ID          int32
+	Description string
+	Names       []Name
 }
 
 func (Platform) TableName() string { return `platforms` }
 
 type Series struct {
-	ID    int32
-	Names []Name
+	ID          int32
+	Description string
+	Names       []Name
 }
 
 func (Series) TableName() string { return `series` }
@@ -70,6 +72,7 @@ type Game struct {
 	ID            int32
 	PlatformID    int32
 	SeriesID      int32
+	Description   string
 	Names         []Name
 	PlatformNames []Name
 }
@@ -77,9 +80,10 @@ type Game struct {
 func (Game) TableName() string { return `games` }
 
 type Release struct {
-	ID     int32
-	GameID int32
-	Names  []Name
+	ID          int32
+	GameID      int32
+	Description string
+	Names       []Name
 }
 
 func (Release) TableName() string { return `releases` }
@@ -115,17 +119,18 @@ type ROMSet struct {
 func (ROMSet) TableName() string { return `rom_sets` }
 
 type Asset struct {
-	ID      int32
-	Kind    Kind
-	KindID  int32
-	Type    AssetType
-	Name    string
-	Format  Format
-	Size    int64
-	BlobID  int32
-	Blob    *Blob
-	Entries []*Entry
-	ROMSets []*ROMSet
+	ID          int32
+	Kind        Kind
+	KindID      int32
+	Type        AssetType
+	Name        string
+	Description string
+	Format      Format
+	Size        int64
+	BlobID      int32
+	Blob        *Blob
+	Entries     []*Entry
+	ROMSets     []*ROMSet
 }
 
 func (Asset) TableName() string { return `assets` }

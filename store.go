@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"sync/atomic"
@@ -16,6 +17,7 @@ import (
 	"github.com/movsb/fbiw/input/sticks"
 	"github.com/movsb/fbui/pkg/config"
 	"github.com/movsb/fbui/pkg/game_library"
+	"github.com/movsb/fbui/pkg/helpers"
 	"github.com/movsb/fbui/pkg/launcher"
 	"github.com/movsb/fbui/pkg/menu_popup"
 	"github.com/movsb/fbui/pkg/progress_popup"
@@ -37,10 +39,11 @@ const (
 )
 
 type storeItem struct {
-	name     string
-	detail   string
-	platform string
-	value    any
+	name        string
+	detail      string
+	description string
+	platform    string
+	value       any
 }
 
 type storePage struct {
@@ -115,6 +118,7 @@ type StoreNavigator struct {
 	// 当前目录浏览栈。
 	stack      []storePage
 	busy       bool
+	active     bool
 	remoteBusy atomic.Bool
 
 	backgroundAsset  *game_library.Asset
@@ -140,17 +144,23 @@ func NewStoreNavigator(win *MainWindow) *StoreNavigator {
 	n.preview.Listen(fbiw.InputDownEvent, n.handlePreviewEvents)
 	n.list.Listen(fbiw.ListSelectionChange, func(*fbiw.Event) {
 		n.updatePagination()
+		n.setButtonHints()
 		n.scheduleGamePreview()
 	})
 	n.series.Listen(fbiw.ListSelectionChange, func(*fbiw.Event) {
 		n.updatePagination()
+		n.setButtonHints()
 		n.scheduleGamePreview()
 	})
 	n.releases.Listen(fbiw.ListSelectionChange, func(*fbiw.Event) {
 		n.updatePagination()
+		n.setButtonHints()
 		n.scheduleReleasePreview()
 	})
-	n.assets.Listen(fbiw.ListSelectionChange, func(*fbiw.Event) { n.updatePagination() })
+	n.assets.Listen(fbiw.ListSelectionChange, func(*fbiw.Event) {
+		n.updatePagination()
+		n.setButtonHints()
+	})
 	n.stack = []storePage{{
 		level: storeRoot,
 		title: "仓库",
@@ -161,6 +171,7 @@ func NewStoreNavigator(win *MainWindow) *StoreNavigator {
 }
 
 func (n *StoreNavigator) activate() {
+	n.active = true
 	// n.window.statusBarNav.showPagination(true)
 	n.render(n.stack[len(n.stack)-1].state)
 	list := n.activeList()
@@ -170,12 +181,19 @@ func (n *StoreNavigator) activate() {
 }
 
 func (n *StoreNavigator) setButtonHints() {
-	overlayWindow.SetButtonHints(
+	if !n.active {
+		return
+	}
+	hints := []ButtonHint{
 		ButtonHint{Button: `A`, Text: `选择`},
 		ButtonHint{Button: `Y`, Text: `搜索`},
 		ButtonHint{Button: `Menu`, Text: `菜单`},
 		ButtonHint{Button: `B`, Text: `返回`},
-	)
+	}
+	if n.selectedDescription() != "" {
+		hints = slices.Insert(hints, 1, ButtonHint{Button: `X`, Text: `描述`})
+	}
+	overlayWindow.SetButtonHints(hints...)
 }
 
 func (n *StoreNavigator) activeList() *fbiw.List {
@@ -290,6 +308,18 @@ func (n *StoreNavigator) updatePagination() {
 	n.window.statusBarNav.pagination.SetText(text)
 }
 
+func (n *StoreNavigator) selectedDescription() string {
+	if len(n.stack) == 0 {
+		return ""
+	}
+	page := &n.stack[len(n.stack)-1]
+	index := n.activeList().DataIndex()
+	if index < 0 || index >= len(page.items) {
+		return ""
+	}
+	return strings.TrimSpace(page.items[index].description)
+}
+
 func (n *StoreNavigator) handleDownEvents(event *fbiw.Event) {
 	if n.busy {
 		event.StopPropagation()
@@ -297,6 +327,22 @@ func (n *StoreNavigator) handleDownEvents(event *fbiw.Event) {
 	}
 	name := event.Input.Name
 	list := n.activeList()
+	if name == sticks.X {
+		if description := n.selectedDescription(); description != "" {
+			page := &n.stack[len(n.stack)-1]
+			item := page.items[list.DataIndex()]
+			if _, err := helpers.OpenMarkdownDocument(n.window.app, n.window.doc, description); err != nil {
+				n.window.app.ShowAlertDialog(n.window.doc, fbiw.AlertDialogOptions{
+					Title: "无法显示描述", Description: err.Error(),
+				})
+			} else {
+				overlayWindow.SetTitle(item.name)
+				overlayWindow.SetButtonHints(ButtonHint{Button: `B`, Text: `关闭`})
+			}
+			event.StopPropagation()
+		}
+		return
+	}
 	if name == sticks.Y {
 		n.openSearch()
 		event.StopPropagation()
@@ -304,6 +350,7 @@ func (n *StoreNavigator) handleDownEvents(event *fbiw.Event) {
 	}
 	if name == sticks.B {
 		if len(n.stack) == 1 {
+			n.active = false
 			list.Deselect()
 			n.stack[len(n.stack)-1].state = nil
 			n.window.statusBarNav.showPagination(false)
@@ -317,6 +364,7 @@ func (n *StoreNavigator) handleDownEvents(event *fbiw.Event) {
 		return
 	}
 	if name == sticks.Up && len(n.stack) == 1 && list.DataRowIndex() <= 0 {
+		n.active = false
 		list.Deselect()
 		n.stack[len(n.stack)-1].state = nil
 		n.window.statusBarNav.showPagination(false)
@@ -556,7 +604,7 @@ func (n *StoreNavigator) loadKinds(level storeLevel) {
 			}
 			page.title = "平台"
 			for _, item := range response {
-				page.items = append(page.items, storeItem{name: displayNames(item.Names), value: item})
+				page.items = append(page.items, storeItem{name: displayNames(item.Names), description: item.Description, value: item})
 			}
 		case storeSeries:
 			response, err := n.metadata.ListSeries(ctx)
@@ -565,7 +613,7 @@ func (n *StoreNavigator) loadKinds(level storeLevel) {
 			}
 			page.title = "系列"
 			for _, item := range response {
-				page.items = append(page.items, storeItem{name: displayNames(item.Names), value: item})
+				page.items = append(page.items, storeItem{name: displayNames(item.Names), description: item.Description, value: item})
 			}
 		}
 		return page, nil
@@ -606,7 +654,7 @@ func buildGameItems(games []*game_library.Game, showPlatform bool) []storeItem {
 	}
 	items := make([]storeItem, 0, len(games))
 	for _, game := range games {
-		item := storeItem{name: displayNames(game.Names), value: game}
+		item := storeItem{name: displayNames(game.Names), description: game.Description, value: game}
 		if showPlatform {
 			item.platform = displayNames(game.PlatformNames)
 		}
@@ -810,8 +858,9 @@ func (n *StoreNavigator) loadReleases(game *game_library.Game) {
 		}
 		for _, item := range response {
 			page.items = append(page.items, storeItem{
-				name:  displayNames(item.Names),
-				value: item,
+				name:        displayNames(item.Names),
+				description: item.Description,
+				value:       item,
 			})
 		}
 		return page, nil
@@ -867,9 +916,10 @@ func (n *StoreNavigator) loadAssets(game *game_library.Game, release *game_libra
 		})
 		for _, item := range response {
 			page.items = append(page.items, storeItem{
-				name:   item.Name,
-				detail: assetDetail(game, item),
-				value:  item,
+				name:        item.Name,
+				detail:      assetDetail(game, item),
+				description: item.Description,
+				value:       item,
 			})
 		}
 		return page, nil
