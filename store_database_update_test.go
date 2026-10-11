@@ -31,7 +31,7 @@ func makeSnapshot(t *testing.T) []byte {
 		`CREATE TABLE options (name TEXT, value TEXT)`,
 		fmt.Sprintf(`INSERT INTO options VALUES ('db_ver', '%d')`, game_library.SupportedDatabaseVersion),
 	}
-	for _, table := range []string{"platforms", "series", "games", "names", "releases", "assets", "entries", "blobs", "rom_sets"} {
+	for _, table := range []string{"platforms", "series", "games", "names", "releases", "assets", "entries", "blobs", "rom_sets", "rom_import_exclusions"} {
 		statements = append(statements, fmt.Sprintf(`CREATE TABLE %s (id INTEGER)`, table))
 	}
 	for _, statement := range statements {

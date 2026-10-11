@@ -36,6 +36,7 @@ func createTestLibrary(t *testing.T, version int) string {
 		`CREATE INDEX entries_asset_id ON entries (asset_id)`,
 		`CREATE TABLE blobs (id INTEGER PRIMARY KEY, size INTEGER, crc32 TEXT, md5 TEXT, sha256 TEXT)`,
 		`CREATE TABLE rom_sets (id INTEGER PRIMARY KEY, emulator TEXT NOT NULL, version TEXT NOT NULL, short_name TEXT NOT NULL, asset_id INTEGER NOT NULL, clone_of TEXT NOT NULL DEFAULT '')`,
+		`CREATE TABLE rom_import_exclusions (id INTEGER PRIMARY KEY, platform_id INTEGER NOT NULL, fingerprint TEXT NOT NULL, reason TEXT NOT NULL, original_name TEXT NOT NULL, created_at INTEGER NOT NULL)`,
 		fmt.Sprintf(`INSERT INTO options VALUES ('db_ver','%d')`, version),
 		`INSERT INTO platforms VALUES (1,'')`,
 		`INSERT INTO platforms VALUES (10,'')`,
