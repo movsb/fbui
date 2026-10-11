@@ -63,3 +63,11 @@ func TestConstructCompressesSpaces(t *testing.T) {
 		t.Fatal(`qh97 did not match 拳皇   '97`)
 	}
 }
+
+func TestMatchChineseDigitAlternatives(t *testing.T) {
+	for _, query := range []string{`dec`, `d2c`} {
+		if !Match(query, `第二次机器人大战`) {
+			t.Errorf("query %q did not match", query)
+		}
+	}
+}

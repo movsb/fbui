@@ -28,6 +28,12 @@ var runeMaps = sync.OnceValue(func() map[rune]string {
 	return m
 })
 
+var chineseDigit = map[rune]byte{
+	'零': '0', '〇': '0',
+	'一': '1', '二': '2', '两': '2', '三': '3', '四': '4',
+	'五': '5', '六': '6', '七': '7', '八': '8', '九': '9',
+}
+
 // 判断提供的字符串是否和搜索字符串匹配。
 //
 // search: 来自用户输入的小写首字母序列
@@ -161,6 +167,18 @@ func construct(buf []byte, i int, provide []rune, j int, yield func(string)) {
 			copy(buf[i:], []byte(part))
 			construct(buf, i+len(part), provide, j+1, yield)
 		}
+		if digit, ok := chineseDigit[r]; ok && i+1 <= len(buf) {
+			buf[i] = digit
+			construct(buf, i+1, provide, j+1, yield)
+		}
+		return
+	}
+	if digit, ok := chineseDigit[r]; ok {
+		if i+1 > len(buf) {
+			return
+		}
+		buf[i] = digit
+		construct(buf, i+1, provide, j+1, yield)
 		return
 	}
 
