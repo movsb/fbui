@@ -5,8 +5,10 @@ import (
 	"bytes"
 	"fmt"
 	"log"
+	"maps"
 	"net/http"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/movsb/fbiw"
@@ -58,7 +60,7 @@ func main() {
 	out := fbiw.Must1(os.Create(`../all.txt`))
 	defer out.Close()
 	ch := chinese()
-	for r, p := range ch {
-		fmt.Fprintf(out, "%c:%s\n", r, strings.ToLower(p))
+	for _, key := range slices.Sorted(maps.Keys(ch)) {
+		fmt.Fprintf(out, "%c:%s\n", key, strings.ToLower(ch[key]))
 	}
 }
