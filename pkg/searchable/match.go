@@ -42,8 +42,9 @@ func Match(search string, provides ...string) bool {
 	if search == "" {
 		return true
 	}
-	search = normalizeQuery(search)
-	if search == "" {
+	literalSearch := normalizeLiteral(search)
+	initialSearch := normalizeQuery(search)
+	if literalSearch == "" && initialSearch == "" {
 		return false
 	}
 
@@ -54,10 +55,16 @@ func Match(search string, provides ...string) bool {
 
 	match := false
 	for _, provide := range provides {
+		if literalSearch != "" && strings.Contains(normalizeLiteral(provide), literalSearch) {
+			return true
+		}
+		if initialSearch == "" {
+			continue
+		}
 		runes := []rune(provide)
 		yield := func(s string) {
 			if !match {
-				match = subSeq(search, s)
+				match = subSeq(initialSearch, s)
 			}
 		}
 		constructMode(buf, 0, runes, 0, false, yield)
@@ -70,6 +77,29 @@ func Match(search string, provides ...string) bool {
 	}
 
 	return false
+}
+
+// normalizeLiteral retains letters, digits, and word boundaries. Punctuation-
+// only searches become empty and therefore do not match anything.
+func normalizeLiteral(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+	boundary := false
+	for _, r := range s {
+		switch {
+		case unicode.IsLetter(r), unicode.IsDigit(r):
+			if boundary && b.Len() > 0 {
+				b.WriteByte(' ')
+			}
+			b.WriteRune(unicode.ToLower(r))
+			boundary = false
+		case unicode.IsSpace(r):
+			boundary = b.Len() > 0
+		default:
+			boundary = b.Len() > 0
+		}
+	}
+	return b.String()
 }
 
 // normalizeQuery retains word boundaries and compresses repeated whitespace.

@@ -83,3 +83,12 @@ func TestMatchMultiWordLatinName(t *testing.T) {
 		t.Fatal(`Mitsumega unexpectedly crossed a word boundary`)
 	}
 }
+
+func TestMatchChineseLiteral(t *testing.T) {
+	if !Match(`机器人大战`, `第二次机器人大战`) {
+		t.Fatal(`Chinese literal search did not match`)
+	}
+	if Match(`%`, `100% Hero`) {
+		t.Fatal(`punctuation-only query unexpectedly matched`)
+	}
+}
