@@ -92,3 +92,9 @@ func TestMatchChineseLiteral(t *testing.T) {
 		t.Fatal(`punctuation-only query unexpectedly matched`)
 	}
 }
+
+func TestMatchDoesNotCrossHyphen(t *testing.T) {
+	if Match(`sfy`, `东方传说 - 封印岛[南晶科技]`) {
+		t.Fatal(`sfy unexpectedly crossed the title separator`)
+	}
+}

@@ -122,7 +122,7 @@ func normalizeQuery(s string) string {
 }
 
 func isSoftPunctuation(r rune) bool {
-	return strings.ContainsRune("'’‘ʼ-‐‑–—_", r)
+	return strings.ContainsRune("'’‘ʼ", r)
 }
 
 func isSoftSeparator(s []rune, i int, preserveWordSpaces bool) bool {
