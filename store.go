@@ -444,12 +444,21 @@ func buildStoreSearchItems(games []*game_library.Game, releases []*game_library.
 	}
 	items := make([]search_window.Item, 0, len(games))
 	for _, game := range games {
-		terms := append(storeNameTerms(game.Names), releaseTerms[game.ID]...)
+		displayName := displayNames(game.Names)
+		gameTerms := storeNameTerms(game.Names)
+		otherGameTerms := make([]string, 0, len(gameTerms))
+		for _, term := range gameTerms {
+			if term != displayName {
+				otherGameTerms = append(otherGameTerms, term)
+			}
+		}
+		terms := append(append([]string{}, gameTerms...), releaseTerms[game.ID]...)
 		items = append(items, search_window.Item{
-			Name:        displayNames(game.Names),
-			Detail:      displayNames(game.PlatformNames),
-			SearchTerms: terms,
-			Value:       game,
+			Name:         displayName,
+			Detail:       displayNames(game.PlatformNames),
+			SearchTerms:  terms,
+			SearchGroups: [][]string{{displayName}, otherGameTerms, releaseTerms[game.ID]},
+			Value:        game,
 		})
 	}
 	return items

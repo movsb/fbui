@@ -21,3 +21,14 @@ func TestCenteredKeyColumn(t *testing.T) {
 		}
 	}
 }
+
+func TestMatchItemsRanksSearchGroupsBeforeNameLength(t *testing.T) {
+	items := []Item{
+		{Name: `恶魔城`, SearchGroups: [][]string{{`恶魔城`}, nil, {`Majou Densetsu`}}},
+		{Name: `摩艾君`, SearchGroups: [][]string{{`摩艾君`}, {`Moai-kun`}, nil}},
+	}
+	matched := matchItems(items, `maj`)
+	if len(matched) != 2 || matched[0].Name != `摩艾君` || matched[1].Name != `恶魔城` {
+		t.Fatalf("unexpected order: %#v", matched)
+	}
+}

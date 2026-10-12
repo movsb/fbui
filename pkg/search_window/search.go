@@ -62,7 +62,10 @@ type Item struct {
 	Name        string
 	Detail      string
 	SearchTerms []string
-	Value       any
+	// SearchGroups are ordered from the strongest to the weakest match. When
+	// empty, SearchTerms is treated as one group for backward compatibility.
+	SearchGroups [][]string
+	Value        any
 }
 
 type loadResult struct {
@@ -289,18 +292,7 @@ func (w *SearchWindow) asyncSearch(ctx context.Context, search string) {
 	}
 	items := loaded.items
 
-	matched := []Item{}
-
-	for _, item := range items {
-		if searchable.Match(search, item.SearchTerms...) {
-			matched = append(matched, item)
-		}
-	}
-
-	// 名字越短说明得分越高？
-	slices.SortFunc(matched, func(a, b Item) int {
-		return len(a.Name) - len(b.Name)
-	})
+	matched := matchItems(items, search)
 
 	w.doc.Async(func() {
 		select {
@@ -331,6 +323,41 @@ func (w *SearchWindow) asyncSearch(ctx context.Context, search string) {
 			w.resultStatus.SetText(`没有结果。`)
 		}
 	})
+}
+
+func matchItems(items []Item, search string) []Item {
+	type rankedItem struct {
+		item  Item
+		rank  int
+		order int
+	}
+	ranked := make([]rankedItem, 0, len(items))
+	for order, item := range items {
+		groups := item.SearchGroups
+		if len(groups) == 0 {
+			groups = [][]string{item.SearchTerms}
+		}
+		for rank, terms := range groups {
+			if searchable.Match(search, terms...) {
+				ranked = append(ranked, rankedItem{item: item, rank: rank, order: order})
+				break
+			}
+		}
+	}
+	slices.SortFunc(ranked, func(a, b rankedItem) int {
+		if a.rank != b.rank {
+			return a.rank - b.rank
+		}
+		if len(a.item.Name) != len(b.item.Name) {
+			return len(a.item.Name) - len(b.item.Name)
+		}
+		return a.order - b.order
+	})
+	matched := make([]Item, len(ranked))
+	for i := range ranked {
+		matched[i] = ranked[i].item
+	}
+	return matched
 }
 
 // 暂时只读游戏列表。
