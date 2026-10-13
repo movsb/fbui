@@ -50,6 +50,8 @@ type SearchWindow struct {
 	keyRow, keyCol int
 	onModeChange   func(Mode)
 	onSelect       func(*fbiw.Document, Item)
+	onQuery        func(string)
+	queryOnly      bool
 
 	// ctx                context.Context
 	// cancel             context.CancelFunc
@@ -90,6 +92,26 @@ func New(app *fbiw.App, opener *fbiw.Document, initEmu *config.LaunchConfig, ini
 
 // NewItems opens a search window backed by arbitrary in-memory items.
 func NewItems(app *fbiw.App, opener *fbiw.Document, onModeChange func(Mode), load func(context.Context) ([]Item, error), onSelect func(*fbiw.Document, Item)) *SearchWindow {
+	win := newWindow(app, opener, onModeChange)
+	win.onSelect = onSelect
+	go func() {
+		items, err := load(context.Background())
+		win.allSearchableItems.Store(loadResult{items: items, err: err})
+	}()
+	return win
+}
+
+// NewQuery opens only the keyboard portion of the search window. Submitting a
+// non-empty query closes the popup and passes the query to onSubmit.
+func NewQuery(app *fbiw.App, opener *fbiw.Document, initialQuery string, onModeChange func(Mode), onSubmit func(string)) *SearchWindow {
+	win := newWindow(app, opener, onModeChange)
+	win.queryOnly = true
+	win.onQuery = onSubmit
+	win.txtQuery.SetText(initialQuery)
+	return win
+}
+
+func newWindow(app *fbiw.App, opener *fbiw.Document, onModeChange func(Mode)) *SearchWindow {
 	doc := app.NewPopup(_embed, `search.html`, opener)
 	win := &SearchWindow{
 		app:          app,
@@ -97,17 +119,12 @@ func NewItems(app *fbiw.App, opener *fbiw.Document, onModeChange func(Mode), loa
 		keyRow:       -1,
 		keyCol:       -1,
 		onModeChange: onModeChange,
-		onSelect:     onSelect,
 	}
 	doc.Bind(win)
 	win.searchBox.Listen(fbiw.InputDownEvent, win.handleSearchEvents)
 	win.resultBox.Listen(fbiw.InputDownEvent, win.handleResultEvents)
 	win.searchBox.Activate()
 	win.setMode(ModeKeyboard)
-	go func() {
-		items, err := load(context.Background())
-		win.allSearchableItems.Store(loadResult{items: items, err: err})
-	}()
 	return win
 }
 
@@ -153,6 +170,12 @@ func (w *SearchWindow) handleSearchEvents(event *fbiw.Event) {
 	case sticks.X:
 		s := w.txtQuery.GetText()
 		if s == `` {
+			return
+		}
+		if w.queryOnly {
+			w.setMode(ModeClosed)
+			w.doc.Close()
+			w.onQuery(s)
 			return
 		}
 		w.searchBox.SetProp(`display`, `false`)
@@ -292,7 +315,7 @@ func (w *SearchWindow) asyncSearch(ctx context.Context, search string) {
 	}
 	items := loaded.items
 
-	matched := matchItems(items, search)
+	matched := MatchItems(items, search)
 
 	w.doc.Async(func() {
 		select {
@@ -325,7 +348,8 @@ func (w *SearchWindow) asyncSearch(ctx context.Context, search string) {
 	})
 }
 
-func matchItems(items []Item, search string) []Item {
+// MatchItems filters and ranks items by their first matching search group.
+func MatchItems(items []Item, search string) []Item {
 	type rankedItem struct {
 		item  Item
 		rank  int

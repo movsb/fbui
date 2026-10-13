@@ -27,7 +27,7 @@ func TestMatchItemsRanksSearchGroupsBeforeNameLength(t *testing.T) {
 		{Name: `恶魔城`, SearchGroups: [][]string{{`恶魔城`}, nil, {`Majou Densetsu`}}},
 		{Name: `摩艾君`, SearchGroups: [][]string{{`摩艾君`}, {`Moai-kun`}, nil}},
 	}
-	matched := matchItems(items, `maj`)
+	matched := MatchItems(items, `maj`)
 	if len(matched) != 2 || matched[0].Name != `摩艾君` || matched[1].Name != `恶魔城` {
 		t.Fatalf("unexpected order: %#v", matched)
 	}

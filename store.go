@@ -47,12 +47,13 @@ type storeItem struct {
 }
 
 type storePage struct {
-	level   storeLevel
-	title   string
-	items   []storeItem
-	state   any
-	game    *game_library.Game
-	release *game_library.Release
+	level       storeLevel
+	title       string
+	items       []storeItem
+	state       any
+	game        *game_library.Game
+	release     *game_library.Release
+	searchQuery string
 	// 系列中的游戏使用独立列表，并显示所属平台。
 	groupByPlatform bool
 }
@@ -400,7 +401,13 @@ func (n *StoreNavigator) handleDownEvents(event *fbiw.Event) {
 }
 
 func (n *StoreNavigator) openSearch() {
-	search_window.NewItems(n.window.app, n.window.doc,
+	query := ""
+	if len(n.stack) > 0 {
+		page := &n.stack[len(n.stack)-1]
+		page.state = n.activeList().GetState()
+		query = page.searchQuery
+	}
+	search_window.NewQuery(n.window.app, n.window.doc, query,
 		func(mode search_window.Mode) {
 			switch mode {
 			case search_window.ModeKeyboard:
@@ -410,33 +417,75 @@ func (n *StoreNavigator) openSearch() {
 					ButtonHint{Button: `X`, Text: `搜索`},
 					ButtonHint{Button: `Y`, Text: `关闭`},
 				)
-			case search_window.ModeResults:
-				overlayWindow.SetButtonHints(
-					ButtonHint{Button: `A`, Text: `打开`},
-					ButtonHint{Button: `B`, Text: `返回`},
-				)
 			case search_window.ModeClosed:
 				n.setButtonHints()
 			}
 		},
-		func(ctx context.Context) ([]search_window.Item, error) {
-			if n.metadataErr != nil {
-				return nil, n.metadataErr
-			}
-			games, err := n.metadata.ListGames(ctx, 0, 0)
-			if err != nil {
-				return nil, err
-			}
-			releases, err := n.metadata.ListReleases(ctx, 0)
-			if err != nil {
-				return nil, err
-			}
-			return buildStoreSearchItems(games, releases), nil
-		},
-		func(searchDoc *fbiw.Document, item search_window.Item) {
-			newStoreSearchDetail(n, searchDoc, item.Value.(*game_library.Game), nil)
-		},
+		func(query string) { n.showSearchResults(query) },
 	)
+}
+
+func (n *StoreNavigator) showSearchResults(query string) {
+	n.busy = true
+	n.showMessage("搜索中...")
+	go func() {
+		var items []search_window.Item
+		var err error
+		if n.metadataErr != nil {
+			err = n.metadataErr
+		} else {
+			var games []*game_library.Game
+			games, err = n.metadata.ListGames(context.Background(), 0, 0)
+			if err == nil {
+				var releases []*game_library.Release
+				releases, err = n.metadata.ListReleases(context.Background(), 0)
+				if err == nil {
+					items = search_window.MatchItems(buildStoreSearchItems(games, releases), query)
+				}
+			}
+		}
+		n.window.doc.Async(func() {
+			n.busy = false
+			if err != nil {
+				n.render(n.stack[len(n.stack)-1].state)
+				n.activeList().Activate()
+				n.window.app.ShowAlertDialog(n.window.doc, fbiw.AlertDialogOptions{
+					Title: "搜索失败", Description: err.Error(),
+				})
+				return
+			}
+			page := storePage{
+				level:           storeGames,
+				title:           "搜索：" + query,
+				groupByPlatform: true,
+				searchQuery:     query,
+				items:           make([]storeItem, 0, len(items)),
+			}
+			for _, item := range items {
+				game := item.Value.(*game_library.Game)
+				page.items = append(page.items, storeItem{
+					name:        item.Name,
+					platform:    item.Detail,
+					description: game.Description,
+					value:       game,
+				})
+			}
+			if n.stack[len(n.stack)-1].searchQuery != "" {
+				n.stack[len(n.stack)-1] = page
+			} else {
+				n.stack = append(n.stack, page)
+			}
+			n.render(nil)
+			if len(page.items) > 0 {
+				n.activeList().SetIndex(0, 0, 0)
+				n.activeList().Activate()
+				n.scheduleGamePreview()
+			} else {
+				n.shadow.Activate()
+				n.setButtonHints()
+			}
+		})
+	}()
 }
 
 func buildStoreSearchItems(games []*game_library.Game, releases []*game_library.Release) []search_window.Item {
