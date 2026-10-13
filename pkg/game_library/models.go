@@ -41,6 +41,33 @@ const (
 	FormatZIP
 )
 
+type ReleaseType int32
+
+const (
+	ReleaseTypeUnspecified ReleaseType = iota
+	ReleaseTypeOriginal
+	ReleaseTypeTranslation
+	ReleaseTypeModified
+	ReleaseTypeOther
+)
+
+var ReleaseTypesInDisplayOrder = [...]ReleaseType{
+	ReleaseTypeOriginal,
+	ReleaseTypeTranslation,
+	ReleaseTypeModified,
+	ReleaseTypeOther,
+	ReleaseTypeUnspecified,
+}
+
+func (t ReleaseType) DisplayOrder() int {
+	for order, candidate := range ReleaseTypesInDisplayOrder {
+		if t == candidate {
+			return order
+		}
+	}
+	return len(ReleaseTypesInDisplayOrder) - 1
+}
+
 type Name struct {
 	ID         int32
 	Kind       Kind
@@ -84,6 +111,7 @@ type Release struct {
 	ID          int32
 	GameID      int32
 	Description string
+	ReleaseType ReleaseType
 	Names       []Name
 }
 

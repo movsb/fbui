@@ -490,8 +490,14 @@ func (n *StoreNavigator) showSearchResults(query string) {
 
 func buildStoreSearchItems(games []*game_library.Game, releases []*game_library.Release) []search_window.Item {
 	releaseTerms := make(map[int32][]string)
+	releaseTermsByType := make(map[int32]map[game_library.ReleaseType][]string)
 	for _, release := range releases {
-		releaseTerms[release.GameID] = append(releaseTerms[release.GameID], storeNameTerms(release.Names)...)
+		terms := storeNameTerms(release.Names)
+		releaseTerms[release.GameID] = append(releaseTerms[release.GameID], terms...)
+		if releaseTermsByType[release.GameID] == nil {
+			releaseTermsByType[release.GameID] = make(map[game_library.ReleaseType][]string)
+		}
+		releaseTermsByType[release.GameID][release.ReleaseType] = append(releaseTermsByType[release.GameID][release.ReleaseType], terms...)
 	}
 	items := make([]search_window.Item, 0, len(games))
 	for _, game := range games {
@@ -504,11 +510,15 @@ func buildStoreSearchItems(games []*game_library.Game, releases []*game_library.
 			}
 		}
 		terms := append(append([]string{}, gameTerms...), releaseTerms[game.ID]...)
+		groups := [][]string{{displayName}, otherGameTerms}
+		for _, releaseType := range game_library.ReleaseTypesInDisplayOrder {
+			groups = append(groups, releaseTermsByType[game.ID][releaseType])
+		}
 		items = append(items, search_window.Item{
 			Name:         displayName,
 			Detail:       displayNames(game.PlatformNames),
 			SearchTerms:  terms,
-			SearchGroups: [][]string{{displayName}, otherGameTerms, releaseTerms[game.ID]},
+			SearchGroups: groups,
 			Value:        game,
 		})
 	}
@@ -916,15 +926,24 @@ func (n *StoreNavigator) loadReleases(game *game_library.Game) {
 		if err != nil {
 			return page, err
 		}
-		for _, item := range response {
-			page.items = append(page.items, storeItem{
-				name:        displayNames(item.Names),
-				description: item.Description,
-				value:       item,
-			})
-		}
+		page.items = buildReleaseItems(response)
 		return page, nil
 	})
+}
+
+func buildReleaseItems(releases []*game_library.Release) []storeItem {
+	sort.SliceStable(releases, func(i, j int) bool {
+		left, right := releases[i].ReleaseType.DisplayOrder(), releases[j].ReleaseType.DisplayOrder()
+		if left != right {
+			return left < right
+		}
+		return releases[i].ID < releases[j].ID
+	})
+	items := make([]storeItem, 0, len(releases))
+	for _, release := range releases {
+		items = append(items, storeItem{name: displayNames(release.Names), description: release.Description, value: release})
+	}
+	return items
 }
 
 func firstReleaseImage(releases []*game_library.Release, listAssets func(int32) ([]*game_library.Asset, error)) (*game_library.Asset, error) {

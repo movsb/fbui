@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/movsb/fbui/pkg/game_library"
+	"github.com/movsb/fbui/pkg/search_window"
 	"github.com/movsb/fbui/pkg/searchable"
 )
 
@@ -27,6 +28,39 @@ func TestStoreSearchDisplaysGamesForGameAndReleaseMatches(t *testing.T) {
 		if !searchable.Match(query, items[0].SearchTerms...) {
 			t.Errorf("query %q did not match game through game/release names", query)
 		}
+	}
+}
+
+func TestBuildReleaseItemsOrdersByType(t *testing.T) {
+	releases := []*game_library.Release{
+		{ID: 5, ReleaseType: game_library.ReleaseTypeUnspecified, Names: []game_library.Name{{Name: "未分类"}}},
+		{ID: 4, ReleaseType: game_library.ReleaseTypeOther, Names: []game_library.Name{{Name: "其他"}}},
+		{ID: 3, ReleaseType: game_library.ReleaseTypeModified, Names: []game_library.Name{{Name: "修改版"}}},
+		{ID: 2, ReleaseType: game_library.ReleaseTypeTranslation, Names: []game_library.Name{{Name: "汉化版"}}},
+		{ID: 1, ReleaseType: game_library.ReleaseTypeOriginal, Names: []game_library.Name{{Name: "原版"}}},
+	}
+	items := buildReleaseItems(releases)
+	want := []string{"原版", "汉化版", "修改版", "其他", "未分类"}
+	for i := range want {
+		if items[i].name != want[i] {
+			t.Fatalf("item %d=%q, want %q", i, items[i].name, want[i])
+		}
+	}
+}
+
+func TestStoreSearchPrioritizesOriginalReleaseMatches(t *testing.T) {
+	originalGame := &game_library.Game{ID: 1, Names: []game_library.Name{{Name: "较长的原版游戏名"}}}
+	translationGame := &game_library.Game{ID: 2, Names: []game_library.Name{{Name: "短名"}}}
+	items := buildStoreSearchItems(
+		[]*game_library.Game{translationGame, originalGame},
+		[]*game_library.Release{
+			{GameID: translationGame.ID, ReleaseType: game_library.ReleaseTypeTranslation, Names: []game_library.Name{{Name: "共同版本名"}}},
+			{GameID: originalGame.ID, ReleaseType: game_library.ReleaseTypeOriginal, Names: []game_library.Name{{Name: "共同版本名"}}},
+		},
+	)
+	matched := search_window.MatchItems(items, "共同版本名")
+	if len(matched) != 2 || matched[0].Value != originalGame {
+		t.Fatalf("matched=%#v; original release match should be first", matched)
 	}
 }
 

@@ -28,7 +28,7 @@ func createTestLibrary(t *testing.T, version int) string {
 		`CREATE INDEX games_platform_id ON games (platform_id)`,
 		`CREATE TABLE names (id INTEGER PRIMARY KEY, kind INTEGER, kind_id INTEGER, language INTEGER, name TEXT, source TEXT NOT NULL DEFAULT '', deprecated INTEGER NOT NULL DEFAULT 0)`,
 		`CREATE INDEX names_kind_kind_id ON names (kind, kind_id)`,
-		`CREATE TABLE releases (id INTEGER PRIMARY KEY, game_id INTEGER, description TEXT, release_date INTEGER)`,
+		`CREATE TABLE releases (id INTEGER PRIMARY KEY, game_id INTEGER, description TEXT, release_date INTEGER, release_type INTEGER NOT NULL DEFAULT 0)`,
 		`CREATE INDEX releases_game_id ON releases (game_id)`,
 		`CREATE TABLE assets (id INTEGER PRIMARY KEY, kind INTEGER, kind_id INTEGER, type INTEGER, name TEXT, description TEXT, debug TEXT, format INTEGER, size INTEGER, blob_id INTEGER)`,
 		`CREATE INDEX assets_kind_kind_id ON assets (kind, kind_id)`,
@@ -42,7 +42,7 @@ func createTestLibrary(t *testing.T, version int) string {
 		`INSERT INTO platforms VALUES (10,'')`,
 		`INSERT INTO series VALUES (2,'平台游戏系列')`,
 		`INSERT INTO games VALUES (3,1,2,'经典平台游戏')`,
-		`INSERT INTO releases VALUES (4,3,'日本发行版',0)`,
+		`INSERT INTO releases VALUES (4,3,'日本发行版',0,1)`,
 		`INSERT INTO names VALUES (1,1,1,1,'NES','',0),(2,1,1,2,'红白机','trimui',0),(3,7,2,2,'马力欧','',0),(4,2,3,1,'Mario','',1),(5,3,4,2,'日版','',0),(6,1,10,2,'街机','',0)`,
 		`INSERT INTO blobs VALUES (5,4,'','','aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'),(6,3,'','','bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb')`,
 		`INSERT INTO assets VALUES (7,3,4,1,'game.rom','原始 ROM','',1,4,5),(8,3,4,1,'set','','',2,3,0)`,
@@ -114,6 +114,9 @@ func TestLibraryQueriesCatalogAndBlobs(t *testing.T) {
 	}
 	if releases[0].Description != "日本发行版" {
 		t.Fatalf("release description was not loaded: %#v", releases[0])
+	}
+	if releases[0].ReleaseType != ReleaseTypeOriginal {
+		t.Fatalf("release type was not loaded: %#v", releases[0])
 	}
 	allReleases, err := library.ListReleases(ctx, 0)
 	if err != nil || len(allReleases) != 1 || len(allReleases[0].Names) != 1 || allReleases[0].Names[0].Name != "日版" {

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -39,7 +40,7 @@ type LaunchableAsset struct {
 	PlatformID int32
 }
 
-const SupportedDatabaseVersion = 17
+const SupportedDatabaseVersion = 18
 
 type Library struct {
 	db  *sql.DB
@@ -171,7 +172,7 @@ func (l *Library) ListGames(ctx context.Context, platformID, seriesID int32) ([]
 
 func (l *Library) ListReleases(ctx context.Context, gameID int32) ([]*Release, error) {
 	var items []*Release
-	if err := l.tdb.Select(`id,game_id,description`).From(Release{}).
+	if err := l.tdb.Select(`id,game_id,description,release_type`).From(Release{}).
 		WhereIf(gameID != 0, `game_id=?`, gameID).OrderBy(`id`).Find(&items); err != nil {
 		return nil, err
 	}
@@ -188,6 +189,13 @@ func (l *Library) ListReleases(ctx context.Context, gameID int32) ([]*Release, e
 	}); err != nil {
 		return nil, err
 	}
+	sort.SliceStable(items, func(i, j int) bool {
+		left, right := items[i].ReleaseType.DisplayOrder(), items[j].ReleaseType.DisplayOrder()
+		if left != right {
+			return left < right
+		}
+		return items[i].ID < items[j].ID
+	})
 	return items, nil
 }
 
