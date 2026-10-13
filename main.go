@@ -13,11 +13,10 @@ import (
 )
 
 func main() {
-	stopAutoUpdate := startExecutableAutoUpdate()
-	defer stopAutoUpdate()
-
 	app := fbiw.NewApp()
 	defer app.Close()
+	stopAutoUpdate := startExecutableAutoUpdate(func() bool { return !app.Detached() })
+	defer stopAutoUpdate()
 
 	fonts.Init(app)
 

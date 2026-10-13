@@ -11,7 +11,7 @@ import (
 
 const executableUpdateInterval = 3 * time.Second
 
-func startExecutableAutoUpdate() context.CancelFunc {
+func startExecutableAutoUpdate(canReplace func() bool) context.CancelFunc {
 	ctx, cancel := context.WithCancel(context.Background())
 	path, err := os.Executable()
 	if err != nil {
@@ -25,8 +25,9 @@ func startExecutableAutoUpdate() context.CancelFunc {
 	}
 	args := append([]string(nil), os.Args...)
 	updater := executableUpdater{
-		path:    path,
-		modTime: info.ModTime(),
+		path:       path,
+		modTime:    info.ModTime(),
+		canReplace: canReplace,
 		replace: func() error {
 			log.Printf("检测到 FBUI 二进制更新，重新执行：%s", path)
 			return syscall.Exec(path, args, os.Environ())
@@ -50,9 +51,10 @@ func startExecutableAutoUpdate() context.CancelFunc {
 }
 
 type executableUpdater struct {
-	path    string
-	modTime time.Time
-	replace func() error
+	path       string
+	modTime    time.Time
+	canReplace func() bool
+	replace    func() error
 }
 
 func (u executableUpdater) check() error {
@@ -61,6 +63,9 @@ func (u executableUpdater) check() error {
 		return fmt.Errorf("检查 FBUI 二进制：%w", err)
 	}
 	if info.ModTime().Equal(u.modTime) {
+		return nil
+	}
+	if u.canReplace != nil && !u.canReplace() {
 		return nil
 	}
 	// Successful exec never returns. Keep the startup timestamp on failure so

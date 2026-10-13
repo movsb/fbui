@@ -19,7 +19,8 @@ func TestExecutableUpdater(t *testing.T) {
 	}
 	calls := 0
 	execErr := errors.New("exec failed")
-	updater := executableUpdater{path: path, modTime: info.ModTime(), replace: func() error {
+	foreground := true
+	updater := executableUpdater{path: path, modTime: info.ModTime(), canReplace: func() bool { return foreground }, replace: func() error {
 		calls++
 		return execErr
 	}}
@@ -38,6 +39,11 @@ func TestExecutableUpdater(t *testing.T) {
 	if err := os.Rename(newPath, path); err != nil {
 		t.Fatal(err)
 	}
+	foreground = false
+	if err := updater.check(); err != nil || calls != 0 {
+		t.Fatalf("updated while detached: calls=%d, err=%v", calls, err)
+	}
+	foreground = true
 	for attempt := 1; attempt <= 2; attempt++ {
 		if err := updater.check(); !errors.Is(err, execErr) || calls != attempt {
 			t.Fatalf("replacement attempt %d: calls=%d, err=%v", attempt, calls, err)

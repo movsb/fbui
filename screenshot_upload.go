@@ -215,11 +215,11 @@ func (u *screenshotUploader) upload(ctx context.Context, releaseID int32, path s
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
 	for name, value := range map[string]string{
-		"kind":        strconv.Itoa(int(game_library.KindRelease)),
-		"kind_id":     strconv.Itoa(int(releaseID)),
-		"type":        strconv.Itoa(int(game_library.AssetTypeTitle)),
-		"description": "RetroArch 截图",
-		"debug":       "fbui:retroarch-screenshot",
+		"kind":    strconv.Itoa(int(game_library.KindRelease)),
+		"kind_id": strconv.Itoa(int(releaseID)),
+		"type":    strconv.Itoa(int(game_library.AssetTypeTitle)),
+		// "description": "RetroArch 截图",
+		"debug": "fbui:retroarch-screenshot",
 	} {
 		if err := writer.WriteField(name, value); err != nil {
 			return err
