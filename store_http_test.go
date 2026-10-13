@@ -17,9 +17,51 @@ type fakeAssetIDOpener struct {
 	id  int32
 }
 
+type fakeTitleScreenCapturer struct {
+	err       error
+	releaseID int32
+}
+
+func (f *fakeTitleScreenCapturer) CaptureTitleScreen(_ context.Context, releaseID int32) (string, error) {
+	f.releaseID = releaseID
+	return "/screenshots/title.png", f.err
+}
+
 func (f *fakeAssetIDOpener) OpenAssetByID(_ context.Context, id int32) error {
 	f.id = id
 	return f.err
+}
+
+func TestStoreCaptureTitleHandler(t *testing.T) {
+	tests := []struct {
+		name   string
+		method string
+		path   string
+		err    error
+		status int
+	}{
+		{"created", http.MethodPost, "/api/store/releases/42:capture-title", nil, http.StatusCreated},
+		{"invalid", http.MethodPost, "/api/store/releases/nope:capture-title", nil, http.StatusBadRequest},
+		{"not running", http.MethodPost, "/api/store/releases/42:capture-title", errNoStoreGameRunning, http.StatusConflict},
+		{"wrong release", http.MethodPost, "/api/store/releases/42:capture-title", errWrongStoreRelease, http.StatusConflict},
+		{"busy", http.MethodPost, "/api/store/releases/42:capture-title", errScreenshotBusy, http.StatusConflict},
+		{"timeout", http.MethodPost, "/api/store/releases/42:capture-title", context.DeadlineExceeded, http.StatusGatewayTimeout},
+		{"internal", http.MethodPost, "/api/store/releases/42:capture-title", errors.New("broken"), http.StatusInternalServerError},
+		{"options", http.MethodOptions, "/api/store/releases/42:capture-title", nil, http.StatusNoContent},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			capturer := &fakeTitleScreenCapturer{err: test.err}
+			response := httptest.NewRecorder()
+			storeCaptureTitleHandler(capturer).ServeHTTP(response, httptest.NewRequest(test.method, test.path, nil))
+			if response.Code != test.status {
+				t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+			}
+			if test.status == http.StatusCreated && (capturer.releaseID != 42 || !strings.Contains(response.Body.String(), `"release_id":42`)) {
+				t.Fatalf("release=%d body=%s", capturer.releaseID, response.Body.String())
+			}
+		})
+	}
 }
 
 func TestStoreOpenAssetHandler(t *testing.T) {

@@ -116,10 +116,12 @@ type StoreNavigator struct {
 	// 游戏本地二进制存储。
 	store *game_library.Store
 	// 当前目录浏览栈。
-	stack      []storePage
-	busy       bool
-	active     bool
-	remoteBusy atomic.Bool
+	stack           []storePage
+	busy            bool
+	active          bool
+	remoteBusy      atomic.Bool
+	activeReleaseID atomic.Int32
+	screenshotBusy  atomic.Bool
 
 	backgroundAsset  *game_library.Asset
 	backgroundCancel context.CancelFunc
@@ -1180,18 +1182,8 @@ func (n *StoreNavigator) runROMWithOpener(opener *fbiw.Document, platformID, rel
 	go func() {
 		defer finish()
 		defer n.window.app.AttachAsync()
-		watchContext, stopWatching := context.WithCancel(context.Background())
-		watchDone := make(chan struct{})
-		watchReady := make(chan struct{})
-		go func() {
-			defer close(watchDone)
-			newScreenshotUploader().watch(watchContext, releaseID, watchReady)
-		}()
-		<-watchReady
-		defer func() {
-			stopWatching()
-			<-watchDone
-		}()
+		n.activeReleaseID.Store(releaseID)
+		defer n.activeReleaseID.CompareAndSwap(releaseID, 0)
 		script := emulator.LauncherScriptPath()
 		log.Println("启动仓库 ROM：", script, path)
 		if err := launcher.RunScript(context.Background(), script, path); err != nil {
@@ -1208,6 +1200,29 @@ func (n *StoreNavigator) runROMWithOpener(opener *fbiw.Document, platformID, rel
 			})
 		}
 	}()
+}
+
+var (
+	errNoStoreGameRunning = errors.New("no Store game is currently running")
+	errWrongStoreRelease  = errors.New("the requested release is not currently running")
+	errScreenshotBusy     = errors.New("a screenshot request is already in progress")
+)
+
+func (n *StoreNavigator) CaptureTitleScreen(ctx context.Context, releaseID int32) (string, error) {
+	activeReleaseID := n.activeReleaseID.Load()
+	if activeReleaseID == 0 {
+		return "", errNoStoreGameRunning
+	}
+	if activeReleaseID != releaseID {
+		return "", errWrongStoreRelease
+	}
+	if !n.screenshotBusy.CompareAndSwap(false, true) {
+		return "", errScreenshotBusy
+	}
+	defer n.screenshotBusy.Store(false)
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	return newScreenshotUploader().capture(ctx, releaseID)
 }
 
 func displayNames(names []game_library.Name) string {

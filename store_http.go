@@ -17,6 +17,54 @@ type assetIDOpener interface {
 	OpenAssetByID(context.Context, int32) error
 }
 
+type titleScreenCapturer interface {
+	CaptureTitleScreen(context.Context, int32) (string, error)
+}
+
+func storeCaptureTitleHandler(capturer titleScreenCapturer) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		w.Header().Set("Access-Control-Allow-Private-Network", "true")
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		if r.Method != http.MethodPost {
+			writeStoreJSONError(w, http.StatusMethodNotAllowed, "method not allowed")
+			return
+		}
+		const prefix = "/api/store/releases/"
+		value := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, prefix), ":capture-title")
+		if !strings.HasPrefix(r.URL.Path, prefix) || !strings.HasSuffix(r.URL.Path, ":capture-title") || value == "" || strings.Contains(value, "/") {
+			writeStoreJSONError(w, http.StatusBadRequest, "invalid release id")
+			return
+		}
+		parsed, err := strconv.ParseInt(value, 10, 32)
+		if err != nil || parsed <= 0 {
+			writeStoreJSONError(w, http.StatusBadRequest, "invalid release id")
+			return
+		}
+		releaseID := int32(parsed)
+		path, err := capturer.CaptureTitleScreen(r.Context(), releaseID)
+		if err != nil {
+			switch {
+			case errors.Is(err, errNoStoreGameRunning), errors.Is(err, errWrongStoreRelease), errors.Is(err, errScreenshotBusy):
+				writeStoreJSONError(w, http.StatusConflict, err.Error())
+			case errors.Is(err, context.DeadlineExceeded), errors.Is(err, context.Canceled):
+				writeStoreJSONError(w, http.StatusGatewayTimeout, err.Error())
+			default:
+				writeStoreJSONError(w, http.StatusInternalServerError, err.Error())
+			}
+			return
+		}
+		w.WriteHeader(http.StatusCreated)
+		_ = json.NewEncoder(w).Encode(map[string]any{"status": "created", "release_id": releaseID, "file": path})
+	})
+}
+
 func storeOpenAssetHandler(opener assetIDOpener) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")

@@ -18,7 +18,6 @@ func TestScreenshotUploaderUploadsOnlyNewStableImages(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "old.png"), []byte("old"), 0644); err != nil {
 		t.Fatal(err)
 	}
-	uploaded := make(chan *http.Request, 1)
 	client := &http.Client{Transport: screenshotRoundTripFunc(func(r *http.Request) (*http.Response, error) {
 		if err := r.ParseMultipartForm(1 << 20); err != nil {
 			t.Error(err)
@@ -36,7 +35,6 @@ func TestScreenshotUploaderUploadsOnlyNewStableImages(t *testing.T) {
 		if r.FormValue("kind") != "3" || r.FormValue("kind_id") != "42" || r.FormValue("type") != "9" {
 			t.Errorf("unexpected owner/type: %s/%s/%s", r.FormValue("kind"), r.FormValue("kind_id"), r.FormValue("type"))
 		}
-		uploaded <- r
 		return &http.Response{StatusCode: http.StatusCreated, Status: "201 Created", Body: io.NopCloser(strings.NewReader("{}")), Header: make(http.Header)}, nil
 	})}
 
@@ -47,24 +45,24 @@ func TestScreenshotUploaderUploadsOnlyNewStableImages(t *testing.T) {
 		newEvents: func(string) (*screenshotEvents, error) {
 			return &screenshotEvents{events: events, errors: errors, close: func() error { return nil }}, nil
 		},
+		screenshot: func() error {
+			path := filepath.Join(dir, "new.png")
+			if err := os.WriteFile(path, []byte("new"), 0644); err != nil {
+				return err
+			}
+			events <- fswatcher.Event{Name: path, Op: fswatcher.Create | fswatcher.Write}
+			return nil
+		},
 	}
-	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan struct{})
-	ready := make(chan struct{})
-	go func() { uploader.watch(ctx, 42, ready); close(done) }()
-	<-ready
-	if err := os.WriteFile(filepath.Join(dir, "new.png"), []byte("new"), 0644); err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	path, err := uploader.capture(ctx, 42)
+	if err != nil {
 		t.Fatal(err)
 	}
-	events <- fswatcher.Event{Name: filepath.Join(dir, "new.png"), Op: fswatcher.Create | fswatcher.Write}
-
-	select {
-	case <-uploaded:
-	case <-time.After(time.Second * 2):
-		t.Fatal("new screenshot was not uploaded")
+	if filepath.Base(path) != "new.png" {
+		t.Fatalf("captured path=%q", path)
 	}
-	cancel()
-	<-done
 }
 
 type screenshotRoundTripFunc func(*http.Request) (*http.Response, error)

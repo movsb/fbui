@@ -3,10 +3,12 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log"
 	"mime/multipart"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -27,6 +29,7 @@ type screenshotUploader struct {
 	client      *http.Client
 	settleDelay time.Duration
 	newEvents   func(string) (*screenshotEvents, error)
+	screenshot  func() error
 }
 
 type screenshotEvents struct {
@@ -42,7 +45,22 @@ func newScreenshotUploader() *screenshotUploader {
 		client:      &http.Client{Timeout: 30 * time.Second},
 		settleDelay: screenshotSettleDelay,
 		newEvents:   newScreenshotEvents,
+		screenshot:  sendRetroArchScreenshot,
 	}
+}
+
+func sendRetroArchScreenshot() error {
+	address, err := net.ResolveUDPAddr("udp", "127.0.0.1:55355")
+	if err != nil {
+		return err
+	}
+	connection, err := net.DialUDP("udp", nil, address)
+	if err != nil {
+		return err
+	}
+	defer connection.Close()
+	_, err = connection.Write([]byte("SCREENSHOT"))
+	return err
 }
 
 func newScreenshotEvents(dir string) (*screenshotEvents, error) {
@@ -57,18 +75,11 @@ func newScreenshotEvents(dir string) (*screenshotEvents, error) {
 	return &screenshotEvents{events: watcher.Events, errors: watcher.Errors, close: watcher.Close}, nil
 }
 
-// watch uploads image files created while a Store ROM is running. A file must
-// have the same size and modification time in two scans before it is uploaded,
-// so RetroArch never gets read halfway through writing a screenshot.
-func (u *screenshotUploader) watch(ctx context.Context, releaseID int32, ready chan<- struct{}) {
-	readySignaled := false
-	defer func() {
-		if !readySignaled {
-			close(ready)
-		}
-	}()
+// capture asks RetroArch for one screenshot, waits for the resulting file to
+// become stable, then uploads it as the current release's title screen.
+func (u *screenshotUploader) capture(ctx context.Context, releaseID int32) (string, error) {
 	if releaseID <= 0 {
-		return
+		return "", errors.New("invalid release id")
 	}
 	baseline := u.snapshot()
 	newEvents := u.newEvents
@@ -77,22 +88,24 @@ func (u *screenshotUploader) watch(ctx context.Context, releaseID int32, ready c
 	}
 	watcher, err := newEvents(u.dir)
 	if err != nil {
-		log.Printf("创建 RetroArch 截图观察器失败：%v", err)
-		return
+		return "", fmt.Errorf("观察 RetroArch 截图目录：%w", err)
 	}
 	defer watcher.close()
-	// The caller does not start RetroArch until the watch has been registered.
-	close(ready)
-	readySignaled = true
+	screenshot := u.screenshot
+	if screenshot == nil {
+		screenshot = sendRetroArchScreenshot
+	}
+	if err := screenshot(); err != nil {
+		return "", fmt.Errorf("发送 RetroArch 截图命令：%w", err)
+	}
 
 	pending := map[string]fileSignature{}
-	uploaded := map[string]bool{}
 	dirty := map[string]bool{}
-	scan := func(uploadContext context.Context, includeAllNew bool) bool {
+	scan := func() (string, bool, error) {
 		current := u.snapshot()
 		needsAnotherCheck := false
 		for path, signature := range current {
-			if _, existed := baseline[path]; existed || uploaded[path] || (!includeAllNew && !dirty[path]) {
+			if _, existed := baseline[path]; existed || !dirty[path] {
 				continue
 			}
 			if previous, seen := pending[path]; !seen || previous != signature {
@@ -100,17 +113,12 @@ func (u *screenshotUploader) watch(ctx context.Context, releaseID int32, ready c
 				needsAnotherCheck = true
 				continue
 			}
-			if err := u.upload(uploadContext, releaseID, path); err != nil {
-				log.Printf("上传标题画面失败：%s: %v", path, err)
-				needsAnotherCheck = true
-				continue
+			if err := u.upload(ctx, releaseID, path); err != nil {
+				return "", false, fmt.Errorf("上传标题画面 %s：%w", filepath.Base(path), err)
 			}
-			uploaded[path] = true
-			delete(pending, path)
-			delete(dirty, path)
-			log.Printf("已上传标题画面：%s (release=%d)", path, releaseID)
+			return path, false, nil
 		}
-		return needsAnotherCheck
+		return "", needsAnotherCheck, nil
 	}
 
 	var timer *time.Timer
@@ -138,7 +146,7 @@ func (u *screenshotUploader) watch(ctx context.Context, releaseID int32, ready c
 		select {
 		case event, ok := <-watcher.events:
 			if !ok {
-				return
+				return "", errors.New("RetroArch 截图观察器已关闭")
 			}
 			path := filepath.Clean(event.Name)
 			if filepath.Dir(path) == filepath.Clean(u.dir) && isScreenshotName(path) {
@@ -147,23 +155,22 @@ func (u *screenshotUploader) watch(ctx context.Context, releaseID int32, ready c
 			}
 		case err, ok := <-watcher.errors:
 			if ok {
-				log.Printf("观察 RetroArch 截图目录出错：%v", err)
+				return "", fmt.Errorf("观察 RetroArch 截图目录：%w", err)
 			}
 		case <-settled:
 			settled = nil
-			if scan(ctx, false) {
+			path, again, err := scan()
+			if err != nil {
+				return "", err
+			}
+			if path != "" {
+				return path, nil
+			}
+			if again {
 				armTimer()
 			}
 		case <-ctx.Done():
-			// Give a screenshot taken immediately before RetroArch exits one last
-			// opportunity to become stable.
-			finalContext, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			scan(finalContext, true)
-			timer := time.NewTimer(250 * time.Millisecond)
-			<-timer.C
-			scan(finalContext, true)
-			cancel()
-			return
+			return "", fmt.Errorf("等待 RetroArch 截图：%w", ctx.Err())
 		}
 	}
 }
