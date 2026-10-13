@@ -26,7 +26,7 @@ func createTestLibrary(t *testing.T, version int) string {
 		`CREATE TABLE series (id INTEGER PRIMARY KEY, description TEXT)`,
 		`CREATE TABLE games (id INTEGER PRIMARY KEY, platform_id INTEGER, series_id INTEGER, description TEXT)`,
 		`CREATE INDEX games_platform_id ON games (platform_id)`,
-		`CREATE TABLE names (id INTEGER PRIMARY KEY, kind INTEGER, kind_id INTEGER, language INTEGER, name TEXT, source TEXT NOT NULL DEFAULT '')`,
+		`CREATE TABLE names (id INTEGER PRIMARY KEY, kind INTEGER, kind_id INTEGER, language INTEGER, name TEXT, source TEXT NOT NULL DEFAULT '', deprecated INTEGER NOT NULL DEFAULT 0)`,
 		`CREATE INDEX names_kind_kind_id ON names (kind, kind_id)`,
 		`CREATE TABLE releases (id INTEGER PRIMARY KEY, game_id INTEGER, description TEXT, release_date INTEGER)`,
 		`CREATE INDEX releases_game_id ON releases (game_id)`,
@@ -43,7 +43,7 @@ func createTestLibrary(t *testing.T, version int) string {
 		`INSERT INTO series VALUES (2,'平台游戏系列')`,
 		`INSERT INTO games VALUES (3,1,2,'经典平台游戏')`,
 		`INSERT INTO releases VALUES (4,3,'日本发行版',0)`,
-		`INSERT INTO names VALUES (1,1,1,1,'NES',''),(2,1,1,2,'红白机','trimui'),(3,7,2,2,'马力欧',''),(4,2,3,1,'Mario',''),(5,3,4,2,'日版',''),(6,1,10,2,'街机','')`,
+		`INSERT INTO names VALUES (1,1,1,1,'NES','',0),(2,1,1,2,'红白机','trimui',0),(3,7,2,2,'马力欧','',0),(4,2,3,1,'Mario','',1),(5,3,4,2,'日版','',0),(6,1,10,2,'街机','',0)`,
 		`INSERT INTO blobs VALUES (5,4,'','','aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'),(6,3,'','','bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb')`,
 		`INSERT INTO assets VALUES (7,3,4,1,'game.rom','原始 ROM','',1,4,5),(8,3,4,1,'set','','',2,3,0)`,
 		`INSERT INTO entries VALUES (9,8,'game.bin',3,6)`,
@@ -101,6 +101,9 @@ func TestLibraryQueriesCatalogAndBlobs(t *testing.T) {
 	}
 	if len(games[0].PlatformNames) != 2 || games[0].PlatformNames[0].Name != "NES" {
 		t.Fatalf("game platform names were not loaded: %#v", games[0].PlatformNames)
+	}
+	if len(games[0].Names) != 1 || !games[0].Names[0].Deprecated {
+		t.Fatalf("deprecated name flag was not loaded: %#v", games[0].Names)
 	}
 	if filtered, err := library.ListGames(ctx, 99, 0); err != nil || len(filtered) != 0 {
 		t.Fatalf("filtered=%#v err=%v", filtered, err)

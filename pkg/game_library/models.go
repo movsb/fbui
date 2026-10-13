@@ -42,12 +42,13 @@ const (
 )
 
 type Name struct {
-	ID       int32
-	Kind     Kind
-	KindID   int32
-	Language Language
-	Name     string
-	Source   string
+	ID         int32
+	Kind       Kind
+	KindID     int32
+	Language   Language
+	Name       string
+	Source     string
+	Deprecated bool
 }
 
 func (Name) TableName() string { return `names` }

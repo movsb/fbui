@@ -39,7 +39,7 @@ type LaunchableAsset struct {
 	PlatformID int32
 }
 
-const SupportedDatabaseVersion = 16
+const SupportedDatabaseVersion = 17
 
 type Library struct {
 	db  *sql.DB

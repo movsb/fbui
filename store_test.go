@@ -10,7 +10,7 @@ import (
 func TestStoreSearchDisplaysGamesForGameAndReleaseMatches(t *testing.T) {
 	game := &game_library.Game{
 		ID:            1,
-		Names:         []game_library.Name{{Language: game_library.LanguageChinese, Name: "魂斗罗"}},
+		Names:         []game_library.Name{{Language: game_library.LanguageChinese, Name: "索菲亚复苏", Deprecated: true}, {Language: game_library.LanguageChinese, Name: "魂斗罗"}},
 		PlatformNames: []game_library.Name{{Language: game_library.LanguageChinese, Name: "红白机"}},
 	}
 	items := buildStoreSearchItems(
@@ -23,7 +23,7 @@ func TestStoreSearchDisplaysGamesForGameAndReleaseMatches(t *testing.T) {
 	if len(items) != 1 || items[0].Value != game || items[0].Name != "魂斗罗" || items[0].Detail != "红白机" {
 		t.Fatalf("search items=%#v", items)
 	}
-	for _, query := range []string{"hdl", "rb", "usa"} {
+	for _, query := range []string{"hdl", "rb", "usa", "sfyfs"} {
 		if !searchable.Match(query, items[0].SearchTerms...) {
 			t.Errorf("query %q did not match game through game/release names", query)
 		}
@@ -150,6 +150,7 @@ func TestBuildGameItemsOmitsPlatformOutsideSeries(t *testing.T) {
 
 func TestDisplayNamesPrefersManualChinese(t *testing.T) {
 	names := []game_library.Name{
+		{Language: game_library.LanguageChinese, Name: "历史中文", Deprecated: true},
 		{Language: game_library.LanguageChinese, Name: "导入中文", Source: "trimui"},
 		{Language: game_library.LanguageEnglish, Name: "English"},
 		{Language: game_library.LanguageChinese, Name: "手动中文", Source: "  "},

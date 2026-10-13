@@ -1200,7 +1200,7 @@ func (n *StoreNavigator) runROMWithOpener(opener *fbiw.Document, platformID int3
 
 func displayNames(names []game_library.Name) string {
 	for _, name := range names {
-		if name.Language == game_library.LanguageChinese && strings.TrimSpace(name.Source) == "" && name.Name != "" {
+		if !name.Deprecated && name.Language == game_library.LanguageChinese && strings.TrimSpace(name.Source) == "" && name.Name != "" {
 			return name.Name
 		}
 	}
@@ -1210,11 +1210,18 @@ func displayNames(names []game_library.Name) string {
 		game_library.LanguageJapanese,
 	} {
 		for _, name := range names {
-			if name.Language == language && name.Name != "" {
+			if !name.Deprecated && name.Language == language && name.Name != "" {
 				return name.Name
 			}
 		}
 	}
+	for _, name := range names {
+		if !name.Deprecated && name.Name != "" {
+			return name.Name
+		}
+	}
+	// Keep corrupt or transitional catalogs identifiable until they regain an
+	// active name. Valid v17 GM data always contains at least one active name.
 	for _, name := range names {
 		if name.Name != "" {
 			return name.Name
