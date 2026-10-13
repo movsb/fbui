@@ -18,12 +18,14 @@ type fakeAssetIDOpener struct {
 }
 
 type fakeTitleScreenCapturer struct {
-	err       error
-	releaseID int32
+	err     error
+	kind    game_library.Kind
+	ownerID int32
 }
 
-func (f *fakeTitleScreenCapturer) CaptureTitleScreen(_ context.Context, releaseID int32) (string, error) {
-	f.releaseID = releaseID
+func (f *fakeTitleScreenCapturer) CaptureTitleScreen(_ context.Context, kind game_library.Kind, ownerID int32) (string, error) {
+	f.kind = kind
+	f.ownerID = ownerID
 	return "/screenshots/title.png", f.err
 }
 
@@ -41,6 +43,7 @@ func TestStoreCaptureTitleHandler(t *testing.T) {
 		status int
 	}{
 		{"created", http.MethodPost, "/api/store/releases/42:capture-title", nil, http.StatusCreated},
+		{"game created", http.MethodPost, "/api/store/games/42:capture-title", nil, http.StatusCreated},
 		{"invalid", http.MethodPost, "/api/store/releases/nope:capture-title", nil, http.StatusBadRequest},
 		{"not running", http.MethodPost, "/api/store/releases/42:capture-title", errNoStoreGameRunning, http.StatusConflict},
 		{"wrong release", http.MethodPost, "/api/store/releases/42:capture-title", errWrongStoreRelease, http.StatusConflict},
@@ -57,8 +60,8 @@ func TestStoreCaptureTitleHandler(t *testing.T) {
 			if response.Code != test.status {
 				t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
 			}
-			if test.status == http.StatusCreated && (capturer.releaseID != 42 || !strings.Contains(response.Body.String(), `"release_id":42`)) {
-				t.Fatalf("release=%d body=%s", capturer.releaseID, response.Body.String())
+			if test.status == http.StatusCreated && (capturer.ownerID != 42 || !strings.Contains(response.Body.String(), `"owner_id":42`)) {
+				t.Fatalf("owner=%d body=%s", capturer.ownerID, response.Body.String())
 			}
 		})
 	}

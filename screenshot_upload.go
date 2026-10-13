@@ -77,9 +77,9 @@ func newScreenshotEvents(dir string) (*screenshotEvents, error) {
 
 // capture asks RetroArch for one screenshot, waits for the resulting file to
 // become stable, then uploads it as the current release's title screen.
-func (u *screenshotUploader) capture(ctx context.Context, releaseID int32) (string, error) {
-	if releaseID <= 0 {
-		return "", errors.New("invalid release id")
+func (u *screenshotUploader) capture(ctx context.Context, kind game_library.Kind, ownerID int32) (string, error) {
+	if ownerID <= 0 || (kind != game_library.KindGame && kind != game_library.KindRelease) {
+		return "", errors.New("invalid title screen owner")
 	}
 	baseline := u.snapshot()
 	newEvents := u.newEvents
@@ -113,7 +113,7 @@ func (u *screenshotUploader) capture(ctx context.Context, releaseID int32) (stri
 				needsAnotherCheck = true
 				continue
 			}
-			if err := u.upload(ctx, releaseID, path); err != nil {
+			if err := u.upload(ctx, kind, ownerID, path); err != nil {
 				return "", false, fmt.Errorf("上传标题画面 %s：%w", filepath.Base(path), err)
 			}
 			if err := os.Remove(path); err != nil {
@@ -214,12 +214,12 @@ func isScreenshotName(name string) bool {
 	}
 }
 
-func (u *screenshotUploader) upload(ctx context.Context, releaseID int32, path string) error {
+func (u *screenshotUploader) upload(ctx context.Context, kind game_library.Kind, ownerID int32, path string) error {
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
 	for name, value := range map[string]string{
-		"kind":    strconv.Itoa(int(game_library.KindRelease)),
-		"kind_id": strconv.Itoa(int(releaseID)),
+		"kind":    strconv.Itoa(int(kind)),
+		"kind_id": strconv.Itoa(int(ownerID)),
 		"type":    strconv.Itoa(int(game_library.AssetTypeTitle)),
 		// "description": "RetroArch 截图",
 		"debug": "fbui:retroarch-screenshot",

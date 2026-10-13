@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/fswatcher/fswatcher"
+	"github.com/movsb/fbui/pkg/game_library"
 )
 
 func TestScreenshotUploaderUploadsOnlyNewStableImages(t *testing.T) {
@@ -56,7 +57,7 @@ func TestScreenshotUploaderUploadsOnlyNewStableImages(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	path, err := uploader.capture(ctx, 42)
+	path, err := uploader.capture(ctx, game_library.KindRelease, 42)
 	if err != nil {
 		t.Fatal(err)
 	}

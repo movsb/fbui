@@ -26,6 +26,7 @@ func main() {
 	window := NewMainWindow(app)
 	http.Handle(`/api/store/assets/`, storeOpenAssetHandler(window.storeNav))
 	http.Handle(`/api/store/releases/`, storeCaptureTitleHandler(window.storeNav))
+	http.Handle(`/api/store/games/`, storeCaptureTitleHandler(window.storeNav))
 	// pprof 性能测试：go tool pprof -web http://localhost:8888/debug/pprof/profile?seconds=30
 	go func() {
 		if err := http.ListenAndServe(`0.0.0.0:8888`, nil); err != nil {

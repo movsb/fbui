@@ -1276,12 +1276,25 @@ var (
 	errScreenshotBusy     = errors.New("a screenshot request is already in progress")
 )
 
-func (n *StoreNavigator) CaptureTitleScreen(ctx context.Context, releaseID int32) (string, error) {
+func (n *StoreNavigator) CaptureTitleScreen(ctx context.Context, kind game_library.Kind, ownerID int32) (string, error) {
 	activeReleaseID := n.activeReleaseID.Load()
 	if activeReleaseID == 0 {
 		return "", errNoStoreGameRunning
 	}
-	if activeReleaseID != releaseID {
+	ownerMatches := kind == game_library.KindRelease && activeReleaseID == ownerID
+	if kind == game_library.KindGame {
+		releases, err := n.metadata.ListReleases(ctx, ownerID)
+		if err != nil {
+			return "", err
+		}
+		for _, release := range releases {
+			if release.ID == activeReleaseID {
+				ownerMatches = true
+				break
+			}
+		}
+	}
+	if !ownerMatches {
 		return "", errWrongStoreRelease
 	}
 	if !n.screenshotBusy.CompareAndSwap(false, true) {
@@ -1290,7 +1303,7 @@ func (n *StoreNavigator) CaptureTitleScreen(ctx context.Context, releaseID int32
 	defer n.screenshotBusy.Store(false)
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	return newScreenshotUploader().capture(ctx, releaseID)
+	return newScreenshotUploader().capture(ctx, kind, ownerID)
 }
 
 func displayNames(names []game_library.Name) string {

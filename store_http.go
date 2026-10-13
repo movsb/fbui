@@ -18,7 +18,7 @@ type assetIDOpener interface {
 }
 
 type titleScreenCapturer interface {
-	CaptureTitleScreen(context.Context, int32) (string, error)
+	CaptureTitleScreen(context.Context, game_library.Kind, int32) (string, error)
 }
 
 func storeCaptureTitleHandler(capturer titleScreenCapturer) http.Handler {
@@ -36,7 +36,12 @@ func storeCaptureTitleHandler(capturer titleScreenCapturer) http.Handler {
 			writeStoreJSONError(w, http.StatusMethodNotAllowed, "method not allowed")
 			return
 		}
-		const prefix = "/api/store/releases/"
+		kind := game_library.KindRelease
+		prefix := "/api/store/releases/"
+		if strings.HasPrefix(r.URL.Path, "/api/store/games/") {
+			kind = game_library.KindGame
+			prefix = "/api/store/games/"
+		}
 		value := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, prefix), ":capture-title")
 		if !strings.HasPrefix(r.URL.Path, prefix) || !strings.HasSuffix(r.URL.Path, ":capture-title") || value == "" || strings.Contains(value, "/") {
 			writeStoreJSONError(w, http.StatusBadRequest, "invalid release id")
@@ -47,8 +52,8 @@ func storeCaptureTitleHandler(capturer titleScreenCapturer) http.Handler {
 			writeStoreJSONError(w, http.StatusBadRequest, "invalid release id")
 			return
 		}
-		releaseID := int32(parsed)
-		path, err := capturer.CaptureTitleScreen(r.Context(), releaseID)
+		ownerID := int32(parsed)
+		path, err := capturer.CaptureTitleScreen(r.Context(), kind, ownerID)
 		if err != nil {
 			switch {
 			case errors.Is(err, errNoStoreGameRunning), errors.Is(err, errWrongStoreRelease), errors.Is(err, errScreenshotBusy):
@@ -61,7 +66,7 @@ func storeCaptureTitleHandler(capturer titleScreenCapturer) http.Handler {
 			return
 		}
 		w.WriteHeader(http.StatusCreated)
-		_ = json.NewEncoder(w).Encode(map[string]any{"status": "created", "release_id": releaseID, "file": path})
+		_ = json.NewEncoder(w).Encode(map[string]any{"status": "created", "kind": kind, "owner_id": ownerID, "file": path})
 	})
 }
 
