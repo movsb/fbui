@@ -61,17 +61,7 @@ func rangeDirForEmulators(romPath string) iter.Seq[string] {
 
 	return func(yield func(string) bool) {
 		for _, component := range romDirParts {
-			component = strings.ToLower(component)
-			if strings.HasPrefix(component, `cps`) {
-				component = `arcade`
-			}
-			if strings.HasPrefix(component, `mame`) {
-				component = `arcade`
-			}
-			switch component {
-			case `fbneo`, `neogeo`:
-				component = `arcade`
-			}
+			component = emulatorPlatform(component)
 			if emus, found := emuMaps[component]; found {
 				for _, emu := range emus {
 					so := emu + `_libretro.so`
@@ -82,6 +72,28 @@ func rangeDirForEmulators(romPath string) iter.Seq[string] {
 			}
 		}
 	}
+}
+
+func emulatorPlatform(component string) string {
+	component = strings.ToLower(component)
+	if strings.HasPrefix(component, `cps`) || strings.HasPrefix(component, `mame`) {
+		return `arcade`
+	}
+	switch component {
+	case `fbneo`, `neogeo`:
+		return `arcade`
+	default:
+		return component
+	}
+}
+
+func isArcadePath(path string) bool {
+	for _, component := range strings.Split(filepath.Clean(path), string(filepath.Separator)) {
+		if emulatorPlatform(component) == `arcade` {
+			return true
+		}
+	}
+	return false
 }
 
 // 运行指定的模拟器，返回是否“运行成功”。

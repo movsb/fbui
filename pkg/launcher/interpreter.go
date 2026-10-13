@@ -71,14 +71,7 @@ func runRetroArchCandidates(command []string, scriptPath string, env expand.Envi
 		return run(command[0], command[1:], env, dir, `/tmp/retroarch.log`)
 	}
 
-	candidates := []string{originalCore}
-	coreDir := filepath.Dir(originalCore)
-	for name := range rangeDirForEmulators(scriptPath) {
-		candidate := filepath.Join(coreDir, name)
-		if candidate != originalCore {
-			candidates = append(candidates, candidate)
-		}
-	}
+	candidates := retroArchCoreCandidates(originalCore, scriptPath)
 
 	for _, core := range candidates {
 		logFile := fmt.Sprintf(`/tmp/retroarch_%s.log`, strings.TrimSuffix(filepath.Base(core), `.so`))
@@ -88,4 +81,27 @@ func runRetroArchCandidates(command []string, scriptPath string, env expand.Envi
 		}
 	}
 	return false
+}
+
+func retroArchCoreCandidates(originalCore, scriptPath string) []string {
+	coreDir := filepath.Dir(originalCore)
+	var mapped []string
+	for name := range rangeDirForEmulators(scriptPath) {
+		mapped = append(mapped, filepath.Join(coreDir, name))
+	}
+
+	ordered := append([]string{originalCore}, mapped...)
+	if isArcadePath(scriptPath) {
+		ordered = append(mapped, originalCore)
+	}
+
+	candidates := make([]string, 0, len(ordered))
+	seen := make(map[string]bool, len(ordered))
+	for _, core := range ordered {
+		if !seen[core] {
+			seen[core] = true
+			candidates = append(candidates, core)
+		}
+	}
+	return candidates
 }
