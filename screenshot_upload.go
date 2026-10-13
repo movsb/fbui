@@ -116,6 +116,9 @@ func (u *screenshotUploader) capture(ctx context.Context, releaseID int32) (stri
 			if err := u.upload(ctx, releaseID, path); err != nil {
 				return "", false, fmt.Errorf("上传标题画面 %s：%w", filepath.Base(path), err)
 			}
+			if err := os.Remove(path); err != nil {
+				return "", false, fmt.Errorf("标题画面已上传，但删除本地截图 %s 失败：%w", filepath.Base(path), err)
+			}
 			return path, false, nil
 		}
 		return "", needsAnotherCheck, nil

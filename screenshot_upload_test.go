@@ -63,6 +63,12 @@ func TestScreenshotUploaderUploadsOnlyNewStableImages(t *testing.T) {
 	if filepath.Base(path) != "new.png" {
 		t.Fatalf("captured path=%q", path)
 	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("uploaded screenshot was not deleted: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "old.png")); err != nil {
+		t.Fatalf("pre-existing screenshot was changed: %v", err)
+	}
 }
 
 type screenshotRoundTripFunc func(*http.Request) (*http.Response, error)
