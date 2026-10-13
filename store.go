@@ -996,7 +996,7 @@ func (n *StoreNavigator) openAsset(game *game_library.Game, asset *game_library.
 			}
 			switch asset.Type {
 			case game_library.AssetTypeROM:
-				n.runROM(game.PlatformID, path)
+				n.runROM(game.PlatformID, asset.KindID, path)
 			case game_library.AssetTypeCover, game_library.AssetTypeScreenshot, game_library.AssetTypeLogo, game_library.AssetTypeTitle:
 				n.showImage(path)
 			case game_library.AssetTypeVideo:
@@ -1037,7 +1037,7 @@ func (n *StoreNavigator) OpenAssetByID(ctx context.Context, id int32) error {
 			return
 		}
 		n.window.doc.Async(func() {
-			n.runROM(launchable.PlatformID, path, func() { n.remoteBusy.Store(false) })
+			n.runROM(launchable.PlatformID, launchable.Asset.KindID, path, func() { n.remoteBusy.Store(false) })
 		})
 	}()
 	return nil
@@ -1148,11 +1148,11 @@ var platformEmulators = map[int32]string{
 	8: "ATARI2600",
 }
 
-func (n *StoreNavigator) runROM(platformID int32, path string, done ...func()) {
-	n.runROMWithOpener(n.window.doc, platformID, path, done...)
+func (n *StoreNavigator) runROM(platformID, releaseID int32, path string, done ...func()) {
+	n.runROMWithOpener(n.window.doc, platformID, releaseID, path, done...)
 }
 
-func (n *StoreNavigator) runROMWithOpener(opener *fbiw.Document, platformID int32, path string, done ...func()) {
+func (n *StoreNavigator) runROMWithOpener(opener *fbiw.Document, platformID, releaseID int32, path string, done ...func()) {
 	finish := func() {
 		if len(done) > 0 && done[0] != nil {
 			done[0]()
@@ -1180,6 +1180,18 @@ func (n *StoreNavigator) runROMWithOpener(opener *fbiw.Document, platformID int3
 	go func() {
 		defer finish()
 		defer n.window.app.AttachAsync()
+		watchContext, stopWatching := context.WithCancel(context.Background())
+		watchDone := make(chan struct{})
+		watchReady := make(chan struct{})
+		go func() {
+			defer close(watchDone)
+			newScreenshotUploader().watch(watchContext, releaseID, watchReady)
+		}()
+		<-watchReady
+		defer func() {
+			stopWatching()
+			<-watchDone
+		}()
 		script := emulator.LauncherScriptPath()
 		log.Println("启动仓库 ROM：", script, path)
 		if err := launcher.RunScript(context.Background(), script, path); err != nil {

@@ -90,7 +90,7 @@ func (w *storeAssetOpenWindow) open() {
 			case game_library.AssetTypeROM:
 				w.busy = true
 				w.setStatus("游戏运行中...")
-				w.navigator.runROMWithOpener(w.doc, w.game.PlatformID, path, func() {
+				w.navigator.runROMWithOpener(w.doc, w.game.PlatformID, asset.KindID, path, func() {
 					w.doc.Async(func() {
 						w.busy = false
 						w.setStatus("游戏已退出")
