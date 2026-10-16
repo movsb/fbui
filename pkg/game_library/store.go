@@ -17,24 +17,31 @@ import (
 
 var sha256Pattern = regexp.MustCompile(`^[0-9a-f]{64}$`)
 
-// 远程二进制存储。
+// 二进制存储来源。
 type BlobSource interface {
 	// 通过内容哈希下载 gzip 存储数据。
 	Open(context.Context, string) (io.ReadCloser, error)
 }
 
 type Store struct {
-	root   string
-	source BlobSource
-	mu     sync.Mutex
+	root     string
+	blobRoot string
+	source   BlobSource
+	mu       sync.Mutex
 }
 
 func New(root string, source BlobSource) *Store {
-	return &Store{root: root, source: source}
+	return NewWithBlobRoot(root, filepath.Join(root, "blobs"), source)
+}
+
+// NewWithBlobRoot 使用独立的 gzip 二进制目录，本地缺失或校验失败时从 source 下载。
+// blobRoot 兼容 GM 的 <sha256 前两位>/<sha256> 目录结构。
+func NewWithBlobRoot(root, blobRoot string, source BlobSource) *Store {
+	return &Store{root: root, blobRoot: blobRoot, source: source}
 }
 
 func (s *Store) blobPath(sha string) string {
-	return filepath.Join(s.root, "blobs", sha[:2], sha)
+	return filepath.Join(s.blobRoot, sha[:2], sha)
 }
 
 // 确保本地存储有此二进制。

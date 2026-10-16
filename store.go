@@ -136,8 +136,9 @@ func NewStoreNavigator(win *MainWindow) *StoreNavigator {
 		window:      win,
 		metadata:    metadata,
 		metadataErr: metadataErr,
-		store: game_library.New(
+		store: game_library.NewWithBlobRoot(
 			root,
+			filepath.Join(config.SDCARDRoot, "Blobs"),
 			game_library.NewHTTPBlobSource(gmBlobBaseURL),
 		),
 	}

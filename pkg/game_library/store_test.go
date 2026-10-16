@@ -59,6 +59,49 @@ func testBlob(id int32, content string) (*Blob, string) {
 	return &Blob{ID: id, SHA256: sha, Size: int64(len(data))}, sha
 }
 
+func TestSharedBlobRootLocalFirstAndDownloadFallback(t *testing.T) {
+	blob, sha := testBlob(1, "copied from GM")
+	source := &fakeSource{contents: map[string][]byte{sha: []byte("copied from GM")}, requests: map[string]int{}}
+	root := t.TempDir()
+	blobRoot := filepath.Join(root, "Blobs")
+	path := filepath.Join(blobRoot, sha[:2], sha)
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		t.Fatal(err)
+	}
+	var stored bytes.Buffer
+	writer := gzip.NewWriter(&stored)
+	if _, err := writer.Write([]byte("copied from GM")); err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, stored.Bytes(), 0644); err != nil {
+		t.Fatal(err)
+	}
+	store := NewWithBlobRoot(filepath.Join(root, ".fbui", "gm"), blobRoot, source)
+	for _, state := range []string{"local", "missing", "corrupt"} {
+		switch state {
+		case "missing":
+			if err := os.Remove(path); err != nil {
+				t.Fatal(err)
+			}
+		case "corrupt":
+			if err := os.WriteFile(path, []byte("broken"), 0644); err != nil {
+				t.Fatal(err)
+			}
+		}
+		got, err := store.ensureBlob(context.Background(), blob, nil, nil)
+		if err != nil || got != path || !validStoredBlob(got, blob, nil) {
+			t.Fatalf("%s: path=%q err=%v", state, got, err)
+		}
+		wantRequests := map[string]int{"local": 0, "missing": 1, "corrupt": 2}[state]
+		if source.requests[sha] != wantRequests {
+			t.Fatalf("%s: requests=%d, want %d", state, source.requests[sha], wantRequests)
+		}
+	}
+}
+
 func TestEnsureBlobVerifiesAndReusesCAS(t *testing.T) {
 	blob, sha := testBlob(1, "verified content")
 	source := &fakeSource{contents: map[string][]byte{blob.SHA256: []byte("verified content")}, requests: map[string]int{}}

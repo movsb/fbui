@@ -2,6 +2,8 @@
 
 ## 从 GM 远程启动 ROM
 
+GM 二进制优先从 SD 卡的 `Blobs/<sha256 前两位>/<完整 sha256>` 读取，可将 GM blobs 目录的内容原样复制到 `sdcard/Blobs/`，保留子目录和 gzip 文件格式。文件校验通过后直接使用；缺失或损坏时通过 HTTP 下载、校验并保存到同一目录。数据库和组装后的资源仍位于 `.fbui/gm/`。
+
 FBUI 在现有 `0.0.0.0:8888` HTTP 服务上提供 Store ROM 启动接口：
 
 ```bash
