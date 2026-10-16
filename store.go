@@ -190,13 +190,19 @@ func (n *StoreNavigator) setButtonHints() {
 	hints := []ButtonHint{
 		ButtonHint{Button: `A`, Text: `选择`},
 		ButtonHint{Button: `Y`, Text: `搜索`},
-		ButtonHint{Button: `Menu`, Text: `菜单`},
 		ButtonHint{Button: `B`, Text: `返回`},
 	}
 	if n.selectedDescription() != "" {
 		hints = slices.Insert(hints, 1, ButtonHint{Button: `X`, Text: `描述`})
 	}
+	if n.isRootPage() {
+		hints = slices.Insert(hints, len(hints)-1, ButtonHint{Button: `Menu`, Text: `菜单`})
+	}
 	overlayWindow.SetButtonHints(hints...)
+}
+
+func (n *StoreNavigator) isRootPage() bool {
+	return len(n.stack) == 1 && n.stack[0].level == storeRoot
 }
 
 func (n *StoreNavigator) activeList() *fbiw.List {
@@ -271,6 +277,7 @@ func (n *StoreNavigator) render(state any) {
 	}
 	if len(page.items) == 0 {
 		n.showMessage("没有内容")
+		n.setButtonHints()
 		return
 	}
 	if state != nil {
@@ -278,6 +285,7 @@ func (n *StoreNavigator) render(state any) {
 	}
 	n.schedulePageBackground(page)
 	n.updatePagination()
+	n.setButtonHints()
 }
 
 func (n *StoreNavigator) showMessage(message string) {
@@ -540,13 +548,18 @@ func (n *StoreNavigator) handleUpEvents(event *fbiw.Event) {
 	}
 	name := event.Input.Name
 	if name == sticks.Menu {
-		n.showMenu()
+		if n.isRootPage() {
+			n.showMenu()
+		}
 		event.StopPropagation()
 		return
 	}
 }
 
 func (n *StoreNavigator) showMenu() {
+	if !n.isRootPage() {
+		return
+	}
 	menu_popup.NewMenuPopup(n.window.app, n.window.doc, []menu_popup.MenuItem{
 		{
 			Name: "更新仓库数据库...",
