@@ -3,6 +3,8 @@ package main
 import (
 	"testing"
 
+	"github.com/movsb/fbiw"
+
 	"github.com/movsb/fbui/pkg/game_library"
 	"github.com/movsb/fbui/pkg/search_window"
 	"github.com/movsb/fbui/pkg/searchable"
@@ -206,6 +208,43 @@ func TestDisplayNamesFallsBackByLanguage(t *testing.T) {
 	for _, test := range tests {
 		if got := displayNames(test.names); got != test.want {
 			t.Errorf("displayNames=%q, want %q", got, test.want)
+		}
+	}
+}
+
+func TestPlatformImagesUseOnlyDisplayableTitleScreens(t *testing.T) {
+	blob := &game_library.Blob{SHA256: "title"}
+	cover := &game_library.Asset{Type: game_library.AssetTypeCover, Format: game_library.FormatRegular, Blob: blob}
+	missingBlob := &game_library.Asset{Type: game_library.AssetTypeTitle, Format: game_library.FormatRegular}
+	archive := &game_library.Asset{Type: game_library.AssetTypeTitle, Format: game_library.FormatZIP, Blob: blob}
+	title := &game_library.Asset{Type: game_library.AssetTypeTitle, Format: game_library.FormatRegular, Blob: blob}
+	if got := selectPlatformImage([]*game_library.Asset{cover, missingBlob, archive}); got != nil {
+		t.Fatalf("platform without displayable title must keep an empty image: got %#v", got)
+	}
+	if got := selectPlatformImage([]*game_library.Asset{cover, missingBlob, archive, title}); got != title {
+		t.Fatalf("platform title = %#v, want %#v", got, title)
+	}
+}
+
+func TestStorePlatformGridNavigation(t *testing.T) {
+	n := &StoreNavigator{
+		list: &fbiw.List{}, platforms: &fbiw.List{}, series: &fbiw.List{},
+		releases: &fbiw.List{}, assets: &fbiw.List{},
+	}
+	for _, tc := range []struct {
+		page storePage
+		want *fbiw.List
+	}{
+		{storePage{level: storeRoot}, n.list},
+		{storePage{level: storePlatforms}, n.platforms},
+		{storePage{level: storeGames}, n.list},
+		{storePage{level: storeGames, groupByPlatform: true}, n.series},
+		{storePage{level: storeReleases}, n.releases},
+		{storePage{level: storeAssets}, n.assets},
+	} {
+		n.stack = []storePage{tc.page}
+		if got := n.activeList(); got != tc.want {
+			t.Fatalf("level %v: active list = %p, want %p", tc.page.level, got, tc.want)
 		}
 	}
 }
