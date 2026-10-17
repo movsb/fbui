@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"io"
 	"iter"
 	"log"
 	"os"
@@ -88,8 +89,12 @@ func emulatorPlatform(component string) string {
 }
 
 func isArcadePath(path string) bool {
+	return isPlatformPath(path, `arcade`)
+}
+
+func isPlatformPath(path, platform string) bool {
 	for _, component := range strings.Split(filepath.Clean(path), string(filepath.Separator)) {
-		if emulatorPlatform(component) == `arcade` {
+		if emulatorPlatform(component) == platform {
 			return true
 		}
 	}
@@ -99,7 +104,7 @@ func isArcadePath(path string) bool {
 // 运行指定的模拟器，返回是否“运行成功”。
 //
 // 目前只通过判断日志内来判断，所以可能不准确。
-func run(binary string, args []string, env expand.Environ, dir, logFile string) bool {
+func run(binary string, args []string, env expand.Environ, dir, logFile string, detectGrayScreen bool) bool {
 	log.Println(`Running:`, args)
 
 	cmd := exec.Command(binary, args...)
@@ -124,13 +129,19 @@ func run(binary string, args []string, env expand.Environ, dir, logFile string) 
 		var terminated atomic.Bool
 		go func() {
 			shouldKill := false
+			grayScreenChecks := 0
 			for range 5 {
 				if terminated.Load() {
 					break
 				}
 
 				all, _ := os.ReadFile(logFile)
-				hasScreenError.Store(hasFinalBurnErrorScreen())
+				if detectGrayScreen && hasGrayErrorScreen() {
+					grayScreenChecks++
+				} else {
+					grayScreenChecks = 0
+				}
+				hasScreenError.Store(hasFinalBurnErrorScreen() || grayScreenChecks >= 2)
 				if hasFinalBurnErrorLogs(all) || hasScreenError.Load() {
 					// log.Println(`文件包含FB错误或错误屏幕：`, logFile)
 					// 温和杀，cmd.Process.Kill 太暴力了。
@@ -335,4 +346,40 @@ func hasFinalBurnErrorScreen() bool {
 	skip(0x69, 0x69, 0x69, 0xFF)
 
 	return true
+}
+
+const visibleFramebufferBytes = 1024 * 768 * 4
+
+// FC 核心加载失败时可能不输出错误日志，也不退出，只留下几乎填满屏幕的
+// #737573 灰色画面。连续检测到两次后，run 会终止当前核心并尝试下一个。
+func hasGrayErrorScreen() bool {
+	fp, err := os.Open(`/dev/fb0`)
+	if err != nil {
+		return false
+	}
+	defer fp.Close()
+
+	pixels := make([]byte, visibleFramebufferBytes)
+	n, err := io.ReadFull(fp, pixels)
+	if err != nil && err != io.ErrUnexpectedEOF {
+		return false
+	}
+	return hasGrayErrorPixels(pixels[:n])
+}
+
+func hasGrayErrorPixels(pixels []byte) bool {
+	total := len(pixels) / 4
+	if total == 0 {
+		return false
+	}
+
+	gray := 0
+	for i := 0; i+3 < len(pixels); i += 4 {
+		// /dev/fb0 uses BGRA byte order. The observed failure screen is
+		// 0xFF737573 as a little-endian 32-bit pixel.
+		if pixels[i] == 0x73 && pixels[i+1] == 0x75 && pixels[i+2] == 0x73 && pixels[i+3] == 0xff {
+			gray++
+		}
+	}
+	return gray*100 >= total*95
 }

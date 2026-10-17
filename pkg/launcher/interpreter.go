@@ -67,15 +67,16 @@ func isRetroArchCommand(args []string) bool {
 
 func runRetroArchCandidates(command []string, scriptPath string, env expand.Environ, dir string) bool {
 	before, originalCore, after := splitByCore(command[1:])
+	detectGrayScreen := isPlatformPath(scriptPath, `fc`)
 	if originalCore == `` {
-		return run(command[0], command[1:], env, dir, `/tmp/retroarch.log`)
+		return run(command[0], command[1:], env, dir, `/tmp/retroarch.log`, detectGrayScreen)
 	}
 
 	candidates := retroArchCoreCandidates(originalCore, scriptPath)
 
 	for _, core := range candidates {
 		logFile := fmt.Sprintf(`/tmp/retroarch_%s.log`, strings.TrimSuffix(filepath.Base(core), `.so`))
-		if run(command[0], joinTheCore(before, core, after), env, dir, logFile) {
+		if run(command[0], joinTheCore(before, core, after), env, dir, logFile, detectGrayScreen) {
 			log.Println(`成功运行:`, core)
 			return true
 		}
