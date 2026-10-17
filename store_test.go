@@ -212,23 +212,23 @@ func TestDisplayNamesFallsBackByLanguage(t *testing.T) {
 	}
 }
 
-func TestPlatformImagesUseOnlyDisplayableTitleScreens(t *testing.T) {
+func TestIconImagesUseOnlyDisplayableTitleScreens(t *testing.T) {
 	blob := &game_library.Blob{SHA256: "title"}
 	cover := &game_library.Asset{Type: game_library.AssetTypeCover, Format: game_library.FormatRegular, Blob: blob}
 	missingBlob := &game_library.Asset{Type: game_library.AssetTypeTitle, Format: game_library.FormatRegular}
 	archive := &game_library.Asset{Type: game_library.AssetTypeTitle, Format: game_library.FormatZIP, Blob: blob}
 	title := &game_library.Asset{Type: game_library.AssetTypeTitle, Format: game_library.FormatRegular, Blob: blob}
-	if got := selectPlatformImage([]*game_library.Asset{cover, missingBlob, archive}); got != nil {
+	if got := selectTitleImage([]*game_library.Asset{cover, missingBlob, archive}); got != nil {
 		t.Fatalf("platform without displayable title must keep an empty image: got %#v", got)
 	}
-	if got := selectPlatformImage([]*game_library.Asset{cover, missingBlob, archive, title}); got != title {
+	if got := selectTitleImage([]*game_library.Asset{cover, missingBlob, archive, title}); got != title {
 		t.Fatalf("platform title = %#v, want %#v", got, title)
 	}
 }
 
-func TestStorePlatformGridNavigation(t *testing.T) {
+func TestStoreIconGridNavigation(t *testing.T) {
 	n := &StoreNavigator{
-		list: &fbiw.List{}, platforms: &fbiw.List{}, series: &fbiw.List{},
+		list: &fbiw.List{}, icons: &fbiw.List{}, series: &fbiw.List{},
 		releases: &fbiw.List{}, assets: &fbiw.List{},
 	}
 	for _, tc := range []struct {
@@ -236,7 +236,8 @@ func TestStorePlatformGridNavigation(t *testing.T) {
 		want *fbiw.List
 	}{
 		{storePage{level: storeRoot}, n.list},
-		{storePage{level: storePlatforms}, n.platforms},
+		{storePage{level: storePlatforms}, n.icons},
+		{storePage{level: storeSeries}, n.icons},
 		{storePage{level: storeGames}, n.list},
 		{storePage{level: storeGames, groupByPlatform: true}, n.series},
 		{storePage{level: storeReleases}, n.releases},

@@ -64,17 +64,17 @@ type storeItemView struct {
 	name *fbiw.Text `css:".name"`
 }
 
-type storePlatformView struct {
+type storeIconView struct {
 	root  fbiw.Box
 	name  *fbiw.Text  `css:".name"`
 	image *fbiw.Image `css:"img"`
 }
 
-func (view *storePlatformView) ListSelectionChanged(selected bool) {
+func (view *storeIconView) ListSelectionChanged(selected bool) {
 	view.name.SetMarqueeRunning(selected)
 }
 
-var _ fbiw.ListSelectionAware = (*storePlatformView)(nil)
+var _ fbiw.ListSelectionAware = (*storeIconView)(nil)
 
 type storeSeriesGameView struct {
 	root     fbiw.Box
@@ -112,7 +112,7 @@ type StoreNavigator struct {
 	shadow          fbiw.Box    `css:"#store"`
 	title           *fbiw.Text  `css:"#store-title"`
 	list            *fbiw.List  `css:"#store-list"`
-	platforms       *fbiw.List  `css:"#store-platform-list"`
+	icons           *fbiw.List  `css:"#store-icon-list"`
 	series          *fbiw.List  `css:"#store-series-list"`
 	releases        *fbiw.List  `css:"#store-release-list"`
 	assets          *fbiw.List  `css:"#store-asset-list"`
@@ -160,7 +160,7 @@ func NewStoreNavigator(win *MainWindow) *StoreNavigator {
 	n.shadow.Listen(fbiw.InputDownEvent, n.handleDownEvents)
 	n.shadow.Listen(fbiw.InputUpEvent, n.handleUpEvents)
 	n.preview.Listen(fbiw.InputDownEvent, n.handlePreviewEvents)
-	n.platforms.Listen(fbiw.ListSelectionChange, func(*fbiw.Event) {
+	n.icons.Listen(fbiw.ListSelectionChange, func(*fbiw.Event) {
 		n.updatePagination()
 		n.setButtonHints()
 	})
@@ -207,9 +207,9 @@ func (n *StoreNavigator) setButtonHints() {
 		return
 	}
 	hints := []ButtonHint{
-		ButtonHint{Button: `A`, Text: `选择`},
-		ButtonHint{Button: `Y`, Text: `搜索`},
-		ButtonHint{Button: `B`, Text: `返回`},
+		{Button: `A`, Text: `选择`},
+		{Button: `Y`, Text: `搜索`},
+		{Button: `B`, Text: `返回`},
 	}
 	if n.selectedDescription() != "" {
 		hints = slices.Insert(hints, 1, ButtonHint{Button: `X`, Text: `描述`})
@@ -225,8 +225,8 @@ func (n *StoreNavigator) isRootPage() bool {
 }
 
 func (n *StoreNavigator) activeList() *fbiw.List {
-	if len(n.stack) > 0 && n.stack[len(n.stack)-1].level == storePlatforms {
-		return n.platforms
+	if len(n.stack) > 0 && (n.stack[len(n.stack)-1].level == storePlatforms || n.stack[len(n.stack)-1].level == storeSeries) {
+		return n.icons
 	}
 	if len(n.stack) > 0 && n.stack[len(n.stack)-1].level == storeReleases {
 		return n.releases
@@ -246,21 +246,21 @@ func (n *StoreNavigator) render(state any) {
 	n.cancelBackgroundUpdate()
 	n.title.SetText(page.title)
 	n.message.SetProp("display", "false")
-	isPlatforms := page.level == storePlatforms
+	isIcons := page.level == storePlatforms || page.level == storeSeries
 	isReleases := page.level == storeReleases
 	isAssets := page.level == storeAssets
-	n.list.SetProp("display", fmt.Sprint(!isPlatforms && !page.groupByPlatform && !isReleases && !isAssets))
+	n.list.SetProp("display", fmt.Sprint(!isIcons && !page.groupByPlatform && !isReleases && !isAssets))
 	n.series.SetProp("display", fmt.Sprint(page.groupByPlatform && !isReleases))
 	n.releases.SetProp("display", fmt.Sprint(isReleases))
 	n.assets.SetProp("display", fmt.Sprint(isAssets))
-	n.platforms.SetProp("display", fmt.Sprint(isPlatforms))
-	if isPlatforms {
-		n.platforms.SetItems(len(page.items),
-			func() (fbiw.Box, *storePlatformView) {
-				view := n.window.doc.Instantiate[storePlatformView](`store-platform-item`)
+	n.icons.SetProp("display", fmt.Sprint(isIcons))
+	if isIcons {
+		n.icons.SetItems(len(page.items),
+			func() (fbiw.Box, *storeIconView) {
+				view := n.window.doc.Instantiate[storeIconView](`store-icon-item`)
 				return view.root, view
 			},
-			func(view *storePlatformView, index int) {
+			func(view *storeIconView, index int) {
 				item := page.items[index]
 				view.name.SetText(item.name)
 				if item.imagePath == "" {
@@ -331,7 +331,7 @@ func (n *StoreNavigator) render(state any) {
 func (n *StoreNavigator) showMessage(message string) {
 	n.msgText.SetText(message)
 	n.message.SetProp("display", "true")
-	n.platforms.SetProp("display", "false")
+	n.icons.SetProp("display", "false")
 	n.list.SetProp("display", "false")
 	n.series.SetProp("display", "false")
 	n.releases.SetProp("display", "false")
@@ -729,15 +729,7 @@ func (n *StoreNavigator) loadKinds(level storeLevel) {
 			page.title = "平台"
 			for _, item := range response {
 				entry := storeItem{name: displayNames(item.Names), description: item.Description, value: item}
-				assets, err := n.metadata.ListOwnedAssets(ctx, game_library.KindPlatform, item.ID)
-				if err == nil {
-					if asset := selectPlatformImage(assets); asset != nil {
-						entry.imagePath, err = n.store.Materialize(ctx, asset, func(string, float32) {})
-					}
-				}
-				if err != nil {
-					log.Printf("加载平台 %d 图片失败：%v", item.ID, err)
-				}
+				entry.imagePath = n.loadTitleImage(ctx, game_library.KindPlatform, item.ID)
 				page.items = append(page.items, entry)
 			}
 		case storeSeries:
@@ -747,11 +739,30 @@ func (n *StoreNavigator) loadKinds(level storeLevel) {
 			}
 			page.title = "系列"
 			for _, item := range response {
-				page.items = append(page.items, storeItem{name: displayNames(item.Names), description: item.Description, value: item})
+				page.items = append(page.items, storeItem{
+					name: displayNames(item.Names), description: item.Description, value: item,
+					imagePath: n.loadTitleImage(ctx, game_library.KindSeries, item.ID),
+				})
 			}
 		}
 		return page, nil
 	})
+}
+
+// loadTitleImage prepares the local path while the page loads, outside list binding.
+func (n *StoreNavigator) loadTitleImage(ctx context.Context, kind game_library.Kind, id int32) string {
+	assets, err := n.metadata.ListOwnedAssets(ctx, kind, id)
+	path := ""
+	if err == nil {
+		if asset := selectTitleImage(assets); asset != nil {
+			path, err = n.store.Materialize(ctx, asset, func(string, float32) {})
+		}
+	}
+	if err != nil {
+		log.Printf("加载标题图片失败（类型 %d，ID %d）：%v", kind, id, err)
+		return ""
+	}
+	return path
 }
 
 func (n *StoreNavigator) loadGames(platformID, seriesID int32, parent string) {
@@ -1023,7 +1034,7 @@ func firstReleaseImage(releases []*game_library.Release, listAssets func(int32) 
 	return nil, nil
 }
 
-func selectPlatformImage(assets []*game_library.Asset) *game_library.Asset {
+func selectTitleImage(assets []*game_library.Asset) *game_library.Asset {
 	for _, asset := range assets {
 		if asset.Type == game_library.AssetTypeTitle && asset.Format == game_library.FormatRegular && asset.Blob != nil {
 			return asset
