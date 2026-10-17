@@ -108,9 +108,9 @@ func (view *storeItemView) ListSelectionChanged(selected bool) {
 var _ fbiw.ListSelectionAware = (*storeItemView)(nil)
 
 type StoreNavigator struct {
-	window          *MainWindow
-	shadow          fbiw.Box    `css:"#store"`
-	title           *fbiw.Text  `css:"#store-title"`
+	window *MainWindow
+	shadow fbiw.Box `css:"#store"`
+	// title           *fbiw.Text  `css:"#store-title"`
 	list            *fbiw.List  `css:"#store-list"`
 	icons           *fbiw.List  `css:"#store-icon-list"`
 	series          *fbiw.List  `css:"#store-series-list"`
@@ -244,7 +244,7 @@ func (n *StoreNavigator) activeList() *fbiw.List {
 func (n *StoreNavigator) render(state any) {
 	page := &n.stack[len(n.stack)-1]
 	n.cancelBackgroundUpdate()
-	n.title.SetText(page.title)
+	// n.title.SetText(page.title)
 	n.message.SetProp("display", "false")
 	isIcons := page.level == storePlatforms || page.level == storeSeries
 	isReleases := page.level == storeReleases
