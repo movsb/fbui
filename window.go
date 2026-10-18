@@ -15,7 +15,7 @@ import (
 	"github.com/movsb/fbui/pkg/mainui"
 )
 
-//go:embed *.html
+//go:embed *.html assets/wallpaper.png
 var _embed embed.FS
 
 type MainWindow struct {

@@ -13,6 +13,17 @@ import (
 	"github.com/movsb/fbui/pkg/swap_manager"
 )
 
+func init() {
+	fbiw.RegisterThemeColor("--text-shadow", "#FFFC", "#000")
+
+	fbiw.DefineStyles(`
+        text {
+            text-outline-width: 1;
+            text-outline-color: var(--text-shadow);
+        }
+    `)
+}
+
 func main() {
 	if err := helpers.DisableJoypad(); err != nil {
 		log.Printf("禁用摇杆失败：%v", err)

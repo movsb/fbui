@@ -1219,7 +1219,7 @@ func (n *StoreNavigator) showImage(path string) {
 func (n *StoreNavigator) setBackgroundImage(asset *game_library.Asset, path string) {
 	n.cancelBackgroundFade(false)
 	n.backgroundImage.SetOSPath(path)
-	n.backgroundImage.Fade(0, .5, 500*time.Millisecond, nil)
+	n.backgroundImage.Fade(0, .7, 500*time.Millisecond, nil)
 	n.backgroundAsset = asset
 }
 
@@ -1268,7 +1268,7 @@ func (n *StoreNavigator) cancelBackgroundFade(restore bool) {
 		n.stopFade = nil
 	}
 	if restore && wasFadingOut {
-		n.backgroundImage.Fade(n.backgroundImage.Opacity(), .5, 500*time.Millisecond, nil)
+		n.backgroundImage.Fade(n.backgroundImage.Opacity(), .7, 500*time.Millisecond, nil)
 	}
 }
 
