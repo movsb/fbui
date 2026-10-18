@@ -1330,10 +1330,10 @@ func (n *StoreNavigator) runROMWithOpener(opener *fbiw.Document, platformID, rel
 			})
 		return
 	}
-	n.window.app.Detach()
+	attach := n.window.detachForExternalProgram()
 	go func() {
 		defer finish()
-		defer n.window.app.AttachAsync()
+		defer attach()
 		n.activeReleaseID.Store(releaseID)
 		defer n.activeReleaseID.CompareAndSwap(releaseID, 0)
 		script := emulator.LauncherScriptPath()

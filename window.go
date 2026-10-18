@@ -10,6 +10,7 @@ import (
 	"github.com/movsb/fbiw"
 	"github.com/movsb/fbiw/input/sticks"
 	"github.com/movsb/fbui/pkg/config"
+	"github.com/movsb/fbui/pkg/helpers"
 	"github.com/movsb/fbui/pkg/launcher"
 	"github.com/movsb/fbui/pkg/mainui"
 )
@@ -67,9 +68,9 @@ func (w *MainWindow) launchItem(item mainui.Item) {
 	if err := w.lists.AddRecent(item); err != nil {
 		log.Println("更新最近项目失败：", err)
 	}
-	w.app.Detach()
+	attach := w.detachForExternalProgram()
 	go func() {
-		defer w.app.AttachAsync()
+		defer attach()
 		var err error
 		if item.ROMPath != "" {
 			err = launcher.RunScript(context.Background(), item.Launch, item.ROMPath)
@@ -83,6 +84,24 @@ func (w *MainWindow) launchItem(item mainui.Item) {
 			w.doc.Async(func() { w.showLaunchError(err) })
 		}
 	}()
+}
+
+// detachForExternalProgram 在把显示和输入交给游戏或外部程序时恢复摇杆，
+// 并返回一个必须在外部程序退出后调用的函数。恢复 fbui 时，要先 Attach
+// 再禁用摇杆，保证标记文件的状态始终和 fbui 是否在前台一致。
+func (w *MainWindow) detachForExternalProgram() func() {
+	w.app.Detach()
+	if err := helpers.EnableJoypad(); err != nil {
+		log.Printf("恢复摇杆失败：%v", err)
+	}
+	return func() {
+		w.app.Async(func() {
+			w.app.Attach()
+			if err := helpers.DisableJoypad(); err != nil {
+				log.Printf("禁用摇杆失败：%v", err)
+			}
+		})
+	}
 }
 
 func (w *MainWindow) showLaunchError(err error) {

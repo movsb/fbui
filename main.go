@@ -9,10 +9,15 @@ import (
 	"github.com/movsb/fbiw"
 	"github.com/movsb/fbui/assets/fonts"
 	"github.com/movsb/fbui/pkg/config"
+	"github.com/movsb/fbui/pkg/helpers"
 	"github.com/movsb/fbui/pkg/swap_manager"
 )
 
 func main() {
+	if err := helpers.DisableJoypad(); err != nil {
+		log.Printf("禁用摇杆失败：%v", err)
+	}
+
 	app := fbiw.NewApp()
 	defer app.Close()
 	stopAutoUpdate := startExecutableAutoUpdate(func() bool { return !app.Detached() })

@@ -7,8 +7,10 @@
 		"fswatcher",
 		"gambatte",
 		"GOEXPERIMENT",
+		"Joypad",
 		"kobject",
 		"launchable",
+		"mainui",
 		"mame",
 		"netlink",
 		"osdd",
@@ -20,8 +22,7 @@
 		"swapon",
 		"TRIMUI",
 		"uevent",
-		"wlan",
-		"mainui"
+		"wlan"
 	],
 	"go.toolsEnvVars": {
 		"GOEXPERIMENT": "simd"
