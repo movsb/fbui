@@ -54,7 +54,6 @@ func Match(search string, provides ...string) bool {
 	underlying := [256]byte{}
 	buf := underlying[:]
 
-	match := false
 	for _, provide := range provides {
 		if literalSearch != "" && strings.Contains(normalizeLiteral(provide), literalSearch) {
 			return true
@@ -63,16 +62,11 @@ func Match(search string, provides ...string) bool {
 			continue
 		}
 		runes := []rune(provide)
-		yield := func(s string) {
-			if !match {
-				match = subSeq(initialSearch, s)
-			}
+		yield := func(s string) bool {
+			return subSeq(initialSearch, s)
 		}
-		constructMode(buf, 0, runes, 0, false, yield)
-		if !match {
-			constructMode(buf, 0, runes, 0, true, yield)
-		}
-		if match {
+		if constructMode(buf, 0, runes, 0, false, yield) ||
+			constructMode(buf, 0, runes, 0, true, yield) {
 			return true
 		}
 	}
@@ -230,38 +224,39 @@ func formatRoman(value int) string {
 	return b.String()
 }
 
-// TODO 支持中途停止
-func construct(buf []byte, i int, provide []rune, j int, yield func(string)) {
-	constructMode(buf, i, provide, j, false, yield)
+func construct(buf []byte, i int, provide []rune, j int, yield func(string) bool) bool {
+	return constructMode(buf, i, provide, j, false, yield)
 }
 
-func constructMode(buf []byte, i int, provide []rune, j int, preserveWordSpaces bool, yield func(string)) {
+// constructMode returns true when yield asks the traversal to stop.
+func constructMode(buf []byte, i int, provide []rune, j int, preserveWordSpaces bool, yield func(string) bool) bool {
 	if j == len(provide) {
-		yield(string(buf[:i]))
-		return
+		return yield(string(buf[:i]))
 	}
 	if number, next, ok := romanNumeralAt(provide, j); ok && i+len(number) <= len(buf) {
 		copy(buf[i:], number)
-		constructMode(buf, i+len(number), provide, next, preserveWordSpaces, yield)
+		if constructMode(buf, i+len(number), provide, next, preserveWordSpaces, yield) {
+			return true
+		}
 	}
 	r := provide[j]
 	if r < utf8.RuneSelf {
 		switch {
 		case '0' <= r && r <= '9':
 			if i+1 > len(buf) {
-				return
+				return false
 			}
 			buf[i] = byte(r)
 			i++
 		case 'a' <= r && r <= 'z':
 			if i+1 > len(buf) {
-				return
+				return false
 			}
 			buf[i] = byte(r)
 			i++
 		case 'A' <= r && r <= 'Z':
 			if i+1 > len(buf) {
-				return
+				return false
 			}
 			r += 0x20
 			buf[i] = byte(r)
@@ -270,34 +265,36 @@ func constructMode(buf []byte, i int, provide []rune, j int, preserveWordSpaces 
 			var ok bool
 			i, ok = appendBoundary(buf, i)
 			if !ok {
-				return
+				return false
 			}
 		}
-		constructMode(buf, i, provide, j+1, preserveWordSpaces, yield)
-		return
+		return constructMode(buf, i, provide, j+1, preserveWordSpaces, yield)
 	}
 	if mapped, ok := runeMaps()[r]; ok {
 		parts := strings.SplitSeq(mapped, `,`)
 		for part := range parts {
 			if i+len(part) > len(buf) {
-				return
+				return false
 			}
 			copy(buf[i:], []byte(part))
-			constructMode(buf, i+len(part), provide, j+1, preserveWordSpaces, yield)
+			if constructMode(buf, i+len(part), provide, j+1, preserveWordSpaces, yield) {
+				return true
+			}
 		}
 		if digit, ok := chineseDigit[r]; ok && i+1 <= len(buf) {
 			buf[i] = digit
-			constructMode(buf, i+1, provide, j+1, preserveWordSpaces, yield)
+			if constructMode(buf, i+1, provide, j+1, preserveWordSpaces, yield) {
+				return true
+			}
 		}
-		return
+		return false
 	}
 	if digit, ok := chineseDigit[r]; ok {
 		if i+1 > len(buf) {
-			return
+			return false
 		}
 		buf[i] = digit
-		constructMode(buf, i+1, provide, j+1, preserveWordSpaces, yield)
-		return
+		return constructMode(buf, i+1, provide, j+1, preserveWordSpaces, yield)
 	}
 
 	// 撇号（包括其两侧的空格）不打断搜索；普通空格、
@@ -306,11 +303,11 @@ func constructMode(buf []byte, i int, provide []rune, j int, preserveWordSpaces 
 		var ok bool
 		i, ok = appendBoundary(buf, i)
 		if !ok {
-			return
+			return false
 		}
 	}
 
-	constructMode(buf, i, provide, j+1, preserveWordSpaces, yield)
+	return constructMode(buf, i, provide, j+1, preserveWordSpaces, yield)
 }
 
 // 判断子串。

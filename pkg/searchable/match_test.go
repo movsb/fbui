@@ -8,8 +8,9 @@ import (
 func TestConstruct(t *testing.T) {
 	buf := make([]byte, 256)
 	out := []string{}
-	construct(buf, 0, []rune(`1《重aB,`), 0, func(s string) {
+	construct(buf, 0, []rune(`1《重aB,`), 0, func(s string) bool {
 		out = append(out, s)
+		return false
 	})
 	if !reflect.DeepEqual(out, []string{`1 zab `, `1 cab `}) {
 		t.Fatalf(`不相等: %s`, out)
@@ -18,8 +19,9 @@ func TestConstruct(t *testing.T) {
 
 func TestConstruct2(t *testing.T) {
 	buf := make([]byte, 256)
-	construct(buf, 0, []rune(`重装机兵.nes`), 0, func(s string) {
+	construct(buf, 0, []rune(`重装机兵.nes`), 0, func(s string) bool {
 		t.Log(s)
+		return false
 	})
 }
 
@@ -52,7 +54,7 @@ func TestMatchDoesNotCrossStructuralSeparator(t *testing.T) {
 func TestConstructCompressesSpaces(t *testing.T) {
 	buf := make([]byte, 256)
 	var got string
-	construct(buf, 0, []rune(`s   mb`), 0, func(s string) { got = s })
+	construct(buf, 0, []rune(`s   mb`), 0, func(s string) bool { got = s; return false })
 	if got != `s mb` {
 		t.Fatalf("got %q, want %q", got, `s mb`)
 	}
@@ -61,6 +63,17 @@ func TestConstructCompressesSpaces(t *testing.T) {
 	}
 	if !Match(`qh97`, `拳皇   '97`) {
 		t.Fatal(`qh97 did not match 拳皇   '97`)
+	}
+}
+
+func TestConstructStopsWhenYieldReturnsTrue(t *testing.T) {
+	count := 0
+	stopped := construct(make([]byte, 256), 0, []rune(`重重重`), 0, func(string) bool {
+		count++
+		return true
+	})
+	if !stopped || count != 1 {
+		t.Fatalf("stopped=%v, yields=%d; want true, 1", stopped, count)
 	}
 }
 
