@@ -5,6 +5,7 @@ import (
 	"bytes"
 	_ "embed"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"unicode"
@@ -160,6 +161,75 @@ func appendBoundary(buf []byte, i int) (int, bool) {
 	return i + 1, true
 }
 
+func isASCIILetter(r rune) bool {
+	return 'a' <= r && r <= 'z' || 'A' <= r && r <= 'Z'
+}
+
+func romanNumeralAt(s []rune, start int) (string, int, bool) {
+	if start > 0 && isASCIILetter(s[start-1]) {
+		return "", start, false
+	}
+	valueOf := func(r rune) int {
+		switch r {
+		case 'I':
+			return 1
+		case 'V':
+			return 5
+		case 'X':
+			return 10
+		case 'L':
+			return 50
+		case 'C':
+			return 100
+		case 'D':
+			return 500
+		case 'M':
+			return 1000
+		default:
+			return 0
+		}
+	}
+	end := start
+	for end < len(s) && valueOf(s[end]) != 0 {
+		end++
+	}
+	if end == start || end < len(s) && isASCIILetter(s[end]) {
+		return "", start, false
+	}
+	token := string(s[start:end])
+	value := 0
+	for i := 0; i < len(token); i++ {
+		current := valueOf(rune(token[i]))
+		if i+1 < len(token) && current < valueOf(rune(token[i+1])) {
+			value -= current
+		} else {
+			value += current
+		}
+	}
+	if value <= 0 || value > 3999 || formatRoman(value) != token {
+		return "", start, false
+	}
+	return strconv.Itoa(value), end, true
+}
+
+func formatRoman(value int) string {
+	var b strings.Builder
+	for _, part := range []struct {
+		value int
+		text  string
+	}{
+		{1000, "M"}, {900, "CM"}, {500, "D"}, {400, "CD"},
+		{100, "C"}, {90, "XC"}, {50, "L"}, {40, "XL"},
+		{10, "X"}, {9, "IX"}, {5, "V"}, {4, "IV"}, {1, "I"},
+	} {
+		for value >= part.value {
+			b.WriteString(part.text)
+			value -= part.value
+		}
+	}
+	return b.String()
+}
+
 // TODO 支持中途停止
 func construct(buf []byte, i int, provide []rune, j int, yield func(string)) {
 	constructMode(buf, i, provide, j, false, yield)
@@ -169,6 +239,10 @@ func constructMode(buf []byte, i int, provide []rune, j int, preserveWordSpaces 
 	if j == len(provide) {
 		yield(string(buf[:i]))
 		return
+	}
+	if number, next, ok := romanNumeralAt(provide, j); ok && i+len(number) <= len(buf) {
+		copy(buf[i:], number)
+		constructMode(buf, i+len(number), provide, next, preserveWordSpaces, yield)
 	}
 	r := provide[j]
 	if r < utf8.RuneSelf {
@@ -226,7 +300,7 @@ func constructMode(buf []byte, i int, provide []rune, j int, preserveWordSpaces 
 		return
 	}
 
-	// 撇号和连字符（包括其两侧的空格）不打断搜索；普通空格、
+	// 撇号（包括其两侧的空格）不打断搜索；普通空格、
 	// 括号等结构性分隔则保留为边界。
 	if !isSoftSeparator(provide, j, preserveWordSpaces) {
 		var ok bool

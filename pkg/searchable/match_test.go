@@ -98,3 +98,15 @@ func TestMatchDoesNotCrossHyphen(t *testing.T) {
 		t.Fatal(`sfy unexpectedly crossed the title separator`)
 	}
 }
+
+func TestMatchRomanNumeralAsArabicNumber(t *testing.T) {
+	name := `恶魔城II：贝尔蒙特的复仇`
+	for _, query := range []string{`emcii`, `emc2`} {
+		if !Match(query, name) {
+			t.Errorf("query %q did not match %q", query, name)
+		}
+	}
+	if !Match(`Castlevania 2`, `Castlevania II - Belmont's Revenge`) {
+		t.Fatal(`Latin title did not match its Arabic-number query`)
+	}
+}
