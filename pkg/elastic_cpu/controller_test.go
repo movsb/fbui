@@ -64,7 +64,7 @@ func TestApplyAndRestore(t *testing.T) {
 	}
 	put("cpu1/online", "1")
 	put("cpu2/online", "0")
-	for k, v := range map[string]string{"scaling_governor": "performance", "scaling_available_governors": "performance ondemand", "scaling_min_freq": "1008000", "scaling_max_freq": "2000000", "cpuinfo_min_freq": "200000"} {
+	for k, v := range map[string]string{"scaling_governor": "performance", "scaling_available_governors": "performance ondemand", "scaling_min_freq": "1008000", "scaling_max_freq": "466962", "cpuinfo_max_freq": "2000000", "cpuinfo_min_freq": "200000"} {
 		put("cpufreq/policy0/"+k, v)
 	}
 	c, e := discover(base)
@@ -90,9 +90,19 @@ func TestApplyAndRestore(t *testing.T) {
 	}
 	check("cpu1/online", "1")
 	check("cpufreq/policy0/scaling_max_freq", "2000000")
+	check("cpufreq/policy0/scaling_min_freq", "1008000")
+	// Rediscovery after a restart must not derive another lower idle cap.
+	again, err := discover(base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again.policies[0].idle != 800000 {
+		t.Fatal("idle cap compounded after restart")
+	}
 	c.restore()
 	check("cpu1/online", "1")
 	check("cpu2/online", "0")
+	check("cpufreq/policy0/scaling_max_freq", "466962")
 	check("cpufreq/policy0/scaling_governor", "performance")
 	check("cpufreq/policy0/scaling_min_freq", "1008000")
 }

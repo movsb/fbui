@@ -20,6 +20,7 @@ type setting struct{ path, value string }
 type policy struct {
 	dir, governor  string
 	min, max, idle int
+	gameMin        int
 }
 type controller struct {
 	cpus     []string
@@ -140,7 +141,7 @@ func discover(base string) (*controller, error) {
 		if p.min, err = readInt(filepath.Join(dir, "cpuinfo_min_freq")); err != nil {
 			return nil, err
 		}
-		if p.max, err = readInt(filepath.Join(dir, "scaling_max_freq")); err != nil {
+		if p.max, err = readInt(filepath.Join(dir, "cpuinfo_max_freq")); err != nil {
 			return nil, err
 		}
 		if p.max < p.min {
@@ -160,6 +161,12 @@ func discover(base string) (*controller, error) {
 		if p.governor == "" {
 			return nil, fmt.Errorf("%s 不支持 schedutil/ondemand", dir)
 		}
+		startMin, err := readInt(filepath.Join(dir, "scaling_min_freq"))
+		if err != nil {
+			return nil, err
+		}
+		// Handheld audio needs a frequency floor; do not inherit a stale idle cap.
+		p.gameMin = min(p.max, max(p.min, startMin, 1008000))
 		p.idle = p.min + (p.max-p.min)/3
 		c.policies = append(c.policies, p)
 	}
@@ -187,15 +194,21 @@ func (c *controller) apply(game bool) error {
 		}
 	}
 	for _, p := range c.policies {
-		cap := p.idle
+		cap, floor := p.idle, p.min
 		if game {
-			cap = p.max
+			cap, floor = p.max, p.gameMin
 		}
-		for _, s := range []setting{
-			{filepath.Join(p.dir, "scaling_min_freq"), strconv.Itoa(p.min)},
+		// Lower the floor before lowering the cap; raise the cap before raising
+		// the floor, since the previous UI cap may be below the game's floor.
+		limits := []setting{
 			{filepath.Join(p.dir, "scaling_max_freq"), strconv.Itoa(cap)},
-			{filepath.Join(p.dir, "scaling_governor"), p.governor},
-		} {
+			{filepath.Join(p.dir, "scaling_min_freq"), strconv.Itoa(floor)},
+		}
+		if !game {
+			limits[0], limits[1] = limits[1], limits[0]
+		}
+		limits = append(limits, setting{filepath.Join(p.dir, "scaling_governor"), p.governor})
+		for _, s := range limits {
 			if e := write(s.path, s.value); e != nil {
 				return e
 			}

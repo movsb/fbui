@@ -130,7 +130,7 @@ func run(binary string, args []string, env expand.Environ, dir, logFile string, 
 		go func() {
 			shouldKill := false
 			grayScreenChecks := 0
-			for range 5 {
+			for range 10 {
 				if terminated.Load() {
 					break
 				}
