@@ -32,8 +32,8 @@ type OverlayWindow struct {
 	txtBluetoothOpen *fbiw.Text `css:"#bluetooth"`
 	txtCpuStatus     *fbiw.Text `css:"#cpu"`
 
-	bottom      *fbiw.Inline `css:"#bottom"`
-	buttonHints []*overlayButtonHint
+	hintContainer *fbiw.Inline `css:"#button-hints"`
+	buttonHints   []*overlayButtonHint
 
 	currentDoc       *fbiw.Document
 	buttonHintsByDoc map[*fbiw.Document][]ButtonHint
@@ -81,7 +81,7 @@ func (win *OverlayWindow) SetTitle(s string) {
 }
 
 // SetButtonHints replaces the button hints displayed at the bottom of the
-// overlay for the current document. Passing no hints hides the bottom bar.
+// overlay for the current document. Passing no hints hides the hints while keeping the CPU status visible.
 func (win *OverlayWindow) SetButtonHints(hints ...ButtonHint) {
 	if win.currentDoc != nil {
 		win.buttonHintsByDoc[win.currentDoc] = slices.Clone(hints)
@@ -103,12 +103,12 @@ func (win *OverlayWindow) renderButtonHints(hints []ButtonHint) {
 			view.text.SetText(hints[i].Text)
 		}
 	}
-	win.bottom.SetProp(`display`, fmt.Sprint(len(hints) > 0))
+	win.hintContainer.SetProp(`display`, fmt.Sprint(len(hints) > 0))
 }
 
 func (win *OverlayWindow) appendButtonHint() {
 	hint := win.doc.Instantiate[overlayButtonHint](`button-hint`)
-	win.bottom.AppendChild(hint.root)
+	win.hintContainer.AppendChild(hint.root)
 	win.buttonHints = append(win.buttonHints, hint)
 }
 
@@ -132,7 +132,7 @@ func (win *OverlayWindow) watchDocChange() {
 func (win *OverlayWindow) initCpuUsage() {
 	go helpers.WatchCPU(win.app.Context(), time.Second*3, func(s string) {
 		win.doc.Async(func() {
-			win.txtCpuStatus.SetText(s)
+			win.txtCpuStatus.SetTextFormat(`CPU: %s`, s)
 		})
 	})
 }
