@@ -5,10 +5,12 @@ import (
 	"log"
 	"net/http"
 	_ "net/http/pprof"
+	"sync/atomic"
 
 	"github.com/movsb/fbiw"
 	"github.com/movsb/fbui/assets/fonts"
 	"github.com/movsb/fbui/pkg/config"
+	"github.com/movsb/fbui/pkg/elastic_cpu"
 	"github.com/movsb/fbui/pkg/helpers"
 	"github.com/movsb/fbui/pkg/swap_manager"
 )
@@ -31,6 +33,14 @@ func main() {
 
 	app := fbiw.NewApp()
 	defer app.Close()
+
+	var externalRunning atomic.Bool
+	stopCPU := elastic_cpu.Start(func() bool {
+		app.Async(func() { externalRunning.Store(app.Detached()) })
+		return externalRunning.Load()
+	})
+	defer stopCPU()
+
 	stopAutoUpdate := startExecutableAutoUpdate(func() bool { return !app.Detached() })
 	defer stopAutoUpdate()
 
