@@ -28,7 +28,7 @@ const (
 	AssetTypeManual
 	AssetTypeScreenshot
 	AssetTypeOther
-	AssetTypeVideo
+	_ // Reserved former video type (6).
 	AssetTypeLogo
 	AssetTypeSystem
 	AssetTypeTitle

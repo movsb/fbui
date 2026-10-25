@@ -40,7 +40,10 @@ type LaunchableAsset struct {
 	PlatformID int32
 }
 
-const SupportedDatabaseVersion = 19
+const SupportedDatabaseVersion = 20
+
+// v20 only removes video assets; v19 has the same readable schema.
+const minimumDatabaseVersion = 19
 
 type Library struct {
 	db  *sql.DB
@@ -76,8 +79,8 @@ func (l *Library) validate(ctx context.Context) error {
 	if err := l.db.QueryRowContext(ctx, `SELECT value FROM options WHERE name='db_ver'`).Scan(&version); err != nil {
 		return fmt.Errorf("invalid game library database: %w", err)
 	}
-	if version != SupportedDatabaseVersion {
-		return fmt.Errorf("不支持的数据库版本。\n\n版本: %d\n期望: %d", version, SupportedDatabaseVersion)
+	if version < minimumDatabaseVersion || version > SupportedDatabaseVersion {
+		return fmt.Errorf("不支持的数据库版本。\n\n版本: %d\n支持: %d–%d", version, minimumDatabaseVersion, SupportedDatabaseVersion)
 	}
 	for _, table := range []string{"platforms", "series", "games", "names", "releases", "assets", "entries", "blobs", "rom_sets", "rom_import_exclusions"} {
 		var found string

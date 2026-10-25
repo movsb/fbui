@@ -294,9 +294,14 @@ func TestOpenLibraryRejectsMissingAndWrongVersion(t *testing.T) {
 	if _, err := OpenLibrary(filepath.Join(t.TempDir(), "missing.db")); err == nil {
 		t.Fatal("expected missing database error")
 	}
-	path := createTestLibrary(t, SupportedDatabaseVersion-1)
-	if _, err := OpenLibrary(path); err == nil || !strings.Contains(err.Error(), "unsupported") {
-		t.Fatalf("unexpected error: %v", err)
+	for _, version := range []int{minimumDatabaseVersion - 1, SupportedDatabaseVersion + 1} {
+		path := createTestLibrary(t, version)
+		if library, err := OpenLibrary(path); err == nil {
+			library.Close()
+			t.Fatalf("unsupported database version %d was accepted", version)
+		} else if !strings.Contains(err.Error(), "不支持的数据库版本") {
+			t.Fatalf("unexpected error: %v", err)
+		}
 	}
 }
 
@@ -314,5 +319,20 @@ func TestOpenLibraryRejectsMissingTable(t *testing.T) {
 	}
 	if _, err := OpenLibrary(path); err == nil || !strings.Contains(err.Error(), "missing table entries") {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestOpenLibrarySupportsV19AndV20(t *testing.T) {
+	for _, version := range []int{19, 20} {
+		t.Run(fmt.Sprint(version), func(t *testing.T) {
+			library, err := OpenLibrary(createTestLibrary(t, version))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer library.Close()
+			if _, err := library.ListPlatforms(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+		})
 	}
 }

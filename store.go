@@ -22,7 +22,6 @@ import (
 	"github.com/movsb/fbui/pkg/menu_popup"
 	"github.com/movsb/fbui/pkg/progress_popup"
 	"github.com/movsb/fbui/pkg/search_window"
-	"github.com/movsb/fbui/pkg/video_player"
 )
 
 const gmBlobBaseURL = "http://192.168.10.10:8888"
@@ -122,8 +121,6 @@ type StoreNavigator struct {
 	backgroundImage *fbiw.Image `css:"#store-background img"`
 	preview         *fbiw.Stack `css:"#store-preview"`
 	previewImage    *fbiw.Image `css:"#store-preview img"`
-
-	video *video_player.VideoPlayer `css:"#store-preview video"`
 
 	// 游戏商店元数据来源。
 	metadata    *game_library.Library
@@ -1153,8 +1150,6 @@ func (n *StoreNavigator) openAsset(game *game_library.Game, asset *game_library.
 				n.runROM(game.PlatformID, asset.KindID, path)
 			case game_library.AssetTypeCover, game_library.AssetTypeScreenshot, game_library.AssetTypeLogo, game_library.AssetTypeTitle:
 				n.showImage(path)
-			case game_library.AssetTypeVideo:
-				n.showVideo(path)
 			default:
 				n.window.app.ShowAlertDialog(n.window.doc,
 					fbiw.AlertDialogOptions{
@@ -1208,7 +1203,6 @@ func (n *StoreNavigator) showRemoteOpenError(id int32, err error) {
 }
 
 func (n *StoreNavigator) showImage(path string) {
-	n.video.SetProp("display", "false")
 	n.previewImage.SetOSPath(path)
 	n.previewImage.SetProp("display", "true")
 	n.preview.SetProp("display", "true")
@@ -1272,18 +1266,8 @@ func (n *StoreNavigator) cancelBackgroundFade(restore bool) {
 	}
 }
 
-func (n *StoreNavigator) showVideo(path string) {
-	n.previewImage.SetProp("display", "false")
-	n.video.SetPath(path)
-	n.video.SetProp("display", "true")
-	n.preview.SetProp("display", "true")
-	n.preview.Activate()
-	overlayWindow.SetButtonHints(ButtonHint{Button: `B`, Text: `关闭`})
-}
-
 func (n *StoreNavigator) handlePreviewEvents(event *fbiw.Event) {
 	if event.Input.Name == sticks.B {
-		n.video.Stop()
 		n.preview.SetProp("display", "false")
 		n.activeList().Activate()
 		n.setButtonHints()
@@ -1427,7 +1411,6 @@ func assetTypeName(kind game_library.AssetType) string {
 		game_library.AssetTypeROM:        "ROM",
 		game_library.AssetTypeCover:      "封面",
 		game_library.AssetTypeScreenshot: "截图",
-		game_library.AssetTypeVideo:      "视频",
 		game_library.AssetTypeLogo:       "Logo",
 		game_library.AssetTypeManual:     "说明书",
 		game_library.AssetTypeSystem:     "系统",
