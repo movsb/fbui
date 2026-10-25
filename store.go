@@ -1042,23 +1042,8 @@ func selectTitleImage(assets []*game_library.Asset) *game_library.Asset {
 
 func selectReleaseImage(gameAssets, releaseAssets []*game_library.Asset) *game_library.Asset {
 	for _, assets := range [][]*game_library.Asset{gameAssets, releaseAssets} {
-		for _, asset := range assets {
-			if asset.Type == game_library.AssetTypeTitle && asset.Format == game_library.FormatRegular && asset.Blob != nil {
-				return asset
-			}
-		}
-	}
-	for _, assets := range [][]*game_library.Asset{gameAssets, releaseAssets} {
-		for _, assetType := range []game_library.AssetType{
-			game_library.AssetTypeScreenshot,
-			game_library.AssetTypeLogo,
-			game_library.AssetTypeCover,
-		} {
-			for _, asset := range assets {
-				if asset.Type == assetType && asset.Format == game_library.FormatRegular && asset.Blob != nil {
-					return asset
-				}
-			}
+		if image := selectTitleImage(assets); image != nil {
+			return image
 		}
 	}
 	return nil
@@ -1075,6 +1060,9 @@ func (n *StoreNavigator) loadAssets(game *game_library.Game, release *game_libra
 			return response[i].Type == game_library.AssetTypeROM && response[j].Type != game_library.AssetTypeROM
 		})
 		for _, item := range response {
+			if item.Type == game_library.AssetTypeTitle {
+				continue
+			}
 			page.items = append(page.items, storeItem{
 				name:        item.Name,
 				detail:      assetDetail(game, item),
@@ -1148,7 +1136,7 @@ func (n *StoreNavigator) openAsset(game *game_library.Game, asset *game_library.
 			switch asset.Type {
 			case game_library.AssetTypeROM:
 				n.runROM(game.PlatformID, asset.KindID, path)
-			case game_library.AssetTypeCover, game_library.AssetTypeScreenshot, game_library.AssetTypeLogo, game_library.AssetTypeTitle:
+			case game_library.AssetTypeTitle:
 				n.showImage(path)
 			default:
 				n.window.app.ShowAlertDialog(n.window.doc,
@@ -1408,14 +1396,8 @@ func displayNames(names []game_library.Name) string {
 
 func assetTypeName(kind game_library.AssetType) string {
 	name := map[game_library.AssetType]string{
-		game_library.AssetTypeROM:        "ROM",
-		game_library.AssetTypeCover:      "封面",
-		game_library.AssetTypeScreenshot: "截图",
-		game_library.AssetTypeLogo:       "Logo",
-		game_library.AssetTypeManual:     "说明书",
-		game_library.AssetTypeSystem:     "系统",
-		game_library.AssetTypeTitle:      "标题画面",
-		game_library.AssetTypeOther:      "其它",
+		game_library.AssetTypeROM:   "ROM",
+		game_library.AssetTypeTitle: "标题画面",
 	}[kind]
 	if name == "" {
 		return "未指定"

@@ -68,31 +68,20 @@ func TestStoreSearchPrioritizesOriginalReleaseMatches(t *testing.T) {
 
 func TestSelectReleaseImage(t *testing.T) {
 	blob := &game_library.Blob{SHA256: "image"}
-	asset := func(id int32, typ game_library.AssetType) *game_library.Asset {
-		return &game_library.Asset{ID: id, Type: typ, Format: game_library.FormatRegular, Blob: blob}
+	gameTitle := &game_library.Asset{Type: game_library.AssetTypeTitle, Format: game_library.FormatRegular, Blob: blob}
+	releaseTitle := &game_library.Asset{Type: game_library.AssetTypeTitle, Format: game_library.FormatRegular, Blob: blob}
+	if got := selectReleaseImage([]*game_library.Asset{gameTitle}, []*game_library.Asset{releaseTitle}); got != gameTitle {
+		t.Fatalf("game title must win: %#v", got)
 	}
-
-	gameCover := asset(1, game_library.AssetTypeCover)
-	releaseScreenshot := asset(2, game_library.AssetTypeScreenshot)
-	if got := selectReleaseImage([]*game_library.Asset{gameCover}, []*game_library.Asset{releaseScreenshot}); got != gameCover {
-		t.Fatalf("game asset must win across owners: got %#v", got)
-	}
-
-	releaseTitle := asset(6, game_library.AssetTypeTitle)
-	if got := selectReleaseImage([]*game_library.Asset{gameCover}, []*game_library.Asset{releaseScreenshot, releaseTitle}); got != releaseTitle {
-		t.Fatalf("title screen must win across owners: got %#v", got)
-	}
-
-	gameLogo := asset(3, game_library.AssetTypeLogo)
-	gameScreenshot := asset(4, game_library.AssetTypeScreenshot)
-	if got := selectReleaseImage([]*game_library.Asset{gameCover, gameLogo, gameScreenshot}, nil); got != gameScreenshot {
-		t.Fatalf("screenshot must win within an owner: got %#v", got)
-	}
-
-	zipScreenshot := asset(5, game_library.AssetTypeScreenshot)
-	zipScreenshot.Format = game_library.FormatZIP
-	if got := selectReleaseImage([]*game_library.Asset{zipScreenshot}, []*game_library.Asset{releaseScreenshot}); got != releaseScreenshot {
-		t.Fatalf("non-displayable game asset should fall back to release asset: got %#v", got)
+	for _, invalid := range []*game_library.Asset{
+		{Type: game_library.AssetTypeTitle, Format: game_library.FormatZIP, Blob: blob},
+		{Type: game_library.AssetTypeTitle, Format: game_library.FormatRegular},
+		{Type: game_library.AssetTypeROM, Format: game_library.FormatRegular, Blob: blob},
+		{Type: game_library.AssetType(7), Format: game_library.FormatRegular, Blob: blob},
+	} {
+		if got := selectReleaseImage([]*game_library.Asset{invalid}, []*game_library.Asset{releaseTitle}); got != releaseTitle {
+			t.Fatalf("invalid game image should fall back: %#v", got)
+		}
 	}
 }
 
@@ -100,7 +89,7 @@ func TestFirstReleaseImageSkipsReleasesWithoutImages(t *testing.T) {
 	releases := []*game_library.Release{{ID: 10}, {ID: 20}, {ID: 30}}
 	image := &game_library.Asset{
 		ID:     2,
-		Type:   game_library.AssetTypeScreenshot,
+		Type:   game_library.AssetTypeTitle,
 		Format: game_library.FormatRegular,
 		Blob:   &game_library.Blob{SHA256: "image"},
 	}
@@ -214,7 +203,7 @@ func TestDisplayNamesFallsBackByLanguage(t *testing.T) {
 
 func TestIconImagesUseOnlyDisplayableTitleScreens(t *testing.T) {
 	blob := &game_library.Blob{SHA256: "title"}
-	cover := &game_library.Asset{Type: game_library.AssetTypeCover, Format: game_library.FormatRegular, Blob: blob}
+	cover := &game_library.Asset{Type: game_library.AssetTypeROM, Format: game_library.FormatRegular, Blob: blob}
 	missingBlob := &game_library.Asset{Type: game_library.AssetTypeTitle, Format: game_library.FormatRegular}
 	archive := &game_library.Asset{Type: game_library.AssetTypeTitle, Format: game_library.FormatZIP, Blob: blob}
 	title := &game_library.Asset{Type: game_library.AssetTypeTitle, Format: game_library.FormatRegular, Blob: blob}

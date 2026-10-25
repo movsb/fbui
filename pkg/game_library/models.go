@@ -24,13 +24,13 @@ type AssetType int32
 
 const (
 	AssetTypeROM AssetType = iota + 1
-	AssetTypeCover
-	AssetTypeManual
-	AssetTypeScreenshot
-	AssetTypeOther
-	_ // Reserved former video type (6).
-	AssetTypeLogo
-	AssetTypeSystem
+	_                      // Reserved former cover type (2).
+	_                      // Reserved former manual type (3).
+	_                      // Reserved former screenshot type (4).
+	_                      // Reserved former other type (5).
+	_                      // Reserved former video type (6).
+	_                      // Reserved former logo type (7).
+	_                      // Reserved former system type (8).
 	AssetTypeTitle
 )
 
