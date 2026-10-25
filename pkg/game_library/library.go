@@ -77,7 +77,7 @@ func (l *Library) validate(ctx context.Context) error {
 		return fmt.Errorf("invalid game library database: %w", err)
 	}
 	if version != SupportedDatabaseVersion {
-		return fmt.Errorf("unsupported game library database version: got %d, want %d", version, SupportedDatabaseVersion)
+		return fmt.Errorf("不支持的数据库版本。\n\n版本: %d\n期望: %d", version, SupportedDatabaseVersion)
 	}
 	for _, table := range []string{"platforms", "series", "games", "names", "releases", "assets", "entries", "blobs", "rom_sets", "rom_import_exclusions"} {
 		var found string
