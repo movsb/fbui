@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -25,47 +26,110 @@ func (v *_SavedItemView) ListSelectionChanged(selected bool) {
 
 var _ fbiw.ListSelectionAware = (*_SavedItemView)(nil)
 
-type SavedItemsNavigator struct {
-	window    *MainWindow
-	list      *fbiw.List
-	empty     fbiw.Box
-	favorites bool
-	items     []mainui.Item
+type savedItemsColumn struct {
+	list  *fbiw.List
+	empty fbiw.Box
+	items []mainui.Item
 }
 
-func NewSavedItemsNavigator(window *MainWindow, selector string, favorites bool) *SavedItemsNavigator {
+type SavedItemsNavigator struct {
+	window    *MainWindow
+	container fbiw.Box
+	columns   map[bool]*savedItemsColumn
+	indices   map[bool]int
+	favorites bool
+}
+
+func (n *SavedItemsNavigator) current() *savedItemsColumn {
+	return n.columns[n.favorites]
+}
+
+func NewSavedItemsNavigator(window *MainWindow) *SavedItemsNavigator {
 	n := &SavedItemsNavigator{
-		window: window, favorites: favorites,
-		list:  window.doc.QuerySelector[*fbiw.List](selector + ` list`),
-		empty: window.doc.QuerySelector[fbiw.Box](selector + ` .empty`),
+		window: window, favorites: loadCommonFavorites(config.SDCARDRoot),
+		container: window.doc.QuerySelector[fbiw.Box]("#common"),
+		columns:   make(map[bool]*savedItemsColumn),
+		indices:   make(map[bool]int),
 	}
-	n.list.Listen(fbiw.InputDownEvent, n.handleDown)
-	n.list.Listen(fbiw.InputUpEvent, n.handleUp)
-	n.list.Listen(fbiw.ListSelectionChange, func(*fbiw.Event) { n.updatePagination() })
+	for favorites, selector := range map[bool]string{true: "#common-favorites", false: "#common-recent"} {
+		column := &savedItemsColumn{
+			list:  window.doc.QuerySelector[*fbiw.List](selector + " list"),
+			empty: window.doc.QuerySelector[fbiw.Box](selector + " .empty"),
+		}
+		n.columns[favorites] = column
+		column.list.Listen(fbiw.ListSelectionChange, func(*fbiw.Event) { n.updatePagination() })
+	}
+	n.container.ListenOptions(fbiw.InputDownEvent, n.handleDown, fbiw.EventOptions{Capture: true})
+	n.container.Listen(fbiw.InputUpEvent, n.handleUp)
 	n.reload()
 	return n
 }
 
+func loadCommonFavorites(root string) bool {
+	data, err := os.ReadFile(filepath.Join(root, ".fbui", "common-tab"))
+	if err != nil && !os.IsNotExist(err) {
+		log.Printf("读取常用分类失败：%v", err)
+	}
+	return strings.TrimSpace(string(data)) != "recent"
+}
+
 func (n *SavedItemsNavigator) activate() {
 	n.reload()
-	n.list.SetIndex(0, 0, 0)
-	n.list.Activate()
+	n.focusList()
 	n.window.statusBarNav.showPagination(true)
 	n.window.statusBarNav.showCatBar(false)
 	n.updatePagination()
 	n.setButtonHints()
 }
 
+func (n *SavedItemsNavigator) focusList() {
+	if len(n.current().items) == 0 {
+		n.container.Activate()
+	} else {
+		n.current().list.Activate()
+	}
+}
+
+func (n *SavedItemsNavigator) switchColumn(favorites bool) {
+	if n.favorites == favorites {
+		return
+	}
+	n.indices[n.favorites] = n.current().list.DataIndex()
+	n.favorites = favorites
+	dir := filepath.Join(config.SDCARDRoot, ".fbui")
+	value := "recent"
+	if favorites {
+		value = "favorites"
+	}
+	err := os.MkdirAll(dir, 0o755)
+	if err == nil {
+		err = os.WriteFile(filepath.Join(dir, "common-tab"), []byte(value+"\n"), 0o644)
+	}
+	if err != nil {
+		log.Printf("保存常用分类失败：%v", err)
+	}
+	n.activate()
+}
+
 func (n *SavedItemsNavigator) setButtonHints() {
 	overlayWindow.SetButtonHints(
 		ButtonHint{Button: `A`, Text: `启动`},
+		ButtonHint{Button: `↔`, Text: `最近/收藏`},
 		ButtonHint{Button: `Menu`, Text: `菜单`},
 		ButtonHint{Button: `B`, Text: `返回`},
 	)
 }
 
 func (n *SavedItemsNavigator) reload() {
-	items, err := n.window.lists.Items(n.favorites)
+	for _, favorites := range []bool{true, false} {
+		n.reloadColumn(favorites)
+	}
+}
+
+func (n *SavedItemsNavigator) reloadColumn(favorites bool) {
+	column := n.columns[favorites]
+	column.list.ClassToggle("active-column", favorites == n.favorites)
+	items, err := n.window.lists.Items(favorites)
 	if err != nil {
 		log.Println("读取 MainUI 列表失败：", err)
 		items = nil
@@ -75,12 +139,12 @@ func (n *SavedItemsNavigator) reload() {
 			items[i].SubLabel = inferSubLabel(items[i])
 		}
 	}
-	n.items = items
-	n.empty.Base().SetProp(`display`, fmt.Sprint(len(items) == 0))
-	n.list.SetProp(`display`, fmt.Sprint(len(items) != 0))
-	n.list.SetItems(len(items),
+	column.items = items
+	column.empty.SetProp("display", fmt.Sprint(len(items) == 0))
+	column.list.SetProp("display", fmt.Sprint(len(items) != 0))
+	column.list.SetItems(len(items),
 		func() (fbiw.Box, *_SavedItemView) {
-			view := n.window.doc.Instantiate[_SavedItemView](`saved-item`)
+			view := n.window.doc.Instantiate[_SavedItemView]("saved-item")
 			return view.root, view
 		},
 		func(view *_SavedItemView, index int) {
@@ -88,6 +152,8 @@ func (n *SavedItemsNavigator) reload() {
 			view.sublabel.SetText(items[index].SubLabel)
 		},
 	)
+	index := max(0, min(n.indices[favorites], len(items)-1))
+	column.list.SetIndex(index%8, 0, index-index%8)
 }
 
 func inferSubLabel(item mainui.Item) string {
@@ -107,23 +173,29 @@ func inferSubLabel(item mainui.Item) string {
 }
 
 func (n *SavedItemsNavigator) updatePagination() {
-	index := n.list.DataIndex()
+	index := n.current().list.DataIndex()
 	text := ""
 	if index >= 0 {
-		text = fmt.Sprintf("%d/%d", index+1, len(n.items))
+		text = fmt.Sprintf("%d/%d", index+1, len(n.current().items))
 	}
 	n.window.statusBarNav.pagination.SetText(text)
 }
 
 func (n *SavedItemsNavigator) handleDown(event *fbiw.Event) {
 	name := event.Input.Name
+	if name == sticks.Left || name == sticks.Right {
+		n.switchColumn(name == sticks.Right)
+		event.StopPropagation()
+		return
+	}
 	if name == sticks.A {
-		if index := n.list.DataIndex(); index >= 0 && index < len(n.items) {
-			n.window.launchItem(n.items[index])
+		if index := n.current().list.DataIndex(); index >= 0 && index < len(n.current().items) {
+			n.window.launchItem(n.current().items[index])
 			event.StopPropagation()
 		}
-	} else if name == sticks.B || (name == sticks.Up && n.list.DataRowIndex() <= 0) {
-		n.list.Deselect()
+	} else if name == sticks.B || (name == sticks.Up && n.current().list.DataRowIndex() <= 0) {
+		n.indices[n.favorites] = n.current().list.DataIndex()
+		n.current().list.Deselect()
 		n.window.statusBarNav.showPagination(false)
 		n.window.statusBarNav.showCatBar(true)
 		n.window.statusBarNav.activate()
@@ -141,9 +213,9 @@ func (n *SavedItemsNavigator) handleUp(event *fbiw.Event) {
 
 func (n *SavedItemsNavigator) showMenu() {
 	items := []menu_popup.MenuItem{}
-	index := n.list.DataIndex()
-	if index >= 0 && index < len(n.items) {
-		item := n.items[index]
+	index := n.current().list.DataIndex()
+	if index >= 0 && index < len(n.current().items) {
+		item := n.current().items[index]
 		favorite, err := n.window.lists.IsFavorite(item)
 		if err != nil {
 			log.Println("读取收藏失败：", err)
@@ -156,7 +228,9 @@ func (n *SavedItemsNavigator) showMenu() {
 			if _, err := n.window.lists.ToggleFavorite(item); err != nil {
 				log.Println("更新收藏失败：", err)
 			}
+			n.indices[n.favorites] = n.current().list.DataIndex()
 			n.reload()
+			n.focusList()
 		}})
 	}
 	clearName := "清空最近"
@@ -174,7 +248,9 @@ func (n *SavedItemsNavigator) showMenu() {
 				if err := n.window.lists.Clear(n.favorites); err != nil {
 					log.Println("清空 MainUI 列表失败：", err)
 				}
+				n.indices[n.favorites] = 0
 				n.reload()
+				n.focusList()
 			},
 		})
 	}})

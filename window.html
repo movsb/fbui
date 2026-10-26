@@ -26,7 +26,7 @@
 		}
 	}
 }
-#games, #favorites, #recent, #ports, #apps, #tools, #store {
+#games, #ports, #apps, #tools, #store {
 	.selected {
 		outline-width: 3;
 		outline-color: var(--color-focus);
@@ -35,6 +35,18 @@
 		font-weight: bold;
 	}
 }
+#common {
+	.selected {
+		outline-width: 3;
+		outline-color: var(--color-focus);
+		border-radius: 8;
+		font-weight: bold;
+	}
+	.active-column .selected {
+		background-color: var(--color-selection-background);
+	}
+}
+
 </style>
 <title>小桃的吹米</title>
 <template id="app-item">
@@ -45,12 +57,9 @@
 	</block>
 </template>
 <template id="saved-item">
-	<block padding="0 10">
-		<inline spacer align="middle">
-			<text class="name" spacer marquee="horizontal" marquee-count="1"></text>
-			<spacer width="10"></spacer>
-			<text class="sublabel" font-size="small"></text>
-		</inline>
+	<block padding="0 10" align="middle">
+		<text class="name" marquee="horizontal" marquee-count="1"></text>
+		<text class="sublabel" font-size="x-small"></text>
 	</block>
 </template>
 <template id="emu-item">
@@ -114,8 +123,7 @@
 	<stack>
 		<inline id="cat-bar" padding="10">
 			<spacer></spacer>
-			<text name="favorites">收藏</text>
-			<text name="recent">最近</text>
+			<text name="common">常用</text>
 			<text class="selected" name="games">游戏</text>
 			<text name="ports">独立</text>
 			<text name="apps">应用</text>
@@ -128,14 +136,21 @@
 	</stack>
 	<safe-area>
 		<stack id="content" spacer fill>
-			<stack class="content-item" id="favorites" fill>
-				<list rows="8" cols="1" gap="10" padding="20"></list>
-				<inline class="empty" align="both" display="false"><text>没有收藏项目</text></inline>
-			</stack>
-			<stack class="content-item" id="recent" fill>
-				<list rows="8" cols="1" gap="10" padding="20"></list>
-				<inline class="empty" align="both" display="false"><text>没有最近项目</text></inline>
-			</stack>
+			<inline class="content-item" id="common" fill padding="10">
+				<block id="common-recent" spacer height="100%">
+					<stack spacer fill>
+						<list rows="6" cols="1" gap="10" padding="10"></list>
+						<inline class="empty" width="100%" height="100%" align="both" display="false"><text font-size="small">没有最近项目</text></inline>
+					</stack>
+				</block>
+				<spacer width="20"></spacer>
+				<block id="common-favorites" spacer height="100%">
+					<stack spacer fill>
+						<list rows="6" cols="1" gap="10" padding="10"></list>
+						<inline class="empty" width="100%" height="100%" align="both" display="false"><text font-size="small">没有收藏项目</text></inline>
+					</stack>
+				</block>
+			</inline>
 			<stack class="content-item selected" id="games" fill>
 				<list id="emus" rows="2" cols="3" gap="30" padding="20"></list>
 				<list id="roms" rows="8" cols="1" gap="10" display="false" padding="20"></list>

@@ -24,8 +24,7 @@ type MainWindow struct {
 
 	statusBarNav *StatusBarNavigator
 	gamesNav     *GamesNavigator
-	favoritesNav *SavedItemsNavigator
-	recentNav    *SavedItemsNavigator
+	commonNav    *SavedItemsNavigator
 	portsNav     *LauncherNavigator
 	appsNav      *LauncherNavigator
 	toolsNav     *ToolsNavigator
@@ -50,8 +49,7 @@ func NewMainWindow(app *fbiw.App) *MainWindow {
 
 	win.statusBarNav = NewStatusBarNavigator(win)
 	win.gamesNav = NewGamesNavigator(win)
-	win.favoritesNav = NewSavedItemsNavigator(win, `#favorites`, true)
-	win.recentNav = NewSavedItemsNavigator(win, `#recent`, false)
+	win.commonNav = NewSavedItemsNavigator(win)
 	win.portsNav = NewLauncherNavigator(win, `#ports`, `ports`)
 	win.appsNav = NewLauncherNavigator(win, `#apps`, `apps`)
 	win.toolsNav = NewToolsNavigator(win)
@@ -172,10 +170,8 @@ func (n *StatusBarNavigator) activateContent() {
 		switch content.GetID() {
 		case `games`:
 			n.window.gamesNav.activate()
-		case `favorites`:
-			n.window.favoritesNav.activate()
-		case `recent`:
-			n.window.recentNav.activate()
+		case `common`:
+			n.window.commonNav.activate()
 		case `ports`:
 			n.window.portsNav.activate()
 		case `apps`:
@@ -261,10 +257,8 @@ func (n *StatusBarNavigator) setIndex(newIndex int) {
 		}
 
 		switch t.GetName() {
-		case `recent`:
-			n.window.recentNav.reload()
-		case `favorites`:
-			n.window.favoritesNav.reload()
+		case `common`:
+			n.window.commonNav.reload()
 		}
 	}
 }
