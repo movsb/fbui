@@ -132,7 +132,7 @@ func (win *OverlayWindow) watchDocChange() {
 func (win *OverlayWindow) initCpuUsage() {
 	go helpers.WatchCPU(win.app.Context(), time.Second*3, func(s string) {
 		win.doc.Async(func() {
-			win.txtCpuStatus.SetTextFormat(`CPU: %s`, s)
+			win.txtCpuStatus.SetText(s)
 		})
 	})
 }

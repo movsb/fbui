@@ -44,6 +44,12 @@
 			padding: 0;
 		}
 	}
+
+	#button-hints {
+		text.button {
+			text-outline-width: 0;
+		}
+	}
 }
 </style>
 <template id="button-hint">
@@ -57,6 +63,8 @@
 	<block id="top" padding="10">
 		<inline align="middle">
 			<text font-weight="bold" id="title">状态栏</text>
+			<spacer width="10"></spacer>
+			<text id="cpu"></text>
 			<spacer></spacer>
 			<text class="nerd" id="wifi"></text>
 			<text class="nerd" id="bluetooth"></text>
@@ -70,7 +78,7 @@
 	<inline id="bottom" padding="10">
 		<inline id="button-hints" align="middle" display="false"></inline>
 		<spacer></spacer>
-		<text id="cpu"></text>
+		<text>&nbsp;</text>
 	</inline>
 </block>
 </document>
