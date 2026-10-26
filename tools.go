@@ -28,6 +28,10 @@ func NewToolsNavigator(win *MainWindow) *ToolsNavigator {
 		window: win,
 		tools: []_ToolItemData{
 			{
+				name:  gameModeToolName(win.directoryGames),
+				click: func() { win.toggleGameMode() },
+			},
+			{
 				name: `电池信息`,
 				click: func() {
 					battery_info.New(win.app, nil)
@@ -126,7 +130,7 @@ func NewToolsNavigator(win *MainWindow) *ToolsNavigator {
 			return box.root, box
 		},
 		func(box *_ToolItemView, index int) {
-			box.name.SetText(win.toolsNav.tools[index].name)
+			box.name.SetText(toolsNav.tools[index].name)
 		},
 	)
 	toolsNav.scroll.Listen(fbiw.InputDownEvent, toolsNav.handleEvents)

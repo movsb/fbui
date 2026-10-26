@@ -31,6 +31,8 @@ type MainWindow struct {
 	toolsNav     *ToolsNavigator
 	storeNav     *StoreNavigator
 	lists        *mainui.Lists
+
+	directoryGames bool
 }
 
 func NewMainWindow(app *fbiw.App) *MainWindow {
@@ -40,6 +42,8 @@ func NewMainWindow(app *fbiw.App) *MainWindow {
 		app:   app,
 		doc:   doc,
 		lists: mainui.NewLists(config.SDCARDRoot),
+
+		directoryGames: loadDirectoryGames(config.SDCARDRoot),
 	}
 
 	doc.Bind(win)
@@ -157,8 +161,8 @@ func (n *StatusBarNavigator) activate() {
 }
 
 func (n *StatusBarNavigator) activateContent() {
-	if n.catIndex >= 0 && n.catIndex <= len(n.contentBoxes)-1 {
-		content := n.contentBoxes[n.catIndex]
+	if n.catIndex >= 0 && n.catIndex < len(n.catBoxes) {
+		content := n.contentForCategory(n.catBoxes[n.catIndex].GetName())
 		removeActive := true
 		switch content.GetID() {
 		case `games`:
@@ -231,15 +235,15 @@ func (n *StatusBarNavigator) setIndex(newIndex int) {
 	if oldIndex >= 0 && oldIndex < len(n.catBoxes) {
 		t := n.catBoxes[oldIndex].(*fbiw.Text)
 		t.ClassRemove(`selected`)
-		b := n.contentBoxes[oldIndex]
-		b.Base().ClassRemove(`selected`)
 	}
 
 	if newIndex >= 0 && newIndex < len(n.catBoxes) {
 		t := n.catBoxes[newIndex].(*fbiw.Text)
 		t.ClassAdd(`selected`)
-		b := n.contentBoxes[newIndex]
-		b.Base().ClassAdd(`selected`)
+		for _, box := range n.contentBoxes {
+			box.Base().ClassRemove(`selected`)
+		}
+		n.contentForCategory(t.GetName()).Base().ClassAdd(`selected`)
 		n.catIndex = newIndex
 
 		switch t.GetName() {
@@ -249,4 +253,17 @@ func (n *StatusBarNavigator) setIndex(newIndex int) {
 			n.window.favoritesNav.reload()
 		}
 	}
+}
+
+// 游戏入口根据所选模式复用目录或仓库页面。
+func (n *StatusBarNavigator) contentForCategory(name string) fbiw.Box {
+	if name == "games" && !n.window.directoryGames {
+		name = "store"
+	}
+	for _, box := range n.contentBoxes {
+		if box.GetID() == name {
+			return box
+		}
+	}
+	panic("unknown category: " + name)
 }
