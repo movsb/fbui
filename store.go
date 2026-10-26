@@ -1266,8 +1266,8 @@ func (n *StoreNavigator) handlePreviewEvents(event *fbiw.Event) {
 var platformEmulators = map[int32]string{
 	1: "ARCADE",
 	2: "FC",
-	3: "GBC",
-	4: "GB",
+	3: "GB",
+	4: "GBC",
 	5: "GBA",
 	6: "MD",
 	7: "SFC",
