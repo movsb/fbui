@@ -6,6 +6,7 @@ import (
 	"compress/gzip"
 	"context"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -307,5 +308,54 @@ func TestMaterializeRejectsUnsafeAndDuplicateZIPEntries(t *testing.T) {
 		if _, err := store.Materialize(context.Background(), &Asset{ID: 3, Name: "bad.zip", Format: FormatZIP, Entries: entries}, func(string, float32) {}); err == nil {
 			t.Fatal("expected unsafe zip entries to fail")
 		}
+	}
+}
+
+func TestMaterializeLocalNeverDownloads(t *testing.T) {
+	for _, format := range []Format{FormatRegular, FormatZIP} {
+		t.Run(fmt.Sprint(format), func(t *testing.T) {
+			blob, sha := testBlob(1, "ROM contents")
+			source := &fakeSource{contents: map[string][]byte{sha: []byte("ROM contents")}, requests: map[string]int{}}
+			store := New(t.TempDir(), source)
+			asset := &Asset{ID: 7, Name: "game.rom", Format: format, Blob: blob, Entries: []*Entry{{Name: "game.rom", Blob: blob}}}
+			progress := func(string, float32) {}
+			if _, err := store.MaterializeLocal(context.Background(), asset, progress); !errors.Is(err, ErrDownloadRequired) {
+				t.Fatalf("missing ROM should require permission: %v", err)
+			}
+			if source.requests[sha] != 0 {
+				t.Fatal("local check started a download")
+			}
+			path, err := store.Materialize(context.Background(), asset, progress)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if predicted, err := store.MaterializedPath(asset); err != nil || predicted != path {
+				t.Fatalf("favorite lookup path differs from launch path: %q != %q, %v", predicted, path, err)
+			}
+			if got, err := store.MaterializeLocal(context.Background(), asset, progress); err != nil || got != path {
+				t.Fatalf("downloaded ROM should be usable without permission: %q %v", got, err)
+			}
+			if err := os.RemoveAll(filepath.Dir(path)); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := store.MaterializeLocal(context.Background(), asset, progress); err != nil {
+				t.Fatalf("local blobs should rebuild a ROM without downloading: %v", err)
+			}
+			if source.requests[sha] != 1 {
+				t.Fatalf("unexpected requests: %v", source.requests)
+			}
+			if err := os.RemoveAll(filepath.Dir(path)); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(store.blobPath(sha), []byte("corrupt"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := store.MaterializeLocal(context.Background(), asset, progress); !errors.Is(err, ErrDownloadRequired) {
+				t.Fatalf("repair download should also require permission: %v", err)
+			}
+			if source.requests[sha] != 1 {
+				t.Fatal("corruption check started a download")
+			}
+		})
 	}
 }

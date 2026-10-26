@@ -187,19 +187,27 @@ func itemFromRecord(r *record) Item {
 
 func (r *record) managed() bool { return r.label() != "" && r.launch() != "" }
 
-func (i Item) available() bool {
-	if i.Label == "" || i.Launch == "" {
-		return false
+func (i Item) available() bool { return i.ValidateFiles() == nil }
+
+// ValidateFiles also checks files immediately before launching, since a ROM can
+// be removed after the list was displayed.
+func (i Item) ValidateFiles() error {
+	if err := i.Validate(); err != nil {
+		return err
 	}
-	if _, err := os.Stat(filepath.Clean(i.Launch)); err != nil {
-		return false
-	}
-	if i.ROMPath != "" {
-		if _, err := os.Stat(filepath.Clean(i.ROMPath)); err != nil {
-			return false
+	for _, path := range []string{i.Launch, i.ROMPath} {
+		if path == "" {
+			continue
+		}
+		info, err := os.Stat(filepath.Clean(path))
+		if err != nil {
+			return fmt.Errorf("启动文件不可用：%s：%w", path, err)
+		}
+		if info.IsDir() {
+			return fmt.Errorf("启动文件是目录：%s", path)
 		}
 	}
-	return true
+	return nil
 }
 
 type Lists struct {

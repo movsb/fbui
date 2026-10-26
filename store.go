@@ -207,7 +207,7 @@ func (n *StoreNavigator) setButtonHints() {
 	if n.selectedDescription() != "" {
 		hints = slices.Insert(hints, 1, ButtonHint{Button: `X`, Text: `描述`})
 	}
-	if n.isRootPage() {
+	if n.isRootPage() || n.selectedROM() != nil {
 		hints = slices.Insert(hints, len(hints)-1, ButtonHint{Button: `Menu`, Text: `菜单`})
 	}
 	overlayWindow.SetButtonHints(hints...)
@@ -366,7 +366,7 @@ func (n *StoreNavigator) selectedDescription() string {
 }
 
 func (n *StoreNavigator) handleDownEvents(event *fbiw.Event) {
-	if n.busy {
+	if n.busy || n.remoteBusy.Load() {
 		event.StopPropagation()
 		return
 	}
@@ -435,7 +435,7 @@ func (n *StoreNavigator) handleDownEvents(event *fbiw.Event) {
 	case storeReleases:
 		n.loadAssets(page.game, item.value.(*game_library.Release))
 	case storeAssets:
-		n.openAsset(page.game, item.value.(*game_library.Asset))
+		n.openAsset(item.value.(*game_library.Asset))
 	}
 	event.StopPropagation()
 }
@@ -580,7 +580,9 @@ func (n *StoreNavigator) handleUpEvents(event *fbiw.Event) {
 	}
 	name := event.Input.Name
 	if name == sticks.Menu {
-		if n.isRootPage() {
+		if n.selectedROM() != nil {
+			n.showROMMenu()
+		} else if n.isRootPage() {
 			n.showMenu()
 		}
 		event.StopPropagation()
@@ -1079,21 +1081,16 @@ func sameImageAsset(left, right *game_library.Asset) bool {
 	return left.ID == right.ID
 }
 
-func (n *StoreNavigator) openAsset(game *game_library.Game, asset *game_library.Asset) {
+func (n *StoreNavigator) openAsset(asset *game_library.Asset) {
 	if asset.Type == game_library.AssetTypeROM {
-		launchable, err := n.metadata.GetLaunchableAsset(context.Background(), asset.ID)
-		if err != nil {
-			title := `无法打开 ROM`
+		if err := n.openROMByID(context.Background(), asset.ID, true); err != nil {
+			title := "无法打开 ROM"
 			if errors.Is(err, game_library.ErrUnsupportedMAMEVersion) {
-				title = `ROM 不受支持`
+				title = "ROM 不受支持"
 			}
-			n.window.app.ShowAlertDialog(n.window.doc, fbiw.AlertDialogOptions{
-				Title:       title,
-				Description: err.Error(),
-			})
-			return
+			n.window.app.ShowAlertDialog(n.window.doc, fbiw.AlertDialogOptions{Title: title, Description: err.Error()})
 		}
-		asset = launchable.Asset
+		return
 	}
 	n.busy = true
 	go func() {
@@ -1129,8 +1126,6 @@ func (n *StoreNavigator) openAsset(game *game_library.Game, asset *game_library.
 				return
 			}
 			switch asset.Type {
-			case game_library.AssetTypeROM:
-				n.runROM(game.PlatformID, asset.KindID, path)
 			case game_library.AssetTypeTitle:
 				n.showImage(path)
 			default:
@@ -1146,8 +1141,12 @@ func (n *StoreNavigator) openAsset(game *game_library.Game, asset *game_library.
 }
 
 func (n *StoreNavigator) OpenAssetByID(ctx context.Context, id int32) error {
+	return n.openROMByID(ctx, id, false)
+}
+
+func (n *StoreNavigator) openROMByID(ctx context.Context, id int32, showProgress bool) error {
 	if n.window.app.Detached() {
-		return fmt.Errorf(`启动器当前不在前台，不能启动游戏。`)
+		return fmt.Errorf("启动器当前不在前台，不能启动游戏。")
 	}
 	if n.metadataErr != nil {
 		return n.metadataErr
@@ -1159,19 +1158,9 @@ func (n *StoreNavigator) OpenAssetByID(ctx context.Context, id int32) error {
 	if !n.remoteBusy.CompareAndSwap(false, true) {
 		return errStoreOpenBusy
 	}
-	go func() {
-		path, err := n.store.Materialize(context.Background(), launchable.Asset, func(message string, progress float32) {
-			log.Printf("远程打开资源 %d：%s %.0f%%", id, message, progress)
-		})
-		if err != nil {
-			n.remoteBusy.Store(false)
-			n.showRemoteOpenError(id, err)
-			return
-		}
-		n.window.doc.Async(func() {
-			n.runROM(launchable.PlatformID, launchable.Asset.KindID, path, func() { n.remoteBusy.Store(false) })
-		})
-	}()
+	n.materializeROM(launchable, showProgress, false, func(path string) {
+		n.runROM(launchable, path, func() { n.remoteBusy.Store(false) })
+	})
 	return nil
 }
 
@@ -1179,7 +1168,7 @@ func (n *StoreNavigator) showRemoteOpenError(id int32, err error) {
 	log.Printf("远程打开资源 %d 失败：%v", id, err)
 	n.window.doc.Async(func() {
 		n.window.app.ShowAlertDialog(n.window.doc, fbiw.AlertDialogOptions{
-			Title:       `远程启动失败`,
+			Title:       `启动失败`,
 			Description: err.Error(),
 		})
 	})
@@ -1269,33 +1258,25 @@ var platformEmulators = map[int32]string{
 	8: "ATARI2600",
 }
 
-func (n *StoreNavigator) runROM(platformID, releaseID int32, path string, done ...func()) {
-	n.runROMWithOpener(n.window.doc, platformID, releaseID, path, done...)
+func (n *StoreNavigator) runROM(rom *game_library.LaunchableAsset, path string, done ...func()) {
+	n.runROMWithOpener(n.window.doc, rom, path, done...)
 }
 
-func (n *StoreNavigator) runROMWithOpener(opener *fbiw.Document, platformID, releaseID int32, path string, done ...func()) {
+func (n *StoreNavigator) runROMWithOpener(opener *fbiw.Document, rom *game_library.LaunchableAsset, path string, done ...func()) {
+	releaseID := rom.Asset.KindID
 	finish := func() {
 		if len(done) > 0 && done[0] != nil {
 			done[0]()
 		}
 	}
-	wanted := platformEmulators[platformID]
-	var emulator *config.LaunchConfig
-	for _, candidate := range config.LoadDir(filepath.Join(config.SDCARDRoot, "Emus")) {
-		if strings.EqualFold(filepath.Base(candidate.Dir), wanted) {
-			emulator = candidate
-			break
-		}
-	}
-	if wanted == "" || emulator == nil {
+	item, err := preparedStoreROMItem(rom, path)
+	if err != nil {
 		finish()
-		log.Printf("无法打开仓库 ROM：平台 %d 没有模拟器映射", platformID)
-		n.window.app.ShowAlertDialog(opener,
-			fbiw.AlertDialogOptions{
-				Title:       `没有模拟器映射`,
-				Description: fmt.Sprintf(`资源已下载，但是不知道如何打开平台: %d`, platformID),
-			})
+		n.window.app.ShowAlertDialog(opener, fbiw.AlertDialogOptions{Title: "没有模拟器映射", Description: err.Error()})
 		return
+	}
+	if err := n.window.lists.AddRecent(item); err != nil {
+		log.Printf("更新仓库最近项目失败：%v", err)
 	}
 	attach := n.window.detachForExternalProgram()
 	go func() {
@@ -1303,7 +1284,7 @@ func (n *StoreNavigator) runROMWithOpener(opener *fbiw.Document, platformID, rel
 		defer attach()
 		n.activeReleaseID.Store(releaseID)
 		defer n.activeReleaseID.CompareAndSwap(releaseID, 0)
-		script := emulator.LauncherScriptPath()
+		script := item.Launch
 		log.Println("启动仓库 ROM：", script, path)
 		if err := launcher.RunScript(context.Background(), script, path); err != nil {
 			// 已经运行，错误码不可靠，直接忽略。

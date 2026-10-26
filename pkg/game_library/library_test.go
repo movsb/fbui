@@ -336,3 +336,21 @@ func TestOpenLibrarySupportsV19AndV20(t *testing.T) {
 		})
 	}
 }
+
+func TestLaunchableAssetIncludesSavedItemNames(t *testing.T) {
+	library, err := OpenLibrary(createTestLibrary(t, SupportedDatabaseVersion))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer library.Close()
+	rom, err := library.GetLaunchableAsset(context.Background(), 7)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rom.Game == nil || rom.Release == nil || rom.Game.ID != 3 || rom.Release.ID != 4 || rom.Asset.ID != 7 {
+		t.Fatalf("missing ROM ownership: %#v", rom)
+	}
+	if len(rom.Game.Names) != 1 || rom.Game.Names[0].Name != "Mario" || len(rom.Release.Names) != 1 || rom.Release.Names[0].Name != "日版" {
+		t.Fatalf("missing saved label names: game=%#v, release=%#v", rom.Game.Names, rom.Release.Names)
+	}
+}

@@ -204,3 +204,55 @@ func TestClearPreservesMalformedLines(t *testing.T) {
 		t.Fatalf("unexpected clear output: %q", written)
 	}
 }
+
+func TestStoreROMUsesOnlyNativeFieldsAndLocalPaths(t *testing.T) {
+	lists, root := testLists(t)
+	rom := Item{
+		Label: "游戏 / 日版 / game.zip", SubLabel: "FC", Type: ROMType,
+		Launch:  testFile(t, root, "Emus/FC/launch.sh"),
+		ROMPath: testFile(t, root, ".fbui/gm/assets/42/game.zip"),
+	}
+	if added, err := lists.ToggleFavorite(rom); err != nil || !added {
+		t.Fatalf("favorite prepared ROM: added=%v err=%v", added, err)
+	}
+	if err := lists.AddRecent(rom); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(lists.favorites)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var native map[string]json.RawMessage
+	if err := json.Unmarshal(bytes.TrimSpace(data), &native); err != nil {
+		t.Fatal(err)
+	}
+	allowed := map[string]bool{"label": true, "sublabel": true, "launch": true, "rompath": true, "imgpath": true, "type": true, "order": true}
+	for key := range native {
+		if !allowed[key] {
+			t.Fatalf("unexpected extra field: %s", key)
+		}
+	}
+	renamed := rom
+	renamed.Label = "新游戏名 / 日版 / game.zip"
+	if err := lists.AddRecent(renamed); err != nil {
+		t.Fatal(err)
+	}
+	if favorite, err := lists.IsFavorite(renamed); err != nil || !favorite {
+		t.Fatalf("favorite should match by local paths: %v %v", favorite, err)
+	}
+	lists = NewLists(root)
+	if recent, err := lists.Items(false); err != nil || len(recent) != 1 || recent[0].Label != renamed.Label || recent[0].ROMPath != rom.ROMPath || recent[0].Launch != rom.Launch {
+		t.Fatalf("native launch fields should round trip: %#v %v", recent, err)
+	}
+	if err := os.Remove(rom.ROMPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := rom.ValidateFiles(); err == nil {
+		t.Fatal("missing ROM must not launch")
+	}
+	for _, favorites := range []bool{true, false} {
+		if items, err := lists.Items(favorites); err != nil || len(items) != 0 {
+			t.Fatalf("missing ROM should be filtered without recovery: %#v %v", items, err)
+		}
+	}
+}

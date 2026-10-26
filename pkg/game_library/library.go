@@ -36,6 +36,8 @@ func (e unsupportedMAMEVersionError) Error() string {
 func (unsupportedMAMEVersionError) Unwrap() error { return ErrUnsupportedMAMEVersion }
 
 type LaunchableAsset struct {
+	Game       *Game
+	Release    *Release
 	Asset      *Asset
 	PlatformID int32
 }
@@ -321,7 +323,7 @@ func (l *Library) GetLaunchableAsset(ctx context.Context, assetID int32) (*Launc
 		return nil, ErrAssetNotRelease
 	}
 	var releases []*Release
-	if err := l.tdb.Select(`id,game_id`).From(Release{}).Where(`id=?`, asset.KindID).Find(&releases); err != nil {
+	if err := l.tdb.Select(`id,game_id,release_type`).From(Release{}).Where(`id=?`, asset.KindID).Find(&releases); err != nil {
 		return nil, err
 	}
 	if len(releases) == 0 {
@@ -334,6 +336,16 @@ func (l *Library) GetLaunchableAsset(ctx context.Context, assetID int32) (*Launc
 	if len(games) == 0 {
 		return nil, ErrAssetNotRelease
 	}
+	if err := l.attachNames(KindGame, []int32{games[0].ID}, func(name Name) {
+		games[0].Names = append(games[0].Names, name)
+	}); err != nil {
+		return nil, err
+	}
+	if err := l.attachNames(KindRelease, []int32{releases[0].ID}, func(name Name) {
+		releases[0].Names = append(releases[0].Names, name)
+	}); err != nil {
+		return nil, err
+	}
 	if err := l.validateMAMEVersion(ctx, assetID); err != nil {
 		return nil, err
 	}
@@ -344,7 +356,7 @@ func (l *Library) GetLaunchableAsset(ctx context.Context, assetID int32) (*Launc
 	}
 	for _, item := range items {
 		if item.ID == assetID {
-			return &LaunchableAsset{Asset: item, PlatformID: games[0].PlatformID}, nil
+			return &LaunchableAsset{Asset: item, PlatformID: games[0].PlatformID, Game: games[0], Release: releases[0]}, nil
 		}
 	}
 	return nil, ErrAssetNotFound

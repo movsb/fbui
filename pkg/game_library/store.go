@@ -48,6 +48,10 @@ func (s *Store) blobPath(sha string) string {
 // 如果没有，会从远程下载并存储到本地。
 // 下载后会完整哈希校验。
 func (s *Store) ensureBlob(ctx context.Context, expected *Blob, local, remote func(p float32)) (string, error) {
+	return s.ensureBlobMode(ctx, expected, local, remote, true)
+}
+
+func (s *Store) ensureBlobMode(ctx context.Context, expected *Blob, local, remote func(p float32), allowDownload bool) (string, error) {
 	if expected == nil || expected.ID <= 0 || !sha256Pattern.MatchString(expected.SHA256) || expected.Size < 0 {
 		return "", errors.New("invalid blob metadata")
 	}
@@ -61,6 +65,10 @@ func (s *Store) ensureBlob(ctx context.Context, expected *Blob, local, remote fu
 	// 如果本地有此二进制，校验并直接使用。
 	if validStoredBlob(final, expected, local) {
 		return final, nil
+	}
+
+	if !allowDownload {
+		return "", ErrDownloadRequired
 	}
 
 	// 需要重新下载。
@@ -150,15 +158,24 @@ func validStoredBlob(path string, expected *Blob, progress func(p float32)) bool
 	return fmt.Sprintf("%x", hash.Sum(nil)) == expected.SHA256
 }
 
+// ErrDownloadRequired indicates that local files cannot satisfy the request.
+var ErrDownloadRequired = errors.New("asset requires a download")
+
+// MaterializeLocal uses validated local files and blobs only; it never downloads.
+func (s *Store) MaterializeLocal(ctx context.Context, asset *Asset, progress func(message string, p float32)) (string, error) {
+	return s.materialize(ctx, asset, progress, false)
+}
+
 // 从本地读取或者远程下载后并重新组装成所需求的资源文件。
 // 返回资源文件的本地固定路径。
 func (s *Store) Materialize(ctx context.Context, asset *Asset, progress func(message string, p float32)) (string, error) {
+	return s.materialize(ctx, asset, progress, true)
+}
+
+// MaterializedPath returns the native ROM path without downloading or creating files.
+func (s *Store) MaterializedPath(asset *Asset) (string, error) {
 	if asset == nil || asset.ID <= 0 {
 		return "", errors.New("invalid asset")
-	}
-	dir := filepath.Join(s.root, "assets", fmt.Sprint(asset.ID))
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return "", err
 	}
 	name, err := safeBaseName(asset.Name)
 	if err != nil {
@@ -166,21 +183,43 @@ func (s *Store) Materialize(ctx context.Context, asset *Asset, progress func(mes
 	}
 	switch asset.Format {
 	case FormatRegular:
+	case FormatZIP:
+		if !strings.HasSuffix(strings.ToLower(name), ".zip") {
+			name += ".zip"
+		}
+	default:
+		return "", fmt.Errorf("unsupported asset format: %d", asset.Format)
+	}
+	return filepath.Join(s.root, "assets", fmt.Sprint(asset.ID), name), nil
+}
+
+func (s *Store) materialize(ctx context.Context, asset *Asset, progress func(message string, p float32), allowDownload bool) (string, error) {
+	final, err := s.MaterializedPath(asset)
+	if err != nil {
+		return "", err
+	}
+	dir, name := filepath.Dir(final), filepath.Base(final)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return "", err
+	}
+
+	switch asset.Format {
+	case FormatRegular:
 		// 有就直接使用。
-		final := filepath.Join(dir, name)
 		if validOriginalBlob(final, asset.Blob, func(p float32) {
 			progress(`校验文件`, p)
 		}) {
 			return final, nil
 		}
 		// 如果没有才考虑重新物化/下载。
-		blob, err := s.ensureBlob(ctx, asset.Blob,
+		blob, err := s.ensureBlobMode(ctx, asset.Blob,
 			func(p float32) {
 				progress(`校验文件`, p)
 			},
 			func(p float32) {
 				progress(`下载文件`, p)
 			},
+			allowDownload,
 		)
 		if err != nil {
 			return "", err
@@ -191,10 +230,6 @@ func (s *Store) Materialize(ctx context.Context, asset *Asset, progress func(mes
 		}
 		return final, nil
 	case FormatZIP:
-		if !strings.HasSuffix(strings.ToLower(name), ".zip") {
-			name += ".zip"
-		}
-		final := filepath.Join(dir, name)
 		shaPath := filepath.Join(dir, "sha.txt")
 		// MAME uses the ZIP basename as its driver name, so the materialized name
 		// must follow the catalog exactly. A catalog-only case correction (for
@@ -244,9 +279,10 @@ func (s *Store) Materialize(ctx context.Context, asset *Asset, progress func(mes
 				current := float64(completedSize) + float64(blobSize)*float64(entryProgress)/100
 				progress(message, float32(current/float64(totalSize)*100))
 			}
-			blob, err := s.ensureBlob(ctx, entry.Blob,
+			blob, err := s.ensureBlobMode(ctx, entry.Blob,
 				func(p float32) { report(`校验文件`, p) },
 				func(p float32) { report(`下载文件`, p) },
+				allowDownload,
 			)
 			if err != nil {
 				return "", err

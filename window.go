@@ -64,7 +64,7 @@ func NewMainWindow(app *fbiw.App) *MainWindow {
 }
 
 func (w *MainWindow) launchItem(item mainui.Item) {
-	if err := item.Validate(); err != nil {
+	if err := item.ValidateFiles(); err != nil {
 		w.showLaunchError(err)
 		return
 	}
