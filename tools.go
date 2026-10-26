@@ -28,10 +28,6 @@ func NewToolsNavigator(win *MainWindow) *ToolsNavigator {
 		window: win,
 		tools: []_ToolItemData{
 			{
-				name:  gameModeToolName(win.directoryGames),
-				click: func() { win.toggleGameMode() },
-			},
-			{
 				name: `电池信息`,
 				click: func() {
 					battery_info.New(win.app, nil)

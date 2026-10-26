@@ -224,7 +224,6 @@ func TestStoreIconGridNavigation(t *testing.T) {
 		page storePage
 		want *fbiw.List
 	}{
-		{storePage{level: storeRoot}, n.list},
 		{storePage{level: storePlatforms}, n.icons},
 		{storePage{level: storeSeries}, n.icons},
 		{storePage{level: storeGames}, n.list},
@@ -235,6 +234,19 @@ func TestStoreIconGridNavigation(t *testing.T) {
 		n.stack = []storePage{tc.page}
 		if got := n.activeList(); got != tc.want {
 			t.Fatalf("level %v: active list = %p, want %p", tc.page.level, got, tc.want)
+		}
+	}
+}
+
+func TestStoreIndependentHomePages(t *testing.T) {
+	for _, level := range []storeLevel{storePlatforms, storeSeries} {
+		n := &StoreNavigator{stack: []storePage{{level: level}}}
+		if !n.isRootPage() {
+			t.Fatalf("level %v should be a home page", level)
+		}
+		n.stack = append(n.stack, storePage{level: storeGames})
+		if n.isRootPage() {
+			t.Fatalf("games below level %v should not be a home page", level)
 		}
 	}
 }

@@ -32,7 +32,7 @@ type MainWindow struct {
 	storeNav     *StoreNavigator
 	lists        *mainui.Lists
 
-	directoryGames bool
+	gameMode gameMode
 }
 
 func NewMainWindow(app *fbiw.App) *MainWindow {
@@ -43,7 +43,7 @@ func NewMainWindow(app *fbiw.App) *MainWindow {
 		doc:   doc,
 		lists: mainui.NewLists(config.SDCARDRoot),
 
-		directoryGames: loadDirectoryGames(config.SDCARDRoot),
+		gameMode: loadGameMode(config.SDCARDRoot),
 	}
 
 	doc.Bind(win)
@@ -56,6 +56,7 @@ func NewMainWindow(app *fbiw.App) *MainWindow {
 	win.appsNav = NewLauncherNavigator(win, `#apps`, `apps`)
 	win.toolsNav = NewToolsNavigator(win)
 	win.storeNav = NewStoreNavigator(win)
+	win.storeNav.ensureGamePage()
 
 	go win.watchLaunchConfigs()
 
@@ -154,10 +155,14 @@ func (n *StatusBarNavigator) showPagination(show bool) {
 func (n *StatusBarNavigator) activate() {
 	n.catBar.Activate()
 	n.catBar.ClassAdd(`active`)
-	overlayWindow.SetButtonHints(
-		ButtonHint{Button: `↓`, Text: `进入`},
-		ButtonHint{Button: `B`, Text: `退出`},
-	)
+	hints := []ButtonHint{
+		{Button: `↓`, Text: `进入`},
+		{Button: `B`, Text: `退出`},
+	}
+	if n.catBoxes[n.catIndex].GetName() == "games" {
+		hints = append(hints, ButtonHint{Button: `Select`, Text: `切换游戏模式`})
+	}
+	overlayWindow.SetButtonHints(hints...)
 }
 
 func (n *StatusBarNavigator) activateContent() {
@@ -190,6 +195,11 @@ func (n *StatusBarNavigator) activateContent() {
 
 func (n *StatusBarNavigator) handleEvents(event *fbiw.Event) {
 	keyName := event.Input.Name
+	if keyName == sticks.Select && n.catBoxes[n.catIndex].GetName() == "games" {
+		n.window.switchGameModeFromGames()
+		event.StopPropagation()
+		return
+	}
 
 	if keyName == sticks.B {
 		n.window.app.ShowAlertDialog(n.window.doc, fbiw.AlertDialogOptions{
@@ -220,6 +230,7 @@ func (n *StatusBarNavigator) handleEvents(event *fbiw.Event) {
 			newIndex = n.catIndex + 1
 		}
 		n.setIndex(newIndex)
+		n.activate()
 		event.StopPropagation()
 		return
 	}
@@ -245,6 +256,9 @@ func (n *StatusBarNavigator) setIndex(newIndex int) {
 		}
 		n.contentForCategory(t.GetName()).Base().ClassAdd(`selected`)
 		n.catIndex = newIndex
+		if t.GetName() == "games" && n.window.storeNav != nil {
+			n.window.storeNav.ensureGamePage()
+		}
 
 		switch t.GetName() {
 		case `recent`:
@@ -257,7 +271,7 @@ func (n *StatusBarNavigator) setIndex(newIndex int) {
 
 // 游戏入口根据所选模式复用目录或仓库页面。
 func (n *StatusBarNavigator) contentForCategory(name string) fbiw.Box {
-	if name == "games" && !n.window.directoryGames {
+	if name == "games" && n.window.gameMode != gameModeDirectory {
 		name = "store"
 	}
 	for _, box := range n.contentBoxes {

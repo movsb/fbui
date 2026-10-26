@@ -29,8 +29,7 @@ const gmBlobBaseURL = "http://192.168.10.10:8888"
 type storeLevel int
 
 const (
-	storeRoot storeLevel = iota
-	storePlatforms
+	storePlatforms storeLevel = iota
 	storeSeries
 	storeGames
 	storeReleases
@@ -107,8 +106,9 @@ func (view *storeItemView) ListSelectionChanged(selected bool) {
 var _ fbiw.ListSelectionAware = (*storeItemView)(nil)
 
 type StoreNavigator struct {
-	window *MainWindow
-	shadow fbiw.Box `css:"#store"`
+	homeLoaded bool
+	window     *MainWindow
+	shadow     fbiw.Box `css:"#store"`
 	// title           *fbiw.Text  `css:"#store-title"`
 	list            *fbiw.List  `css:"#store-list"`
 	icons           *fbiw.List  `css:"#store-icon-list"`
@@ -180,11 +180,7 @@ func NewStoreNavigator(win *MainWindow) *StoreNavigator {
 		n.updatePagination()
 		n.setButtonHints()
 	})
-	n.stack = []storePage{{
-		level: storeRoot,
-		title: "仓库",
-		items: []storeItem{{name: "平台", value: storePlatforms}, {name: "系列", value: storeSeries}},
-	}}
+	n.stack = []storePage{{level: storePlatforms, title: "平台"}}
 	n.render(nil)
 	return n
 }
@@ -218,7 +214,7 @@ func (n *StoreNavigator) setButtonHints() {
 }
 
 func (n *StoreNavigator) isRootPage() bool {
-	return len(n.stack) == 1 && n.stack[0].level == storeRoot
+	return len(n.stack) == 1
 }
 
 func (n *StoreNavigator) activeList() *fbiw.List {
@@ -428,8 +424,6 @@ func (n *StoreNavigator) handleDownEvents(event *fbiw.Event) {
 	page.state = list.GetState()
 	item := page.items[list.DataIndex()]
 	switch page.level {
-	case storeRoot:
-		n.loadKinds(item.value.(storeLevel))
 	case storePlatforms:
 		platform := item.value.(*game_library.Platform)
 		n.loadGames(platform.ID, 0, displayNames(platform.Names))
@@ -659,14 +653,8 @@ func (n *StoreNavigator) updateDatabase() {
 			if oldLibrary != nil {
 				_ = oldLibrary.Close()
 			}
-			n.stack = []storePage{{
-				level: storeRoot,
-				title: "仓库",
-				items: []storeItem{{name: "平台", value: storePlatforms}, {name: "系列", value: storeSeries}},
-			}}
-			n.render(nil)
-			n.activeList().SetIndex(0, 0, 0)
-			n.activeList().Activate()
+			n.homeLoaded = false
+			n.ensureGamePage()
 			n.window.app.ShowAlertDialog(n.window.doc, fbiw.AlertDialogOptions{
 				Title:       "仓库数据库已更新",
 				Description: "最新数据库快照已启用。",
@@ -700,10 +688,17 @@ func (n *StoreNavigator) asyncPage(title string, keepPreview bool, load func(con
 				})
 				return
 			}
-			n.stack = append(n.stack, page)
+			if page.level == storePlatforms || page.level == storeSeries {
+				n.stack = []storePage{page}
+				n.homeLoaded = true
+			} else {
+				n.stack = append(n.stack, page)
+			}
 			n.render(nil)
-			// n.activeList().SetIndex(0, 0, 0)
-			n.activeList().Activate()
+			// 根页面也可以在标题栏获得焦点时预加载。
+			if n.active {
+				n.activeList().Activate()
+			}
 			if page.level == storeGames {
 				n.scheduleGamePreview()
 			}
@@ -1455,4 +1450,20 @@ func formatSize(size int64) string {
 		return fmt.Sprintf("%.1f KB", float64(size)/1024)
 	}
 	return fmt.Sprintf("%.1f MB", float64(size)/(1024*1024))
+}
+
+func (n *StoreNavigator) ensureGamePage() {
+	if n.window.gameMode == gameModeDirectory || n.busy {
+		return
+	}
+	level := storePlatforms
+	if n.window.gameMode == gameModeSeries {
+		level = storeSeries
+	}
+	if n.homeLoaded && n.stack[0].level == level {
+		return
+	}
+	n.homeLoaded = false
+	n.stack = []storePage{{level: level}}
+	n.loadKinds(level)
 }
