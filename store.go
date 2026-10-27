@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"path/filepath"
 	"slices"
 	"sort"
@@ -182,6 +183,9 @@ func NewStoreNavigator(win *MainWindow) *StoreNavigator {
 	})
 	n.stack = []storePage{{level: storePlatforms, title: "平台"}}
 	n.render(nil)
+	if metadataErr == nil {
+		prepareStoreSearchIndex(filepath.Join(root, "gm.db"))
+	}
 	return n
 }
 
@@ -474,15 +478,8 @@ func (n *StoreNavigator) showSearchResults(query string) {
 		if n.metadataErr != nil {
 			err = n.metadataErr
 		} else {
-			var games []*game_library.Game
-			games, err = n.metadata.ListGames(context.Background(), 0, 0)
-			if err == nil {
-				var releases []*game_library.Release
-				releases, err = n.metadata.ListReleases(context.Background(), 0)
-				if err == nil {
-					items = search_window.MatchItems(buildStoreSearchItems(games, releases), query)
-				}
-			}
+			items, err = searchStore(context.Background(), n.metadata,
+				filepath.Join(config.SDCARDRoot, ".fbui", "gm", "gm.db"), query)
 		}
 		n.window.doc.Async(func() {
 			n.busy = false
@@ -649,9 +646,12 @@ func (n *StoreNavigator) updateDatabase() {
 				})
 				return
 			}
+			// A newly downloaded snapshot always invalidates the derived search cache.
+			_ = os.Remove(target + ".search-v1")
 			oldLibrary := n.metadata
 			n.metadata = newLibrary
 			n.metadataErr = nil
+			prepareStoreSearchIndex(target)
 			if oldLibrary != nil {
 				_ = oldLibrary.Close()
 			}
