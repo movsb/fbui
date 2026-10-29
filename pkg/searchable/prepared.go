@@ -1,17 +1,21 @@
 package searchable
 
-import "strings"
+import (
+	"strings"
+	"unicode/utf8"
+)
 
 // Prepared stores query-independent transformations and can be serialized to disk.
 // Extremely ambiguous names retain a fallback instead of expanding exponentially.
 type Prepared struct {
+	Length   int
 	Literal  string
 	Initials []string
 	Fallback string
 }
 
 func Prepare(name string) Prepared {
-	p := Prepared{Literal: normalizeLiteral(name)}
+	p := Prepared{Length: utf8.RuneCountInString(name), Literal: normalizeLiteral(name)}
 	seen := map[string]bool{}
 	count := 0
 	yield := func(s string) bool {

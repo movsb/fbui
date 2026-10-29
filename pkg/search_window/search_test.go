@@ -22,7 +22,7 @@ func TestCenteredKeyColumn(t *testing.T) {
 	}
 }
 
-func TestMatchItemsRanksSearchGroupsBeforeNameLength(t *testing.T) {
+func TestMatchItemsRanksByMatchedNameLength(t *testing.T) {
 	items := []Item{
 		{Name: `恶魔城`, SearchGroups: [][]string{{`恶魔城`}, nil, {`Majou Densetsu`}}},
 		{Name: `摩艾君`, SearchGroups: [][]string{{`摩艾君`}, {`Moai-kun`}, nil}},

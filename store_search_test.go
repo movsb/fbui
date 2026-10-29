@@ -30,6 +30,45 @@ func searchFixture() []search_window.Item {
 	return buildStoreSearchItems(games, releases)
 }
 
+func TestStoreSearchRanksShortestMatchedName(t *testing.T) {
+	var items []search_window.Item
+	for i, groups := range [][][]string{
+		{{"骡子大作战"}},
+		{{"联合大作战"}, {"中东战争"}},
+		{{"战斗装置"}},
+		{{"ABzdzz"}, nil, {"zdzz"}},
+	} {
+		items = append(items, search_window.Item{Name: groups[0][0], SearchGroups: groups, Value: &game_library.Game{ID: int32(i + 1)}})
+	}
+	index := buildStoreSearchIndex(items)
+	path := filepath.Join(t.TempDir(), "index")
+	if err := writeStoreSearchIndex(path, index); err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Supply the database metadata stored in this synthetic index.
+	index.Size, index.Modified = info.Size(), info.ModTime().UnixNano()
+	if err := writeStoreSearchIndex(path, index); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := readStoreSearchIndex(path, info)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, matched := range [][]search_window.Item{search_window.MatchItems(items, "zdzz"), loaded.search("zdzz")} {
+		var ids []int32
+		for _, item := range matched {
+			ids = append(ids, item.Value.(*game_library.Game).ID)
+		}
+		if want := []int32{3, 2, 4, 1}; !reflect.DeepEqual(ids, want) {
+			t.Fatalf("IDs=%v; want %v", ids, want)
+		}
+	}
+}
+
 func TestDiskStoreSearchMatchesOriginal(t *testing.T) {
 	items := searchFixture()
 	index := buildStoreSearchIndex(items)

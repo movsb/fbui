@@ -348,12 +348,13 @@ func (w *SearchWindow) asyncSearch(ctx context.Context, search string) {
 	})
 }
 
-// MatchItems filters and ranks items by their first matching search group.
+// MatchItems ranks by the shortest matching name, then its search group.
 func MatchItems(items []Item, search string) []Item {
 	type rankedItem struct {
-		item  Item
-		rank  int
-		order int
+		item   Item
+		rank   int
+		length int
+		order  int
 	}
 	ranked := make([]rankedItem, 0, len(items))
 	for order, item := range items {
@@ -361,19 +362,25 @@ func MatchItems(items []Item, search string) []Item {
 		if len(groups) == 0 {
 			groups = [][]string{item.SearchTerms}
 		}
+		best := rankedItem{item: item, order: order, length: -1}
 		for rank, terms := range groups {
-			if searchable.Match(search, terms...) {
-				ranked = append(ranked, rankedItem{item: item, rank: rank, order: order})
-				break
+			for _, term := range terms {
+				length := utf8.RuneCountInString(term)
+				if searchable.Match(search, term) && (best.length < 0 || length < best.length || length == best.length && rank < best.rank) {
+					best.length, best.rank = length, rank
+				}
 			}
+		}
+		if best.length >= 0 {
+			ranked = append(ranked, best)
 		}
 	}
 	slices.SortFunc(ranked, func(a, b rankedItem) int {
+		if a.length != b.length {
+			return a.length - b.length
+		}
 		if a.rank != b.rank {
 			return a.rank - b.rank
-		}
-		if len(a.item.Name) != len(b.item.Name) {
-			return len(a.item.Name) - len(b.item.Name)
 		}
 		return a.order - b.order
 	})

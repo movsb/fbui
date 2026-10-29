@@ -17,7 +17,7 @@ import (
 )
 
 // Bump when matching, display-name selection or search ranking rules change.
-const storeSearchVersion = 1
+const storeSearchVersion = 2
 
 // Background preparation and submitted searches share a single build at a time.
 // The lock retains no index data after a request finishes.
@@ -108,28 +108,30 @@ func (index *storeSearchIndex) search(text string) []search_window.Item {
 			candidates[id] = true
 		}
 	}
-	type match struct{ id, rank int }
+	type match struct{ id, rank, length int }
 	var matches []match
 	for id, candidate := range candidates {
 		if !candidate {
 			continue
 		}
-	groups:
+		best := match{id: id, length: -1}
 		for rank, group := range index.Entries[id].Groups {
 			for _, p := range group {
-				if query.Match(p) {
-					matches = append(matches, match{id, rank})
-					break groups
+				if query.Match(p) && (best.length < 0 || p.Length < best.length || p.Length == best.length && rank < best.rank) {
+					best = match{id: id, rank: rank, length: p.Length}
 				}
 			}
 		}
+		if best.length >= 0 {
+			matches = append(matches, best)
+		}
 	}
 	slices.SortFunc(matches, func(a, b match) int {
+		if a.length != b.length {
+			return a.length - b.length
+		}
 		if a.rank != b.rank {
 			return a.rank - b.rank
-		}
-		if d := len(index.Entries[a.id].Name) - len(index.Entries[b.id].Name); d != 0 {
-			return d
 		}
 		return a.id - b.id
 	})
