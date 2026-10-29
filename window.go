@@ -151,6 +151,9 @@ func (n *StatusBarNavigator) showPagination(show bool) {
 }
 
 func (n *StatusBarNavigator) activate() {
+	if n.window.commonNav != nil {
+		n.window.commonNav.deactivate()
+	}
 	n.catBar.Activate()
 	n.catBar.ClassAdd(`active`)
 	hints := []ButtonHint{

@@ -75,17 +75,37 @@ func TestCommonColumnsNavigation(t *testing.T) {
 		t.Fatal("recent items should be loaded while the other column stays unselected")
 	}
 	n.current().list.SetIndex(3, 0, 8)
+	state := n.current().list.GetState()
 	// Right must switch columns before the list consumes it as page navigation.
 	n.current().list.Dispatch(fbiw.InputDownEvent, fbiw.InputEventArgs{Name: sticks.Right})
 	if !n.favorites {
 		t.Fatal("right from a populated list should switch to favorites")
 	}
-	if len(n.columns[false].items) != 12 || n.columns[false].list.DataIndex() != 11 {
-		t.Fatal("switching focus must keep recent items and their scroll position")
+	if len(n.columns[false].items) != 12 || n.columns[false].list.DataIndex() != -1 {
+		t.Fatal("switching focus must deselect the previous column")
 	}
 	win.doc.ActiveBox().Base().Dispatch(fbiw.InputDownEvent, fbiw.InputEventArgs{Name: sticks.Left})
-	if n.current().list.DataIndex() != 11 {
+	if n.current().list.DataIndex() != 11 || n.current().list.GetState() != state {
 		t.Fatalf("recent selection lost: got %d", n.current().list.DataIndex())
+	}
+	win.doc.ActiveBox().Base().Dispatch(fbiw.InputDownEvent, fbiw.InputEventArgs{Name: sticks.B})
+	for _, column := range n.columns {
+		if column.list.DataIndex() != -1 || column.list.ClassContains("active-column") {
+			t.Fatal("returning to the title must deselect both columns")
+		}
+	}
+	for _, text := range win.doc.QuerySelectorAll[*fbiw.Text]("#common .name") {
+		if text.MarqueeRunning() {
+			t.Fatal("marquee should stop outside the common page")
+		}
+	}
+	n.reload() // Previewing the common category must not select its rows.
+	if n.current().list.DataIndex() != -1 {
+		t.Fatal("title-bar preview must remain deselected")
+	}
+	n.activate()
+	if n.current().list.GetState() != state {
+		t.Fatal("re-entering common should restore the full list state")
 	}
 	if _, err := win.lists.ToggleFavorite(n.current().items[0]); err != nil {
 		t.Fatal(err)
@@ -98,6 +118,18 @@ func TestCommonColumnsNavigation(t *testing.T) {
 	if n.columns[true].list.ClassContains("active-column") || !n.columns[false].list.ClassContains("active-column") {
 		t.Fatal("only the focused column should highlight its selection")
 	}
+	for _, text := range win.doc.QuerySelectorAll[*fbiw.Text]("#common-favorites .name") {
+		if text.MarqueeRunning() {
+			t.Fatal("unfocused favorites must not run marquees")
+		}
+	}
+	n.switchColumn(true)
+	for _, text := range win.doc.QuerySelectorAll[*fbiw.Text]("#common-recent .name") {
+		if text.MarqueeRunning() {
+			t.Fatal("switching columns must stop the previous column's marquees")
+		}
+	}
+	n.switchColumn(false)
 	if err := win.lists.Clear(false); err != nil {
 		t.Fatal(err)
 	}

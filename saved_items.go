@@ -27,9 +27,11 @@ func (v *_SavedItemView) ListSelectionChanged(selected bool) {
 var _ fbiw.ListSelectionAware = (*_SavedItemView)(nil)
 
 type savedItemsColumn struct {
-	list  *fbiw.List
-	empty fbiw.Box
-	items []mainui.Item
+	list       *fbiw.List
+	empty      fbiw.Box
+	items      []mainui.Item
+	state      any
+	stateCount int
 }
 
 type SavedItemsNavigator struct {
@@ -38,6 +40,7 @@ type SavedItemsNavigator struct {
 	columns   map[bool]*savedItemsColumn
 	indices   map[bool]int
 	favorites bool
+	active    bool
 }
 
 func (n *SavedItemsNavigator) current() *savedItemsColumn {
@@ -74,6 +77,7 @@ func loadCommonFavorites(root string) bool {
 }
 
 func (n *SavedItemsNavigator) activate() {
+	n.active = true
 	n.reload()
 	n.focusList()
 	n.window.statusBarNav.showPagination(true)
@@ -94,7 +98,8 @@ func (n *SavedItemsNavigator) switchColumn(favorites bool) {
 	if n.favorites == favorites {
 		return
 	}
-	n.indices[n.favorites] = n.current().list.DataIndex()
+	n.rememberSelection(n.favorites)
+	n.current().list.Deselect()
 	n.favorites = favorites
 	dir := filepath.Join(config.SDCARDRoot, ".fbui")
 	value := "recent"
@@ -128,7 +133,7 @@ func (n *SavedItemsNavigator) reload() {
 
 func (n *SavedItemsNavigator) reloadColumn(favorites bool) {
 	column := n.columns[favorites]
-	column.list.ClassToggle("active-column", favorites == n.favorites)
+	column.list.ClassToggle("active-column", n.active && favorites == n.favorites)
 	items, err := n.window.lists.Items(favorites)
 	if err != nil {
 		log.Println("读取 MainUI 列表失败：", err)
@@ -152,8 +157,14 @@ func (n *SavedItemsNavigator) reloadColumn(favorites bool) {
 			view.sublabel.SetText(items[index].SubLabel)
 		},
 	)
-	index := max(0, min(n.indices[favorites], len(items)-1))
-	column.list.SetIndex(index%8, 0, index-index%8)
+	if n.active && favorites == n.favorites && len(items) > 0 {
+		if column.state != nil && column.stateCount == len(items) {
+			column.list.SetState(column.state)
+		} else {
+			index := max(0, min(n.indices[favorites], len(items)-1))
+			column.list.SetIndex(0, 0, index)
+		}
+	}
 }
 
 func inferSubLabel(item mainui.Item) string {
@@ -194,8 +205,7 @@ func (n *SavedItemsNavigator) handleDown(event *fbiw.Event) {
 			event.StopPropagation()
 		}
 	} else if name == sticks.B || (name == sticks.Up && n.current().list.DataRowIndex() <= 0) {
-		n.indices[n.favorites] = n.current().list.DataIndex()
-		n.current().list.Deselect()
+		n.deactivate()
 		n.window.statusBarNav.showPagination(false)
 		n.window.statusBarNav.showCatBar(true)
 		n.window.statusBarNav.activate()
@@ -228,7 +238,7 @@ func (n *SavedItemsNavigator) showMenu() {
 			if _, err := n.window.lists.ToggleFavorite(item); err != nil {
 				log.Println("更新收藏失败：", err)
 			}
-			n.indices[n.favorites] = n.current().list.DataIndex()
+			n.rememberSelection(n.favorites)
 			n.reload()
 			n.focusList()
 		}})
@@ -249,10 +259,29 @@ func (n *SavedItemsNavigator) showMenu() {
 					log.Println("清空 MainUI 列表失败：", err)
 				}
 				n.indices[n.favorites] = 0
+				n.current().state = nil
 				n.reload()
 				n.focusList()
 			},
 		})
 	}})
 	menu_popup.NewMenuPopup(n.window.app, n.window.doc, items, nil, nil)
+}
+
+func (n *SavedItemsNavigator) rememberSelection(favorites bool) {
+	column := n.columns[favorites]
+	if index := column.list.DataIndex(); index >= 0 {
+		n.indices[favorites] = index
+		column.state = column.list.GetState()
+		column.stateCount = len(column.items)
+	}
+}
+
+func (n *SavedItemsNavigator) deactivate() {
+	for favorites, column := range n.columns {
+		n.rememberSelection(favorites)
+		column.list.Deselect()
+		column.list.ClassRemove("active-column")
+	}
+	n.active = false
 }
