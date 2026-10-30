@@ -437,7 +437,7 @@ func (n *StoreNavigator) handleDownEvents(event *fbiw.Event) {
 	case storeGames:
 		n.loadReleases(item.value.(*game_library.Game))
 	case storeReleases:
-		n.loadAssets(page.game, item.value.(*game_library.Release))
+		n.openRelease(item.value.(*game_library.Release))
 	case storeAssets:
 		n.openAsset(item.value.(*game_library.Asset))
 	}
@@ -1046,29 +1046,48 @@ func selectReleaseImage(gameAssets, releaseAssets []*game_library.Asset) *game_l
 	return nil
 }
 
-func (n *StoreNavigator) loadAssets(game *game_library.Game, release *game_library.Release) {
-	n.asyncKeepingPreview("加载资源", func(ctx context.Context) (storePage, error) {
-		response, err := n.metadata.ListAssets(ctx, release.ID)
-		page := storePage{level: storeAssets, title: displayNames(release.Names), game: game, release: release}
-		if err != nil {
-			return page, err
-		}
-		sort.SliceStable(response, func(i, j int) bool {
-			return response[i].Type == game_library.AssetTypeROM && response[j].Type != game_library.AssetTypeROM
-		})
-		for _, item := range response {
-			if item.Type == game_library.AssetTypeTitle {
-				continue
+func (n *StoreNavigator) openRelease(release *game_library.Release) {
+	n.busy = true
+	go func() {
+		assets, err := n.metadata.ListAssets(context.Background(), release.ID)
+		roms := releaseROMs(assets)
+		n.window.doc.Async(func() {
+			n.busy = false
+			if err != nil {
+				n.window.app.ShowAlertDialog(n.window.doc, fbiw.AlertDialogOptions{
+					Title: "加载 ROM 失败", Description: err.Error(),
+				})
+				return
 			}
-			page.items = append(page.items, storeItem{
-				name:        item.Name,
-				detail:      assetDetail(game, item),
-				description: item.Description,
-				value:       item,
-			})
+			switch len(roms) {
+			case 0:
+				n.window.app.ShowAlertDialog(n.window.doc, fbiw.AlertDialogOptions{
+					Title: "没有可打开的 ROM", Description: "此 release 暂无 ROM。",
+				})
+			case 1:
+				n.openAsset(roms[0])
+			default:
+				items := make([]menu_popup.MenuItem, 0, len(roms))
+				for _, rom := range roms {
+					items = append(items, menu_popup.MenuItem{
+						Name:  rom.Name,
+						Click: func() { n.openAsset(rom) },
+					})
+				}
+				menu_popup.NewMenuPopup(n.window.app, n.window.doc, items, nil, nil)
+			}
+		})
+	}()
+}
+
+func releaseROMs(assets []*game_library.Asset) []*game_library.Asset {
+	var roms []*game_library.Asset
+	for _, asset := range assets {
+		if asset.Type == game_library.AssetTypeROM {
+			roms = append(roms, asset)
 		}
-		return page, nil
-	})
+	}
+	return roms
 }
 
 func sameImageAsset(left, right *game_library.Asset) bool {

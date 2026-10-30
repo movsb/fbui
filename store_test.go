@@ -250,3 +250,31 @@ func TestStoreIndependentHomePages(t *testing.T) {
 		}
 	}
 }
+
+func TestReleaseROMs(t *testing.T) {
+	first := &game_library.Asset{ID: 1, Type: game_library.AssetTypeROM, Name: "游戏.nes"}
+	second := &game_library.Asset{ID: 2, Type: game_library.AssetTypeROM, Name: "游戏.zip"}
+	title := &game_library.Asset{ID: 3, Type: game_library.AssetTypeTitle}
+	for _, tc := range []struct {
+		name   string
+		assets []*game_library.Asset
+		want   []*game_library.Asset
+	}{
+		{name: "empty"},
+		{name: "title only", assets: []*game_library.Asset{title}},
+		{name: "single ROM", assets: []*game_library.Asset{title, first}, want: []*game_library.Asset{first}},
+		{name: "multiple ROMs", assets: []*game_library.Asset{first, title, second}, want: []*game_library.Asset{first, second}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := releaseROMs(tc.assets)
+			if len(got) != len(tc.want) {
+				t.Fatalf("got %d ROMs, want %d", len(got), len(tc.want))
+			}
+			for i := range got {
+				if got[i] != tc.want[i] {
+					t.Fatalf("ROM %d = %#v, want %#v", i, got[i], tc.want[i])
+				}
+			}
+		})
+	}
+}
