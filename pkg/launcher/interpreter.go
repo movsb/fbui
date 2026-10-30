@@ -15,7 +15,7 @@ import (
 
 // RunScript interprets an emulator launch.sh and intercepts its final
 // RetroArch command. Setup commands in the script still run normally.
-func RunScript(ctx context.Context, scriptPath, romPath string) error {
+func RunScript(ctx context.Context, scriptPath, romPath string, preferredCores ...string) error {
 	scriptPath, err := filepath.Abs(scriptPath)
 	if err != nil {
 		return fmt.Errorf(`解析启动脚本路径: %w`, err)
@@ -37,7 +37,7 @@ func RunScript(ctx context.Context, scriptPath, romPath string) error {
 				return next(ctx, args)
 			}
 			hc := interp.HandlerCtx(ctx)
-			if runRetroArchCandidates(args, scriptPath, hc.Env, hc.Dir) {
+			if runRetroArchCandidates(args, scriptPath, hc.Env, hc.Dir, preferredCores...) {
 				return nil
 			}
 			return interp.ExitStatus(1)
@@ -65,14 +65,14 @@ func isRetroArchCommand(args []string) bool {
 	return strings.Contains(name, `retroarch`) || strings.HasPrefix(name, `ra64.`) || strings.HasPrefix(name, `ra32.`)
 }
 
-func runRetroArchCandidates(command []string, scriptPath string, env expand.Environ, dir string) bool {
+func runRetroArchCandidates(command []string, scriptPath string, env expand.Environ, dir string, preferredCores ...string) bool {
 	before, originalCore, after := splitByCore(command[1:])
 	detectGrayScreen := isPlatformPath(scriptPath, `fc`)
 	if originalCore == `` {
 		return run(command[0], command[1:], env, dir, `/tmp/retroarch.log`, detectGrayScreen)
 	}
 
-	candidates := retroArchCoreCandidates(originalCore, scriptPath)
+	candidates := retroArchCoreCandidates(originalCore, scriptPath, preferredCores...)
 
 	for _, core := range candidates {
 		logFile := fmt.Sprintf(`/tmp/retroarch_%s.log`, strings.TrimSuffix(filepath.Base(core), `.so`))
@@ -84,7 +84,7 @@ func runRetroArchCandidates(command []string, scriptPath string, env expand.Envi
 	return false
 }
 
-func retroArchCoreCandidates(originalCore, scriptPath string) []string {
+func retroArchCoreCandidates(originalCore, scriptPath string, preferredCores ...string) []string {
 	coreDir := filepath.Dir(originalCore)
 	var mapped []string
 	for name := range rangeDirForEmulators(scriptPath) {
@@ -95,6 +95,12 @@ func retroArchCoreCandidates(originalCore, scriptPath string) []string {
 	if isArcadePath(scriptPath) {
 		ordered = append(mapped, originalCore)
 	}
+
+	var preferred []string
+	for _, name := range preferredCores {
+		preferred = append(preferred, filepath.Join(coreDir, name+`_libretro.so`))
+	}
+	ordered = append(preferred, ordered...)
 
 	candidates := make([]string, 0, len(ordered))
 	seen := make(map[string]bool, len(ordered))

@@ -278,3 +278,30 @@ func TestReleaseROMs(t *testing.T) {
 		})
 	}
 }
+
+func TestStorePreferredCores(t *testing.T) {
+	for _, tc := range []struct {
+		emulator, version, want string
+	}{
+		{"mame", "0.78", "mame2003_plus"},
+		{"mame", "0.139", "mame2010"},
+		{"mame", "0.259", "mamearcade"},
+		{" FBNeo ", "1.0", "fbneo"},
+		{"unknown", "1", ""},
+	} {
+		t.Run(tc.emulator+tc.version, func(t *testing.T) {
+			mapping := &game_library.ROMSet{Emulator: tc.emulator, Version: tc.version}
+			got := storePreferredCores(&game_library.Asset{ROMSets: []*game_library.ROMSet{mapping, mapping}})
+			if tc.want == "" {
+				if len(got) != 0 {
+					t.Fatalf("unexpected cores: %v", got)
+				}
+			} else if len(got) != 1 || got[0] != tc.want {
+				t.Fatalf("got %v, want [%s]", got, tc.want)
+			}
+		})
+	}
+	if got := storePreferredCores(&game_library.Asset{}); len(got) != 0 {
+		t.Fatalf("unmapped ROM has preferences: %v", got)
+	}
+}

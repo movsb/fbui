@@ -1277,6 +1277,34 @@ var platformEmulators = map[int32]string{
 	8: "ATARI2600",
 }
 
+// ROM set mappings take precedence over the platform's fallback core order.
+func storePreferredCores(asset *game_library.Asset) []string {
+	var cores []string
+	for _, romSet := range asset.ROMSets {
+		name := strings.ToLower(strings.TrimSpace(romSet.Emulator))
+		switch name {
+		case "mame":
+			switch strings.TrimSpace(romSet.Version) {
+			case "0.78":
+				name = "mame2003_plus"
+			case "0.139":
+				name = "mame2010"
+			default:
+				name = "mamearcade"
+			}
+		default:
+			// Only known cores may be selected from metadata.
+			if !slices.Contains([]string{"fbneo", "fbalpha", "fbalpha2012", "mame2003_plus", "mame2010", "mamearcade"}, name) {
+				continue
+			}
+		}
+		if !slices.Contains(cores, name) {
+			cores = append(cores, name)
+		}
+	}
+	return cores
+}
+
 func (n *StoreNavigator) runROM(rom *game_library.LaunchableAsset, path string, done ...func()) {
 	n.runROMWithOpener(n.window.doc, rom, path, done...)
 }
@@ -1305,7 +1333,7 @@ func (n *StoreNavigator) runROMWithOpener(opener *fbiw.Document, rom *game_libra
 		defer n.activeReleaseID.CompareAndSwap(releaseID, 0)
 		script := item.Launch
 		log.Println("启动仓库 ROM：", script, path)
-		if err := launcher.RunScript(context.Background(), script, path); err != nil {
+		if err := launcher.RunScript(context.Background(), script, path, storePreferredCores(rom.Asset)...); err != nil {
 			// 已经运行，错误码不可靠，直接忽略。
 			if strings.Contains(err.Error(), `exit status`) {
 				return

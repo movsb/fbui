@@ -96,3 +96,42 @@ func writeExecutable(t *testing.T, path, content string) {
 		t.Fatal(err)
 	}
 }
+
+func TestPreferredCorePrecedesFallbacks(t *testing.T) {
+	original := "/cores/fbneo_libretro.so"
+	script := "/Emus/ARCADE/launch.sh"
+	fallbacks := retroArchCoreCandidates(original, script)
+	got := retroArchCoreCandidates(original, script, "mame2010", "mame2010", "fbneo")
+	want := []string{"/cores/mame2010_libretro.so", original}
+	for _, core := range fallbacks {
+		if core != want[0] && core != original {
+			want = append(want, core)
+		}
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+}
+
+func TestRunScriptFallsBackAfterPreferredCoreFails(t *testing.T) {
+	dir := t.TempDir()
+	attempts := filepath.Join(dir, "attempts")
+	binary := filepath.Join(dir, "retroarch")
+	script := filepath.Join(dir, "Emus", "ARCADE", "launch.sh")
+	if err := os.MkdirAll(filepath.Dir(script), 0755); err != nil {
+		t.Fatal(err)
+	}
+	writeExecutable(t, binary, "#!/bin/sh\nprintf '%s\\n' \"$2\" >>\""+attempts+"\"\ncase \"$2\" in *mame2010_libretro.so) echo 'Cannot load this game';; esac\n")
+	writeExecutable(t, script, "#!/bin/sh\nexec \""+binary+"\" -L \""+dir+"/cores/fbneo_libretro.so\" \"$1\"\n")
+	if err := RunScript(context.Background(), script, "game.zip", "mame2010"); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(attempts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := dir + "/cores/mame2010_libretro.so\n" + dir + "/cores/fbneo_libretro.so\n"
+	if string(got) != want {
+		t.Fatalf("attempts = %q, want %q", got, want)
+	}
+}
