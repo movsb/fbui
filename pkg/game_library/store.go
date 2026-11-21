@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 )
@@ -231,6 +232,10 @@ func (s *Store) materialize(ctx context.Context, asset *Asset, progress func(mes
 		return final, nil
 	case FormatZIP:
 		shaPath := filepath.Join(dir, "sha.txt")
+		manifestSHA, err := zipManifestSHA(asset.Entries)
+		if err != nil {
+			return "", err
+		}
 		// MAME uses the ZIP basename as its driver name, so the materialized name
 		// must follow the catalog exactly. A catalog-only case correction (for
 		// example, 005.ZIP -> 005.zip) can otherwise leave an old cache entry that
@@ -240,7 +245,7 @@ func (s *Store) materialize(ctx context.Context, asset *Asset, progress func(mes
 		if err := normalizeMaterializedNameCase(dir, name); err != nil {
 			return "", err
 		}
-		if validZIPCache(final, shaPath, func(p float32) {
+		if validZIPCache(final, shaPath, manifestSHA, func(p float32) {
 			progress(`校验文件`, p)
 		}) {
 			return final, nil
@@ -364,7 +369,7 @@ func (s *Store) materialize(ctx context.Context, asset *Asset, progress func(mes
 		if err != nil {
 			return "", err
 		}
-		if err := writeSHAFile(shaPath, sha); err != nil {
+		if err := writeZIPCacheFile(shaPath, sha, manifestSHA); err != nil {
 			return "", err
 		}
 		return final, nil
@@ -421,13 +426,48 @@ func normalizeMaterializedNameCase(dir, wanted string) error {
 	return nil
 }
 
-func validZIPCache(zipPath, shaPath string, progress func(float32)) bool {
-	expected, err := os.ReadFile(shaPath)
+func zipManifestSHA(entries []*Entry) (string, error) {
+	type item struct {
+		name   string
+		size   int64
+		sha256 string
+	}
+	items := make([]item, 0, len(entries))
+	seen := make(map[string]bool, len(entries))
+	for _, entry := range entries {
+		name, err := safeEntryName(entry.Name)
+		if err != nil {
+			return "", err
+		}
+		if seen[name] {
+			return "", fmt.Errorf("duplicate zip entry: %s", name)
+		}
+		seen[name] = true
+		if entry.Blob == nil || !sha256Pattern.MatchString(entry.Blob.SHA256) {
+			return "", errors.New("invalid entry blob metadata")
+		}
+		items = append(items, item{name: name, size: entry.Blob.Size, sha256: entry.Blob.SHA256})
+	}
+	sort.Slice(items, func(i, j int) bool { return items[i].name < items[j].name })
+	hash := sha256.New()
+	for _, item := range items {
+		fmt.Fprintf(hash, "%d:%s\n%d:%s\n", len(item.name), item.name, item.size, item.sha256)
+	}
+	return fmt.Sprintf("%x", hash.Sum(nil)), nil
+}
+
+func validZIPCache(zipPath, shaPath, manifestSHA string, progress func(float32)) bool {
+	data, err := os.ReadFile(shaPath)
 	if err != nil {
 		return false
 	}
-	expectedSHA := strings.TrimSpace(string(expected))
-	if !sha256Pattern.MatchString(expectedSHA) {
+	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+	if len(lines) != 2 || !strings.HasPrefix(lines[0], "archive=") || !strings.HasPrefix(lines[1], "manifest=") {
+		return false
+	}
+	expectedSHA := strings.TrimPrefix(lines[0], "archive=")
+	expectedManifestSHA := strings.TrimPrefix(lines[1], "manifest=")
+	if !sha256Pattern.MatchString(expectedSHA) || expectedManifestSHA != manifestSHA {
 		return false
 	}
 	actualSHA, err := fileSHA256(zipPath, progress)
@@ -456,8 +496,8 @@ func fileSHA256(path string, progress func(float32)) (string, error) {
 	return fmt.Sprintf("%x", hash.Sum(nil)), nil
 }
 
-func writeSHAFile(path, sha string) error {
-	return os.WriteFile(path, []byte(sha+"\n"), 0644)
+func writeZIPCacheFile(path, archiveSHA, manifestSHA string) error {
+	return os.WriteFile(path, []byte("archive="+archiveSHA+"\nmanifest="+manifestSHA+"\n"), 0644)
 }
 
 func safeBaseName(name string) (string, error) {

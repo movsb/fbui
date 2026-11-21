@@ -11,6 +11,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -294,6 +295,64 @@ func TestMaterializeZIPNormalizesCachedNameCase(t *testing.T) {
 	}
 	if source.requests[blob.SHA256] != requests {
 		t.Fatal("blob was fetched again during case normalization")
+	}
+}
+
+func TestMaterializeZIPRebuildsWhenManifestChanges(t *testing.T) {
+	first, _ := testBlob(1, "first")
+	second, _ := testBlob(2, "second")
+	source := &fakeSource{contents: map[string][]byte{
+		first.SHA256:  []byte("first"),
+		second.SHA256: []byte("second"),
+	}, requests: map[string]int{}}
+	store := New(t.TempDir(), source)
+	progress := func(string, float32) {}
+	asset := &Asset{ID: 3, Name: "game.zip", Format: FormatZIP, Entries: []*Entry{{Name: "first.rom", Blob: first}}}
+	archivePath, err := store.Materialize(context.Background(), asset, progress)
+	if err != nil {
+		t.Fatal(err)
+	}
+	asset.Entries = append(asset.Entries, &Entry{Name: "second.rom", Blob: second})
+	if _, err := store.Materialize(context.Background(), asset, progress); err != nil {
+		t.Fatal(err)
+	}
+	archive, err := zip.OpenReader(archivePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer archive.Close()
+	if len(archive.File) != 2 || archive.File[0].Name != "first.rom" || archive.File[1].Name != "second.rom" {
+		t.Fatalf("changed manifest did not rebuild ZIP: %#v", archive.File)
+	}
+}
+
+func TestMaterializeZIPRebuildsLegacyCacheMetadata(t *testing.T) {
+	blob, _ := testBlob(1, "data")
+	source := &fakeSource{contents: map[string][]byte{blob.SHA256: []byte("data")}, requests: map[string]int{}}
+	store := New(t.TempDir(), source)
+	asset := &Asset{ID: 4, Name: "game.zip", Format: FormatZIP, Entries: []*Entry{{Name: "game.rom", Blob: blob}}}
+	progress := func(string, float32) {}
+	archivePath, err := store.Materialize(context.Background(), asset, progress)
+	if err != nil {
+		t.Fatal(err)
+	}
+	archiveSHA, err := fileSHA256(archivePath, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	shaPath := filepath.Join(filepath.Dir(archivePath), "sha.txt")
+	if err := os.WriteFile(shaPath, []byte(archiveSHA+"\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Materialize(context.Background(), asset, progress); err != nil {
+		t.Fatal(err)
+	}
+	metadata, err := os.ReadFile(shaPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(metadata), "archive=") || !strings.Contains(string(metadata), "manifest=") {
+		t.Fatalf("legacy cache metadata was not upgraded: %q", metadata)
 	}
 }
 
