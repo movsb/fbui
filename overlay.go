@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net"
 	"os"
+	"runtime"
 	"slices"
 	"strings"
 	"time"
@@ -27,10 +29,9 @@ type OverlayWindow struct {
 	txtBatteryPercentage *fbiw.Text `css:"#battery"`
 	boxBatteryCharging   fbiw.Box   `css:"#battery-charging-box"`
 
-	txtVolumeOpen    *fbiw.Text `css:"#speaker"`
-	txtWifiOpen      *fbiw.Text `css:"#wifi"`
-	txtBluetoothOpen *fbiw.Text `css:"#bluetooth"`
-	txtCpuStatus     *fbiw.Text `css:"#cpu"`
+	txtVolumeOpen *fbiw.Text `css:"#speaker"`
+	txtWifiOpen   *fbiw.Text `css:"#wifi"`
+	txtCpuStatus  *fbiw.Text `css:"#cpu"`
 
 	hintContainer *fbiw.Inline `css:"#button-hints"`
 	buttonHints   []*overlayButtonHint
@@ -72,6 +73,9 @@ func NewOverlayWindow(app *fbiw.App) *OverlayWindow {
 	win.initPowerStatus()
 
 	go win.watchOsdEvents()
+	if runtime.GOOS == "linux" {
+		go win.watchWiFiStatus(app.Context())
+	}
 
 	return win
 }
@@ -182,13 +186,8 @@ func (win *OverlayWindow) watchOsdEvents() {
 		return
 	}
 
-	ctx := context.Background()
-
-	var (
-		statusVolumeOpen    = false
-		statusBluetoothOpen = false
-		statusWifiOpen      = false
-	)
+	ctx := win.app.Context()
+	statusVolumeOpen := false
 
 	handleOsdEvent := func(path string, force bool) {
 		suffix, found := strings.CutPrefix(path, `/tmp/trimui_osd/`)
@@ -206,27 +205,6 @@ func (win *OverlayWindow) watchOsdEvents() {
 				})
 				statusVolumeOpen = open
 			}
-		case `toggle_bt/status`:
-			data, _ := os.ReadFile(path)
-			open := strings.TrimSpace(string(data)) != `0`
-			if open != statusBluetoothOpen || force {
-				win.doc.Async(func() {
-					log.Println(`蓝牙状态:`, open)
-					win.txtBluetoothOpen.SetText(fbiw.Iif(open, string(rune(0xf00af)), ``))
-				})
-				statusBluetoothOpen = open
-			}
-		case `toggle_wifi/status`:
-			// TODO wifi打开不等于已经分配到ip，这里需要区别状态
-			data, _ := os.ReadFile(path)
-			open := strings.TrimSpace(string(data)) != `0`
-			if open != statusWifiOpen || force {
-				win.doc.Async(func() {
-					log.Println(`网络状态:`, open)
-					win.txtWifiOpen.SetText(fbiw.Iif(open, string(rune(0xf1eb)), ``))
-				})
-				statusWifiOpen = open
-			}
 		}
 	}
 
@@ -239,11 +217,8 @@ func (win *OverlayWindow) watchOsdEvents() {
 	}
 
 	handleOsdEvent(`/tmp/trimui_osd/slider_volume/status`, true)
-	handleOsdEvent(`/tmp/trimui_osd/toggle_bt/status`, true)
-	handleOsdEvent(`/tmp/trimui_osd/toggle_wifi/status`, true)
 
 	for {
-		defer watcher.Close()
 		select {
 		case <-ctx.Done():
 			return
@@ -258,6 +233,30 @@ func (win *OverlayWindow) watchOsdEvents() {
 			if event.Op.Has(fswatcher.Write) {
 				handleOsdEvent(event.Name, false)
 			}
+		}
+	}
+}
+
+// Wi-Fi interface flags are available before MainUI creates its OSD files.
+func (win *OverlayWindow) watchWiFiStatus(ctx context.Context) {
+	ticker := time.NewTicker(3 * time.Second)
+	defer ticker.Stop()
+
+	var lastWiFi bool
+	for {
+		wlan, err := net.InterfaceByName("wlan0")
+		wifi := err == nil && wlan.Flags&net.FlagUp != 0
+		if wifi != lastWiFi {
+			win.doc.Async(func() {
+				win.txtWifiOpen.SetText(fbiw.Iif(wifi, string(rune(0xf1eb)), ""))
+			})
+			lastWiFi = wifi
+		}
+
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
 		}
 	}
 }
