@@ -1067,17 +1067,36 @@ func (n *StoreNavigator) openRelease(release *game_library.Release) {
 			case 1:
 				n.openAsset(roms[0])
 			default:
-				items := make([]menu_popup.MenuItem, 0, len(roms))
-				for _, rom := range roms {
-					items = append(items, menu_popup.MenuItem{
-						Name:  rom.Name,
-						Click: func() { n.openAsset(rom) },
-					})
-				}
-				menu_popup.NewMenuPopup(n.window.app, n.window.doc, items, nil, nil)
+				n.showROMPicker(roms)
 			}
 		})
 	}()
+}
+
+func releaseROMDetail(asset *game_library.Asset) string {
+	var mappings []string
+	for _, romSet := range asset.ROMSets {
+		name := strings.ToUpper(strings.TrimSpace(romSet.Emulator))
+		if version := strings.TrimSpace(romSet.Version); version != "" {
+			name = strings.TrimSpace(name + " " + version)
+		}
+		if shortName := strings.TrimSpace(romSet.ShortName); shortName != "" {
+			name = strings.TrimSpace(name + " / " + shortName)
+		}
+		if name != "" && !slices.Contains(mappings, name) {
+			mappings = append(mappings, name)
+		}
+	}
+	sort.Strings(mappings)
+	parts := mappings
+	if len(parts) == 0 {
+		parts = append(parts, "无 ROM set 映射")
+	}
+	if incompleteROMSet(asset) {
+		parts = append(parts, "缺少文件")
+	}
+	parts = append(parts, formatSize(asset.Size), fmt.Sprintf("#%d", asset.ID))
+	return strings.Join(parts, "  ·  ")
 }
 
 func releaseROMs(assets []*game_library.Asset) []*game_library.Asset {

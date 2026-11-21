@@ -305,3 +305,25 @@ func TestStorePreferredCores(t *testing.T) {
 		t.Fatalf("unmapped ROM has preferences: %v", got)
 	}
 }
+
+func TestReleaseROMDetailDistinguishesSameNames(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		asset *game_library.Asset
+		want  string
+	}{
+		{"mapped", &game_library.Asset{ID: 7, Name: "game.zip", Size: 1024, ROMSets: []*game_library.ROMSet{
+			{Emulator: "mame", Version: "0.259", ShortName: "game"},
+			{Emulator: "fbneo", Version: "1.0", ShortName: "gamea"},
+			{Emulator: "mame", Version: "0.259", ShortName: "game"},
+		}}, "FBNEO 1.0 / gamea  ·  MAME 0.259 / game  ·  1.0 KB  ·  #7"},
+		{"unmapped", &game_library.Asset{ID: 8, Name: "game.zip", Size: 2048}, "无 ROM set 映射  ·  2.0 KB  ·  #8"},
+		{"incomplete", &game_library.Asset{ID: 9, ROMSets: []*game_library.ROMSet{{Emulator: "mame", Version: "0.259", ShortName: "game"}}, Entries: []*game_library.Entry{{Name: "missing.bin"}}}, "MAME 0.259 / game  ·  缺少文件  ·  0 B  ·  #9"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := releaseROMDetail(tc.asset); got != tc.want {
+				t.Fatalf("detail = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
