@@ -5,6 +5,7 @@ import (
 	"embed"
 	"fmt"
 	"log"
+	"os"
 	"os/exec"
 
 	"github.com/movsb/fbiw"
@@ -201,10 +202,14 @@ func (n *StatusBarNavigator) handleEvents(event *fbiw.Event) {
 	}
 
 	if keyName == sticks.B {
+		title, description, action := `退出？`, `确定要退出吗？`, `退出`
+		if os.Getenv(systemUILaunchEnv) == "1" {
+			title, description, action = `返回系统界面？`, `退出 FBUI 并返回原版系统界面。`, `返回系统界面`
+		}
 		n.window.app.ShowAlertDialog(n.window.doc, fbiw.AlertDialogOptions{
-			Title:       `退出？`,
-			Description: `确定要退出吗？`,
-			ActionText:  `退出`,
+			Title:       title,
+			Description: description,
+			ActionText:  action,
 			CancelText:  `取消`,
 			OnAction: func() {
 				n.window.app.Quit()

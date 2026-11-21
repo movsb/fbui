@@ -87,6 +87,10 @@ func NewToolsNavigator(win *MainWindow) *ToolsNavigator {
 				},
 			},
 			{
+				name:  `替换系统界面（重启生效）`,
+				click: win.showSystemUISetting,
+			},
+			{
 				name: `重启系统`,
 				click: func() {
 					win.app.ShowAlertDialog(win.doc, fbiw.AlertDialogOptions{
