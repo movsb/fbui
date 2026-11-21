@@ -136,10 +136,30 @@ fi
 # Future launches by the firmware go directly to the original MainUI.
 umount -l "$mainui" || exit 1
 if [ -x "$fbui" ]; then
+    # The firmware starts wpa_supplicant. Stock MainUI starts DHCP separately.
+    dhcp_pid=
+    if [ "$(/usr/trimui/bin/systemval wifi)" = 1 ] &&
+       ! ip -4 addr show dev wlan0 scope global | grep -q 'inet '; then
+        dhcp_running=
+        for pid in $(pidof udhcpc); do
+            if tr '\000' '\n' < "/proc/$pid/cmdline" 2>/dev/null | grep -qx wlan0; then
+                dhcp_running=1
+                break
+            fi
+        done
+        if [ -z "$dhcp_running" ]; then
+            udhcpc -f -i wlan0 &
+            dhcp_pid=$!
+        fi
+    fi
     (
         cd "${fbui%%/*}" || exit 1
         %s=1 "$fbui"
     )
+    if [ -n "$dhcp_pid" ]; then
+        kill "$dhcp_pid" 2>/dev/null
+        wait "$dhcp_pid" 2>/dev/null
+    fi
     rm -f /tmp/joypad_testmode
 fi
 exec "$mainui" "$@"
