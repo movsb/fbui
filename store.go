@@ -107,9 +107,10 @@ func (view *storeItemView) ListSelectionChanged(selected bool) {
 var _ fbiw.ListSelectionAware = (*storeItemView)(nil)
 
 type StoreNavigator struct {
-	homeLoaded bool
-	window     *MainWindow
-	shadow     fbiw.Box `css:"#store"`
+	launchPress gameLaunchPress
+	homeLoaded  bool
+	window      *MainWindow
+	shadow      fbiw.Box `css:"#store"`
 	// title           *fbiw.Text  `css:"#store-title"`
 	list            *fbiw.List  `css:"#store-list"`
 	icons           *fbiw.List  `css:"#store-icon-list"`
@@ -370,6 +371,9 @@ func (n *StoreNavigator) selectedDescription() string {
 }
 
 func (n *StoreNavigator) handleDownEvents(event *fbiw.Event) {
+	if event.Input.Name != sticks.A {
+		n.launchPress.reset()
+	}
 	if n.busy || n.remoteBusy.Load() {
 		event.StopPropagation()
 		return
@@ -437,9 +441,14 @@ func (n *StoreNavigator) handleDownEvents(event *fbiw.Event) {
 	case storeGames:
 		n.loadReleases(item.value.(*game_library.Game))
 	case storeReleases:
-		n.openRelease(item.value.(*game_library.Release))
+		n.launchPress.actions(n.window.doc, func() { n.openRelease(item.value.(*game_library.Release), false) }, func() { n.openRelease(item.value.(*game_library.Release), true) })
 	case storeAssets:
-		n.openAsset(item.value.(*game_library.Asset))
+		asset := item.value.(*game_library.Asset)
+		if asset.Type == game_library.AssetTypeROM {
+			n.launchPress.actions(n.window.doc, func() { n.openAsset(asset, false) }, func() { n.openAsset(asset, true) })
+		} else {
+			n.openAsset(asset, false)
+		}
 	}
 	event.StopPropagation()
 }
@@ -571,6 +580,11 @@ func storeNameTerms(names []game_library.Name) []string {
 }
 
 func (n *StoreNavigator) handleUpEvents(event *fbiw.Event) {
+	if event.Input.Name == sticks.A {
+		n.launchPress.up()
+		event.StopPropagation()
+		return
+	}
 	if n.busy {
 		event.StopPropagation()
 		return
@@ -1046,7 +1060,7 @@ func selectReleaseImage(gameAssets, releaseAssets []*game_library.Asset) *game_l
 	return nil
 }
 
-func (n *StoreNavigator) openRelease(release *game_library.Release) {
+func (n *StoreNavigator) openRelease(release *game_library.Release, manual bool) {
 	n.busy = true
 	go func() {
 		assets, err := n.metadata.ListAssets(context.Background(), release.ID)
@@ -1065,9 +1079,9 @@ func (n *StoreNavigator) openRelease(release *game_library.Release) {
 					Title: "没有可打开的 ROM", Description: "此 release 暂无 ROM。",
 				})
 			case 1:
-				n.openAsset(roms[0])
+				n.openAsset(roms[0], manual)
 			default:
-				n.showROMPicker(roms)
+				n.showROMPicker(roms, manual)
 			}
 		})
 	}()
@@ -1119,9 +1133,9 @@ func sameImageAsset(left, right *game_library.Asset) bool {
 	return left.ID == right.ID
 }
 
-func (n *StoreNavigator) openAsset(asset *game_library.Asset) {
+func (n *StoreNavigator) openAsset(asset *game_library.Asset, manual bool) {
 	if asset.Type == game_library.AssetTypeROM {
-		if err := n.openROMByID(context.Background(), asset.ID, true); err != nil {
+		if err := n.openROMByID(context.Background(), asset.ID, true, manual); err != nil {
 			title := "无法打开 ROM"
 			if errors.Is(err, game_library.ErrUnsupportedMAMEVersion) {
 				title = "ROM 不受支持"
@@ -1179,10 +1193,10 @@ func (n *StoreNavigator) openAsset(asset *game_library.Asset) {
 }
 
 func (n *StoreNavigator) OpenAssetByID(ctx context.Context, id int32) error {
-	return n.openROMByID(ctx, id, false)
+	return n.openROMByID(ctx, id, false, false)
 }
 
-func (n *StoreNavigator) openROMByID(ctx context.Context, id int32, showProgress bool) error {
+func (n *StoreNavigator) openROMByID(ctx context.Context, id int32, showProgress bool, manual bool) error {
 	if n.window.app.Detached() {
 		return fmt.Errorf("启动器当前不在前台，不能启动游戏。")
 	}
@@ -1197,7 +1211,17 @@ func (n *StoreNavigator) openROMByID(ctx context.Context, id int32, showProgress
 		return errStoreOpenBusy
 	}
 	n.materializeROM(launchable, showProgress, false, func(path string) {
-		n.runROM(launchable, path, func() { n.remoteBusy.Store(false) })
+		if manual {
+			n.remoteBusy.Store(false)
+			item, err := preparedStoreROMItem(launchable, path)
+			if err != nil {
+				n.window.showLaunchError(err)
+				return
+			}
+			n.window.chooseGameCore(item)
+		} else {
+			n.runROM(launchable, path, func() { n.remoteBusy.Store(false) })
+		}
 	})
 	return nil
 }

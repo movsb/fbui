@@ -65,6 +65,10 @@ func NewMainWindow(app *fbiw.App) *MainWindow {
 }
 
 func (w *MainWindow) launchItem(item mainui.Item) {
+	w.launchItemWithCore(item, "")
+}
+
+func (w *MainWindow) launchItemWithCore(item mainui.Item, core string) {
 	if err := item.ValidateFiles(); err != nil {
 		w.showLaunchError(err)
 		return
@@ -77,7 +81,11 @@ func (w *MainWindow) launchItem(item mainui.Item) {
 		defer attach()
 		var err error
 		if item.ROMPath != "" {
-			err = launcher.RunScript(context.Background(), item.Launch, item.ROMPath)
+			if core == "" {
+				err = launcher.RunScript(context.Background(), item.Launch, item.ROMPath)
+			} else {
+				err = launcher.RunScriptWithCore(context.Background(), item.Launch, item.ROMPath, core)
+			}
 		} else {
 			cmd := exec.Command(item.Launch)
 			log.Println("启动进程：", cmd.String())

@@ -22,7 +22,7 @@ func (view *storeROMPickerItem) ListSelectionChanged(selected bool) {
 	view.detail.SetMarqueeRunning(selected)
 }
 
-func (n *StoreNavigator) showROMPicker(roms []*game_library.Asset) {
+func (n *StoreNavigator) showROMPicker(roms []*game_library.Asset, manual bool) {
 	picker := &storeROMPicker{doc: n.window.app.NewPopup(_embed, "store_rom_picker.html", n.window.doc)}
 	picker.doc.Bind(picker)
 	picker.list.SetItems(len(roms),
@@ -44,7 +44,7 @@ func (n *StoreNavigator) showROMPicker(roms []*game_library.Asset) {
 		case sticks.A:
 			if index := picker.list.DataIndex(); index >= 0 && index < len(roms) {
 				picker.doc.Close()
-				n.openAsset(roms[index])
+				n.openAsset(roms[index], manual)
 			}
 			event.StopPropagation()
 		}

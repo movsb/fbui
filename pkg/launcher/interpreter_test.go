@@ -135,3 +135,26 @@ func TestRunScriptFallsBackAfterPreferredCoreFails(t *testing.T) {
 		t.Fatalf("attempts = %q, want %q", got, want)
 	}
 }
+
+func TestRunScriptWithCoreDoesNotFallBack(t *testing.T) {
+	dir := t.TempDir()
+	binary := filepath.Join(dir, "ra64.trimui")
+	script := filepath.Join(dir, "Emus", "FC", "launch.sh")
+	calls := filepath.Join(dir, "calls")
+	if err := os.MkdirAll(filepath.Dir(script), 0755); err != nil {
+		t.Fatal(err)
+	}
+	writeExecutable(t, binary, "#!/bin/sh\nprintf '%s\\n' \"$@\" >>\""+calls+"\"\nprintf 'Cannot load this game\\n'\n")
+	writeExecutable(t, script, "#!/bin/sh\n\""+binary+"\" -L \""+dir+"/cores/fceumm_libretro.so\" \"$1\"\n")
+	if err := RunScriptWithCore(context.Background(), script, "game.nes", "nestopia"); err == nil {
+		t.Fatal("expected selected core failure")
+	}
+	got, err := os.ReadFile(calls)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "-L\n" + dir + "/cores/nestopia_libretro.so\ngame.nes\n"
+	if string(got) != want {
+		t.Fatalf("selected core arguments: %q, want %q", got, want)
+	}
+}

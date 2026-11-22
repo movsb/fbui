@@ -16,6 +16,15 @@ import (
 // RunScript interprets an emulator launch.sh and intercepts its final
 // RetroArch command. Setup commands in the script still run normally.
 func RunScript(ctx context.Context, scriptPath, romPath string, preferredCores ...string) error {
+	return runScript(ctx, scriptPath, romPath, "", preferredCores...)
+}
+
+// RunScriptWithCore runs only the explicitly selected core.
+func RunScriptWithCore(ctx context.Context, scriptPath, romPath, core string) error {
+	return runScript(ctx, scriptPath, romPath, core)
+}
+
+func runScript(ctx context.Context, scriptPath, romPath, core string, preferredCores ...string) error {
 	scriptPath, err := filepath.Abs(scriptPath)
 	if err != nil {
 		return fmt.Errorf(`解析启动脚本路径: %w`, err)
@@ -37,7 +46,19 @@ func RunScript(ctx context.Context, scriptPath, romPath string, preferredCores .
 				return next(ctx, args)
 			}
 			hc := interp.HandlerCtx(ctx)
-			if runRetroArchCandidates(args, scriptPath, hc.Env, hc.Dir, preferredCores...) {
+			command := args
+			if core != "" {
+				before, original, after := splitByCore(args[1:])
+				if original == "" {
+					return fmt.Errorf("启动脚本未指定 RetroArch 核心")
+				}
+				command = append([]string{args[0]}, joinTheCore(before, filepath.Join(filepath.Dir(original), core+"_libretro.so"), after)...)
+				if run(command[0], command[1:], hc.Env, hc.Dir, "/tmp/retroarch_manual.log", false) {
+					return nil
+				}
+				return interp.ExitStatus(1)
+			}
+			if runRetroArchCandidates(command, scriptPath, hc.Env, hc.Dir, preferredCores...) {
 				return nil
 			}
 			return interp.ExitStatus(1)
@@ -111,4 +132,20 @@ func retroArchCoreCandidates(originalCore, scriptPath string, preferredCores ...
 		}
 	}
 	return candidates
+}
+
+// CoreNames returns the cores mapped to a game or launch script.
+func CoreNames(paths ...string) []string {
+	var names []string
+	seen := map[string]bool{}
+	for _, path := range paths {
+		for name := range rangeDirForEmulators(path) {
+			name = strings.TrimSuffix(name, "_libretro.so")
+			if !seen[name] {
+				names = append(names, name)
+				seen[name] = true
+			}
+		}
+	}
+	return names
 }

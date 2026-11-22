@@ -4,6 +4,7 @@ import (
 	"embed"
 
 	"github.com/movsb/fbiw"
+	"github.com/movsb/fbiw/input"
 	"github.com/movsb/fbiw/input/sticks"
 )
 
@@ -13,6 +14,8 @@ var _embed embed.FS
 type MenuPopup struct {
 	app *fbiw.App
 	doc *fbiw.Document
+
+	waiting *input.Name
 
 	items []MenuItem
 
@@ -70,7 +73,21 @@ func _NewMenuPopup(app *fbiw.App, opener *fbiw.Document, items []MenuItem, heade
 	return win
 }
 
+func (win *MenuPopup) WaitForRelease(name input.Name) {
+	win.waiting = &name
+	win.doc.Listen(fbiw.InputUpEvent, func(e *fbiw.Event) {
+		if win.waiting != nil && e.Input.Name == *win.waiting {
+			win.waiting = nil
+			e.StopPropagation()
+		}
+	})
+}
+
 func (win *MenuPopup) handleEvents(e *fbiw.Event) {
+	if win.waiting != nil {
+		e.StopPropagation()
+		return
+	}
 	if e.Input.Name == sticks.B {
 		win.doc.Close()
 		return

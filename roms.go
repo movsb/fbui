@@ -59,7 +59,8 @@ type GamesNavigator struct {
 	currentEmu *config.LaunchConfig
 
 	// 当前的目录浏览栈。
-	stack _RomStack
+	stack       _RomStack
+	launchPress gameLaunchPress
 }
 
 func NewGamesNavigator(win *MainWindow) *GamesNavigator {
@@ -136,7 +137,7 @@ func (n *GamesNavigator) setEmulatorButtonHints() {
 
 func (n *GamesNavigator) setRomButtonHints() {
 	overlayWindow.SetButtonHints(
-		ButtonHint{Button: `A`, Text: `启动`},
+		ButtonHint{Button: `A`, Text: `启动/长按选核心`},
 		ButtonHint{Button: `Menu`, Text: `收藏`},
 		ButtonHint{Button: `Y`, Text: `搜索`},
 		ButtonHint{Button: `B`, Text: `返回`},
@@ -144,6 +145,11 @@ func (n *GamesNavigator) setRomButtonHints() {
 }
 
 func (n *GamesNavigator) handleUpEvents(event *fbiw.Event) {
+	if event.Input.Name == sticks.A {
+		n.launchPress.up()
+		event.StopPropagation()
+		return
+	}
 	if event.Input.Name != sticks.Menu || n.stack.Size() == 0 {
 		return
 	}
@@ -177,6 +183,9 @@ func (n *GamesNavigator) handleUpEvents(event *fbiw.Event) {
 
 func (n *GamesNavigator) handleEvents(event *fbiw.Event) {
 	name := event.Input.Name
+	if name != sticks.A {
+		n.launchPress.reset()
+	}
 
 	// 模拟器界面
 	if n.stack.Size() == 0 {
@@ -225,7 +234,7 @@ func (n *GamesNavigator) handleEvents(event *fbiw.Event) {
 				n.enterDirectory(info)
 			} else {
 				// 选中了游戏？
-				n.runGame(info)
+				n.launchPress.down(n.window, n.launchItem(info))
 			}
 			event.StopPropagation()
 			return
@@ -251,7 +260,7 @@ func (n *GamesNavigator) openSearch(emu *config.LaunchConfig, dir string) {
 				)
 			case search_window.ModeResults:
 				overlayWindow.SetButtonHints(
-					ButtonHint{Button: `A`, Text: `启动`},
+					ButtonHint{Button: `A`, Text: `启动/长按选核心`},
 					ButtonHint{Button: `B`, Text: `返回`},
 				)
 			case search_window.ModeClosed:

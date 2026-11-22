@@ -35,12 +35,13 @@ type savedItemsColumn struct {
 }
 
 type SavedItemsNavigator struct {
-	window    *MainWindow
-	container fbiw.Box
-	columns   map[bool]*savedItemsColumn
-	indices   map[bool]int
-	favorites bool
-	active    bool
+	window      *MainWindow
+	container   fbiw.Box
+	columns     map[bool]*savedItemsColumn
+	indices     map[bool]int
+	favorites   bool
+	active      bool
+	launchPress gameLaunchPress
 }
 
 func (n *SavedItemsNavigator) current() *savedItemsColumn {
@@ -118,7 +119,7 @@ func (n *SavedItemsNavigator) switchColumn(favorites bool) {
 
 func (n *SavedItemsNavigator) setButtonHints() {
 	overlayWindow.SetButtonHints(
-		ButtonHint{Button: `A`, Text: `启动`},
+		ButtonHint{Button: `A`, Text: `启动/长按选核心`},
 		ButtonHint{Button: `↔`, Text: `最近/收藏`},
 		ButtonHint{Button: `Menu`, Text: `菜单`},
 		ButtonHint{Button: `B`, Text: `返回`},
@@ -194,6 +195,9 @@ func (n *SavedItemsNavigator) updatePagination() {
 
 func (n *SavedItemsNavigator) handleDown(event *fbiw.Event) {
 	name := event.Input.Name
+	if name != sticks.A {
+		n.launchPress.reset()
+	}
 	if name == sticks.Left || name == sticks.Right {
 		n.switchColumn(name == sticks.Right)
 		event.StopPropagation()
@@ -201,7 +205,12 @@ func (n *SavedItemsNavigator) handleDown(event *fbiw.Event) {
 	}
 	if name == sticks.A {
 		if index := n.current().list.DataIndex(); index >= 0 && index < len(n.current().items) {
-			n.window.launchItem(n.current().items[index])
+			item := n.current().items[index]
+			if item.ROMPath != "" {
+				n.launchPress.down(n.window, item)
+			} else {
+				n.window.launchItem(item)
+			}
 			event.StopPropagation()
 		}
 	} else if name == sticks.B || (name == sticks.Up && n.current().list.DataRowIndex() <= 0) {
@@ -214,6 +223,11 @@ func (n *SavedItemsNavigator) handleDown(event *fbiw.Event) {
 }
 
 func (n *SavedItemsNavigator) handleUp(event *fbiw.Event) {
+	if event.Input.Name == sticks.A {
+		n.launchPress.up()
+		event.StopPropagation()
+		return
+	}
 	if event.Input.Name != sticks.Menu {
 		return
 	}
