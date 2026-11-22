@@ -6,9 +6,9 @@ const (
 	KindPlatform Kind = iota + 1
 	KindGame
 	KindRelease
-	KindDeveloper
-	KindPublisher
-	KindGenre
+	_ // Reserved retired metadata kind.
+	_ // Reserved retired metadata kind.
+	_ // Reserved retired metadata kind.
 	KindSeries
 )
 

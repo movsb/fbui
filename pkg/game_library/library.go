@@ -42,9 +42,10 @@ type LaunchableAsset struct {
 	PlatformID int32
 }
 
-const SupportedDatabaseVersion = 20
+const SupportedDatabaseVersion = 21
 
-// v20 only removes video assets; v19 has the same readable schema.
+// v20 removes video assets and v21 removes metadata unused by this reader.
+// All versions from v19 retain the columns and tables queried here.
 const minimumDatabaseVersion = 19
 
 type Library struct {
