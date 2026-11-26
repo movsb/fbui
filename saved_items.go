@@ -158,12 +158,15 @@ func (n *SavedItemsNavigator) reloadColumn(favorites bool) {
 			view.sublabel.SetText(items[index].SubLabel)
 		},
 	)
-	if n.active && favorites == n.favorites && len(items) > 0 {
+	if len(items) > 0 {
 		if column.state != nil && column.stateCount == len(items) {
 			column.list.SetState(column.state)
-		} else {
+		} else if n.indices[favorites] > 0 || (n.active && favorites == n.favorites) {
 			index := max(0, min(n.indices[favorites], len(items)-1))
 			column.list.SetIndex(0, 0, index)
+		}
+		if !n.active || favorites != n.favorites {
+			column.list.Deselect()
 		}
 	}
 }

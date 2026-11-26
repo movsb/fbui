@@ -76,6 +76,9 @@ func TestCommonColumnsNavigation(t *testing.T) {
 	}
 	n.current().list.SetIndex(3, 0, 8)
 	state := n.current().list.GetState()
+	n.current().list.Deselect()
+	deselectedState := n.current().list.GetState()
+	n.current().list.SetState(state)
 	// Right must switch columns before the list consumes it as page navigation.
 	n.current().list.Dispatch(fbiw.InputDownEvent, fbiw.InputEventArgs{Name: sticks.Right})
 	if !n.favorites {
@@ -83,6 +86,9 @@ func TestCommonColumnsNavigation(t *testing.T) {
 	}
 	if len(n.columns[false].items) != 12 || n.columns[false].list.DataIndex() != -1 {
 		t.Fatal("switching focus must deselect the previous column")
+	}
+	if n.columns[false].list.GetState() != deselectedState {
+		t.Fatal("switching focus must preserve the previous column's scroll offset")
 	}
 	win.doc.ActiveBox().Base().Dispatch(fbiw.InputDownEvent, fbiw.InputEventArgs{Name: sticks.Left})
 	if n.current().list.DataIndex() != 11 || n.current().list.GetState() != state {
