@@ -1,17 +1,23 @@
 package main
 
 import (
+	"context"
 	_ "embed"
 	"log"
 	"net/http"
 	_ "net/http/pprof"
+	"os"
+	"os/signal"
+	"sync"
 	"sync/atomic"
+	"syscall"
 
 	"github.com/movsb/fbiw"
 	"github.com/movsb/fbui/assets/fonts"
 	"github.com/movsb/fbui/pkg/config"
 	"github.com/movsb/fbui/pkg/elastic_cpu"
 	"github.com/movsb/fbui/pkg/helpers"
+	"github.com/movsb/fbui/pkg/osdd"
 	"github.com/movsb/fbui/pkg/swap_manager"
 )
 
@@ -31,8 +37,17 @@ func main() {
 		log.Printf("禁用摇杆失败：%v", err)
 	}
 
-	app := fbiw.NewApp()
+	ctx, stopSignals := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stopSignals()
+	app := fbiw.NewApp(fbiw.WithContext(ctx))
 	defer app.Close()
+	var osdMu sync.Mutex
+	stopOSD := osdd.Start(app.Context())
+	defer func() {
+		osdMu.Lock()
+		defer osdMu.Unlock()
+		stopOSD()
+	}()
 
 	var externalRunning atomic.Bool
 	stopCPU := elastic_cpu.Start(func() bool {
@@ -41,7 +56,18 @@ func main() {
 	})
 	defer stopCPU()
 
-	stopAutoUpdate := startExecutableAutoUpdate(func() bool { return !app.Detached() })
+	stopAutoUpdate := startExecutableAutoUpdate(func() bool { return !app.Detached() }, func(replace func() error) error {
+		osdMu.Lock()
+		defer osdMu.Unlock()
+		if err := app.Context().Err(); err != nil {
+			return err
+		}
+		stopOSD()
+		err := replace()
+		// exec 成功时不会返回，新进程会重新接管原厂 OSD。
+		stopOSD = osdd.Start(app.Context())
+		return err
+	})
 	defer stopAutoUpdate()
 
 	fonts.Init(app)

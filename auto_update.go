@@ -11,7 +11,7 @@ import (
 
 const executableUpdateInterval = 3 * time.Second
 
-func startExecutableAutoUpdate(canReplace func() bool) context.CancelFunc {
+func startExecutableAutoUpdate(canReplace func() bool, aroundReplace func(func() error) error) context.CancelFunc {
 	ctx, cancel := context.WithCancel(context.Background())
 	path, err := os.Executable()
 	if err != nil {
@@ -30,7 +30,7 @@ func startExecutableAutoUpdate(canReplace func() bool) context.CancelFunc {
 		canReplace: canReplace,
 		replace: func() error {
 			log.Printf("检测到 FBUI 二进制更新，重新执行：%s", path)
-			return syscall.Exec(path, args, os.Environ())
+			return aroundReplace(func() error { return syscall.Exec(path, args, os.Environ()) })
 		},
 	}
 	go func() {
