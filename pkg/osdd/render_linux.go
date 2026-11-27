@@ -24,32 +24,38 @@ type Toast struct {
 
 type Renderer struct {
 	title, body font.Face
+	fontFile    *os.File
 }
 
 func newRenderer(path string) (*Renderer, error) {
-	data, err := os.ReadFile(path)
+	file, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}
-	parsed, err := opentype.Parse(data)
+	parsed, err := opentype.ParseReaderAt(file)
 	if err != nil {
+		_ = file.Close()
 		return nil, err
 	}
 	title, err := opentype.NewFace(parsed, &opentype.FaceOptions{Size: 32, DPI: 72})
 	if err != nil {
+		_ = file.Close()
 		return nil, err
 	}
 	body, err := opentype.NewFace(parsed, &opentype.FaceOptions{Size: 24, DPI: 72})
 	if err != nil {
 		_ = title.Close()
+		_ = file.Close()
 		return nil, err
 	}
-	return &Renderer{title: title, body: body}, nil
+	return &Renderer{title: title, body: body, fontFile: file}, nil
 }
 
 func (r *Renderer) close() {
 	_ = r.title.Close()
 	_ = r.body.Close()
+	// Glyph rendering can read from the file throughout the faces' lifetime.
+	_ = r.fontFile.Close()
 }
 
 var (
