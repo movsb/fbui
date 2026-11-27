@@ -421,6 +421,9 @@ func (d *Daemon) Run(ctx context.Context) error {
 	}()
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
+	var musicPipe musicKeepalive
+	defer musicPipe.close()
+	musicPipe.refresh()
 	timer := time.NewTimer(time.Hour)
 	defer timer.Stop()
 	timer.Stop()
@@ -471,6 +474,7 @@ func (d *Daemon) Run(ctx context.Context) error {
 				_ = d.overlay.Hide()
 			}
 		case <-ticker.C:
+			musicPipe.refresh()
 			if d.visible {
 				d.refresh()
 				_ = d.redraw()
