@@ -8,15 +8,13 @@
 </style>
 <template id="rom-item">
 	<block padding="0 10" align="middle">
-		<text class="name" marquee="horizontal" marquee-count="1"></text>
-		<text class="detail" font-size="x-small" marquee="horizontal" marquee-count="1"></text>
+		<text class="name"></text>
+		<text class="detail" font-size="x-small"></text>
 	</block>
 </template>
 <inline align="both" background-color="none">
-	<block width="60%" border-width="3" border-color="var(--color-border)" background-color="var(--color-background)">
-		<text padding="10">选择 ROM</text>
+	<block border-width="3" border-color="var(--color-border)" background-color="var(--color-background)">
 		<list id="rom-list" max-rows="6" row-height="80" padding="10"></list>
-		<text padding="10" font-size="x-small">A 打开 · B 取消</text>
 	</block>
 </inline>
 </document>

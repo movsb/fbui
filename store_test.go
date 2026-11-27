@@ -316,14 +316,37 @@ func TestReleaseROMDetailDistinguishesSameNames(t *testing.T) {
 			{Emulator: "mame", Version: "0.259", ShortName: "game"},
 			{Emulator: "fbneo", Version: "1.0", ShortName: "gamea"},
 			{Emulator: "mame", Version: "0.259", ShortName: "game"},
-		}}, "FBNEO 1.0 / gamea  ·  MAME 0.259 / game  ·  1.0 KB  ·  #7"},
-		{"unmapped", &game_library.Asset{ID: 8, Name: "game.zip", Size: 2048}, "无 ROM set 映射  ·  2.0 KB  ·  #8"},
-		{"incomplete", &game_library.Asset{ID: 9, ROMSets: []*game_library.ROMSet{{Emulator: "mame", Version: "0.259", ShortName: "game"}}, Entries: []*game_library.Entry{{Name: "missing.bin"}}}, "MAME 0.259 / game  ·  缺少文件  ·  0 B  ·  #9"},
+		}}, "FBNEO 1.0  ·  MAME 0.259"},
+		{"current MAME hides other versions", &game_library.Asset{ROMSets: []*game_library.ROMSet{
+			{Emulator: "mame", Version: "0.139", ShortName: "older"},
+			{Emulator: " MAME ", Version: " 0.259 ", ShortName: "current"},
+			{Emulator: "mame", Version: "0.289", ShortName: "newer"},
+			{Emulator: "fbneo", Version: "1.0", ShortName: "game"},
+		}}, "FBNEO 1.0  ·  MAME 0.259"},
+		{"without current MAME keeps all versions", &game_library.Asset{ROMSets: []*game_library.ROMSet{
+			{Emulator: "mame", Version: "0.78", ShortName: "game"},
+			{Emulator: "mame", Version: "0.139", ShortName: "game"},
+		}}, "MAME 0.139  ·  MAME 0.78"},
+		{"unmapped", &game_library.Asset{ID: 8, Name: "game.zip", Size: 2048}, "无 ROM set 映射"},
+		{"incomplete", &game_library.Asset{ID: 9, ROMSets: []*game_library.ROMSet{{Emulator: "mame", Version: "0.259", ShortName: "game"}}, Entries: []*game_library.Entry{{Name: "missing.bin"}}}, "MAME 0.259  ·  缺少文件"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := releaseROMDetail(tc.asset); got != tc.want {
 				t.Fatalf("detail = %q, want %q", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestReleaseROMsOrdersFBNeoBeforeMAME(t *testing.T) {
+	mame := &game_library.Asset{ID: 1, Type: game_library.AssetTypeROM, ROMSets: []*game_library.ROMSet{{Emulator: "mame", Version: "0.259"}}}
+	fbneo := &game_library.Asset{ID: 2, Type: game_library.AssetTypeROM, ROMSets: []*game_library.ROMSet{{Emulator: " FBNeo "}}}
+	both := &game_library.Asset{ID: 3, Type: game_library.AssetTypeROM, ROMSets: []*game_library.ROMSet{{Emulator: "mame"}, {Emulator: "fbneo"}}}
+	got := releaseROMs([]*game_library.Asset{mame, fbneo, both})
+	want := []*game_library.Asset{fbneo, both, mame}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("ROM %d = %d, want %d", i, got[i].ID, want[i].ID)
+		}
 	}
 }

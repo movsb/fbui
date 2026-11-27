@@ -22,7 +22,8 @@ var (
 	ErrUnsupportedMAMEVersion = errors.New("unsupported MAME ROM set version")
 )
 
-const supportedMAMEVersion = "0.259"
+// SupportedMAMEVersion is the MAME ROM set version supported by the current core.
+const SupportedMAMEVersion = "0.259"
 
 type unsupportedMAMEVersionError struct {
 	required  string
@@ -378,7 +379,7 @@ func (l *Library) validateMAMEVersion(ctx context.Context, assetID int32) error 
 		if err := rows.Scan(&version); err != nil {
 			return fmt.Errorf("read MAME ROM set version: %w", err)
 		}
-		comparison, err := compareDottedVersions(version, supportedMAMEVersion)
+		comparison, err := compareDottedVersions(version, SupportedMAMEVersion)
 		if err != nil {
 			invalidVersion = fmt.Errorf("invalid MAME ROM set version %q: %w", version, err)
 			continue
@@ -402,7 +403,7 @@ func (l *Library) validateMAMEVersion(ctx context.Context, assetID int32) error 
 		return invalidVersion
 	}
 	if required != "" {
-		return unsupportedMAMEVersionError{required: required, supported: supportedMAMEVersion}
+		return unsupportedMAMEVersionError{required: required, supported: SupportedMAMEVersion}
 	}
 	return nil
 }

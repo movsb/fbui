@@ -1088,20 +1088,31 @@ func (n *StoreNavigator) openRelease(release *game_library.Release, manual bool)
 }
 
 func releaseROMDetail(asset *game_library.Asset) string {
+	hasCurrentMAME := slices.ContainsFunc(asset.ROMSets, func(romSet *game_library.ROMSet) bool {
+		return strings.EqualFold(strings.TrimSpace(romSet.Emulator), "mame") &&
+			strings.TrimSpace(romSet.Version) == game_library.SupportedMAMEVersion
+	})
 	var mappings []string
 	for _, romSet := range asset.ROMSets {
 		name := strings.ToUpper(strings.TrimSpace(romSet.Emulator))
+		if name == "MAME" && hasCurrentMAME && strings.TrimSpace(romSet.Version) != game_library.SupportedMAMEVersion {
+			continue
+		}
 		if version := strings.TrimSpace(romSet.Version); version != "" {
 			name = strings.TrimSpace(name + " " + version)
-		}
-		if shortName := strings.TrimSpace(romSet.ShortName); shortName != "" {
-			name = strings.TrimSpace(name + " / " + shortName)
 		}
 		if name != "" && !slices.Contains(mappings, name) {
 			mappings = append(mappings, name)
 		}
 	}
-	sort.Strings(mappings)
+	sort.SliceStable(mappings, func(i, j int) bool {
+		leftFBNeo := mappings[i] == "FBNEO" || strings.HasPrefix(mappings[i], "FBNEO ")
+		rightFBNeo := mappings[j] == "FBNEO" || strings.HasPrefix(mappings[j], "FBNEO ")
+		if leftFBNeo != rightFBNeo {
+			return leftFBNeo
+		}
+		return mappings[i] < mappings[j]
+	})
 	parts := mappings
 	if len(parts) == 0 {
 		parts = append(parts, "无 ROM set 映射")
@@ -1109,7 +1120,6 @@ func releaseROMDetail(asset *game_library.Asset) string {
 	if incompleteROMSet(asset) {
 		parts = append(parts, "缺少文件")
 	}
-	parts = append(parts, formatSize(asset.Size), fmt.Sprintf("#%d", asset.ID))
 	return strings.Join(parts, "  ·  ")
 }
 
@@ -1120,7 +1130,24 @@ func releaseROMs(assets []*game_library.Asset) []*game_library.Asset {
 			roms = append(roms, asset)
 		}
 	}
+	// Keep FBNeo ROMs before MAME ROMs even when metadata lists MAME first.
+	sort.SliceStable(roms, func(i, j int) bool {
+		return releaseROMPriority(roms[i]) < releaseROMPriority(roms[j])
+	})
 	return roms
+}
+
+func releaseROMPriority(asset *game_library.Asset) int {
+	priority := 2
+	for _, romSet := range asset.ROMSets {
+		switch strings.ToLower(strings.TrimSpace(romSet.Emulator)) {
+		case "fbneo":
+			return 0
+		case "mame":
+			priority = 1
+		}
+	}
+	return priority
 }
 
 func sameImageAsset(left, right *game_library.Asset) bool {

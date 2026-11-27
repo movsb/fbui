@@ -258,7 +258,7 @@ func TestGetLaunchableAssetValidatesMAMEVersion(t *testing.T) {
 			if errors.Is(err, ErrUnsupportedMAMEVersion) != test.unsupported {
 				t.Fatalf("error=%v, unsupported=%v", err, test.unsupported)
 			}
-			if test.unsupported && (!strings.Contains(err.Error(), "0.289") || !strings.Contains(err.Error(), supportedMAMEVersion)) {
+			if test.unsupported && (!strings.Contains(err.Error(), "0.289") || !strings.Contains(err.Error(), SupportedMAMEVersion)) {
 				t.Fatalf("error does not include both versions: %v", err)
 			}
 		})
@@ -284,8 +284,8 @@ func TestCompareDottedVersions(t *testing.T) {
 		}
 	}
 	for _, version := range []string{"", "0.", ".259", "v0.259", "0.-1"} {
-		if _, err := compareDottedVersions(version, supportedMAMEVersion); err == nil {
-			t.Errorf("compareDottedVersions(%q, %q) unexpectedly succeeded", version, supportedMAMEVersion)
+		if _, err := compareDottedVersions(version, SupportedMAMEVersion); err == nil {
+			t.Errorf("compareDottedVersions(%q, %q) unexpectedly succeeded", version, SupportedMAMEVersion)
 		}
 	}
 }

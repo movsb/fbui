@@ -17,11 +17,6 @@ type storeROMPickerItem struct {
 	detail *fbiw.Text `css:".detail"`
 }
 
-func (view *storeROMPickerItem) ListSelectionChanged(selected bool) {
-	view.name.SetMarqueeRunning(selected)
-	view.detail.SetMarqueeRunning(selected)
-}
-
 func (n *StoreNavigator) showROMPicker(roms []*game_library.Asset, manual bool) {
 	picker := &storeROMPicker{doc: n.window.app.NewPopup(_embed, "store_rom_picker.html", n.window.doc)}
 	picker.doc.Bind(picker)
