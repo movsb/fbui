@@ -208,14 +208,6 @@ func (win *OverlayWindow) watchOsdEvents() {
 		}
 	}
 
-	handleOsdShow := func(show bool) {
-		if show {
-			win.app.DetachAsync()
-		} else {
-			win.app.AttachAsync()
-		}
-	}
-
 	handleOsdEvent(`/tmp/trimui_osd/slider_volume/status`, true)
 
 	for {
@@ -226,10 +218,6 @@ func (win *OverlayWindow) watchOsdEvents() {
 			log.Println(`非致命错误:`, err)
 		case event := <-watcher.Events:
 			// log.Println(`收到事件:`, event)
-			if strings.Contains(event.Name, `osdd_show_up`) {
-				handleOsdShow(event.Op.Has(fswatcher.Create))
-				break
-			}
 			if event.Op.Has(fswatcher.Write) {
 				handleOsdEvent(event.Name, false)
 			}

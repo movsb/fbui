@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"sync/atomic"
 
 	"github.com/movsb/fbiw"
 	"github.com/movsb/fbiw/input/sticks"
@@ -32,7 +33,8 @@ type MainWindow struct {
 	storeNav     *StoreNavigator
 	lists        *mainui.Lists
 
-	gameMode gameMode
+	gameMode         gameMode
+	externalPrograms atomic.Int32
 }
 
 func NewMainWindow(app *fbiw.App) *MainWindow {
@@ -102,6 +104,7 @@ func (w *MainWindow) launchItemWithCore(item mainui.Item, core string) {
 // 并返回一个必须在外部程序退出后调用的函数。恢复 fbui 时，要先 Attach
 // 再禁用摇杆，保证标记文件的状态始终和 fbui 是否在前台一致。
 func (w *MainWindow) detachForExternalProgram() func() {
+	w.externalPrograms.Add(1)
 	w.app.Detach()
 	if err := helpers.EnableJoypad(); err != nil {
 		log.Printf("恢复摇杆失败：%v", err)
@@ -112,8 +115,13 @@ func (w *MainWindow) detachForExternalProgram() func() {
 			if err := helpers.DisableJoypad(); err != nil {
 				log.Printf("禁用摇杆失败：%v", err)
 			}
+			w.externalPrograms.Add(-1)
 		})
 	}
+}
+
+func (w *MainWindow) externalProgramRunning() bool {
+	return w.externalPrograms.Load() > 0
 }
 
 func (w *MainWindow) showLaunchError(err error) {

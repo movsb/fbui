@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/signal"
 	"sync"
-	"sync/atomic"
 	"syscall"
 
 	"github.com/movsb/fbiw"
@@ -49,14 +48,15 @@ func main() {
 		stopOSD()
 	}()
 
-	var externalRunning atomic.Bool
-	stopCPU := elastic_cpu.Start(func() bool {
-		app.Async(func() { externalRunning.Store(app.Detached()) })
-		return externalRunning.Load()
-	})
+	fonts.Init(app)
+	app.SetThemeAccent(`deepskyblue`)
+	overlayWindow = NewOverlayWindow(app)
+	window := NewMainWindow(app)
+
+	stopCPU := elastic_cpu.Start(window.externalProgramRunning)
 	defer stopCPU()
 
-	stopAutoUpdate := startExecutableAutoUpdate(func() bool { return !app.Detached() }, func(replace func() error) error {
+	stopAutoUpdate := startExecutableAutoUpdate(func() bool { return !window.externalProgramRunning() }, func(replace func() error) error {
 		osdMu.Lock()
 		defer osdMu.Unlock()
 		if err := app.Context().Err(); err != nil {
@@ -70,12 +70,6 @@ func main() {
 	})
 	defer stopAutoUpdate()
 
-	fonts.Init(app)
-
-	app.SetThemeAccent(`deepskyblue`)
-
-	overlayWindow = NewOverlayWindow(app)
-	window := NewMainWindow(app)
 	http.Handle(`/api/store/assets/`, storeOpenAssetHandler(window.storeNav))
 	http.Handle(`/api/store/releases/`, storeCaptureTitleHandler(window.storeNav))
 	http.Handle(`/api/store/games/`, storeCaptureTitleHandler(window.storeNav))
